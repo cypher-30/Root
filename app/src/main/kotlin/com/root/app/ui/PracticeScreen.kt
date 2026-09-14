@@ -22,10 +22,16 @@ import com.root.app.data.ConfidenceLevel
 import com.root.app.data.PhraseEntity
 
 /**
- * The core loop: prompt -> reveal -> self-rate. Kumbuka's Blank/Shaky/OK/Solid scale,
- * reused verbatim (DESIGN.md) rather than a plain right/wrong toggle — the fuzzy layer
- * that stands in for "how well do you actually know this."
+ * The core loop: prompt -> reveal -> report the outcome. Missed/Close/Got it, not a
+ * felt-confidence scale — the learner reports what actually happened, which is a far
+ * better-calibrated signal than a subjective "how well do I know this" judgment made
+ * right after seeing the answer (see Entities.kt's ConfidenceLevel doc comment).
  */
+private fun ConfidenceLevel.displayLabel(): String = when (this) {
+    ConfidenceLevel.MISSED -> "Missed it"
+    ConfidenceLevel.CLOSE -> "Close"
+    ConfidenceLevel.GOT_IT -> "Got it"
+}
 @Composable
 fun PracticeScreen(
     phrases: List<PhraseEntity>,
@@ -63,7 +69,7 @@ fun PracticeScreen(
                             revealed = false
                             index += 1
                         }) {
-                            Text(level.name.lowercase().replaceFirstChar { it.uppercase() })
+                            Text(level.displayLabel())
                         }
                     }
                 }

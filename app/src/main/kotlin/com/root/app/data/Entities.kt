@@ -63,9 +63,15 @@ data class PhraseEntity(
     @ColumnInfo(name = "updated_at") val updatedAt: Long = System.currentTimeMillis(),
 )
 
-/** Kumbuka's confidence scale, reused verbatim per DESIGN.md — the fuzzy, non-binary
- *  self-rating that stands in for "did you get it right." */
-enum class ConfidenceLevel { BLANK, SHAKY, OK, SOLID }
+/** Outcome scale, not a feeling scale — the learner reports what actually happened
+ *  ("did I get it right?"), not how confident they feel about it. This is a deliberate
+ *  change from Kumbuka's original Blank/Shaky/OK/Solid confidence scale: immediate
+ *  self-judgments of *confidence* are a documented weak signal (judgment-of-learning
+ *  research shows they're poorly calibrated right after seeing the answer), whereas a
+ *  concrete outcome question is far more checkable and closer to what the Duolingo
+ *  half-life-regression paper (the AI D1 dataset) actually trains on — real correctness,
+ *  not a felt sense of confidence. */
+enum class ConfidenceLevel { MISSED, CLOSE, GOT_IT }
 
 @Entity(
     tableName = "attempts",
