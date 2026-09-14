@@ -31,6 +31,9 @@ interface PhraseDao {
 
     @Query("SELECT * FROM phrases WHERE pack_id = :packId")
     fun observeForPack(packId: String): Flow<List<PhraseEntity>>
+
+    @Query("SELECT COUNT(*) FROM phrases WHERE pack_id = :packId")
+    suspend fun countForPack(packId: String): Int
 }
 
 @Dao
@@ -52,4 +55,28 @@ interface AttemptDao {
         """
     )
     fun observeDueToday(nowMillis: Long): Flow<List<PhraseEntity>>
+
+    /** Feeds the weekly conversation-challenge card: whatever pack the learner has
+     *  actually been practicing lately, so the challenge stays relevant. */
+    @Query(
+        """
+        SELECT pk.theme FROM attempts a
+        JOIN phrases p ON p.id = a.phrase_id
+        JOIN packs pk ON pk.id = p.pack_id
+        ORDER BY a.reviewed_at DESC LIMIT 1
+        """
+    )
+    suspend fun mostRecentlyPracticedTheme(): String?
+}
+
+@Dao
+interface ChallengeDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(challenge: WeeklyChallengeEntity)
+
+    @Query("SELECT * FROM weekly_challenges WHERE week_start = :weekStart LIMIT 1")
+    suspend fun getForWeek(weekStart: Long): WeeklyChallengeEntity?
+
+    @Query("UPDATE weekly_challenges SET completed = 1, updated_at = :now WHERE id = :id")
+    suspend fun markCompleted(id: String, now: Long)
 }

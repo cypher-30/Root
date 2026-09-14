@@ -94,3 +94,19 @@ data class AttemptEntity(
      *  No model anywhere in this app — see Scheduler.kt. */
     @ColumnInfo(name = "next_due_at") val nextDueAt: Long,
 )
+
+/** One nudge per week toward the thing recognition-only practice can't build:
+ *  Swain's Output Hypothesis argues comprehension and production are different
+ *  skills, and the gap between "I understand this" and "I can actually say this"
+ *  only shows up when you try to produce it for real. This entity is that nudge —
+ *  a themed suggestion to go use a few phrases in an actual conversation, not
+ *  another drill. `theme` matches whichever pack the learner's been practicing, so
+ *  the suggestion stays relevant instead of generic. */
+@Entity(tableName = "weekly_challenges")
+data class WeeklyChallengeEntity(
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    @ColumnInfo(name = "week_start") val weekStart: Long,
+    val theme: String,
+    val completed: Boolean = false,
+    @ColumnInfo(name = "updated_at") val updatedAt: Long = System.currentTimeMillis(),
+)
