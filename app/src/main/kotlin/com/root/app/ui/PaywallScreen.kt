@@ -1,4 +1,4 @@
-package com.lugha.app.ui
+package com.root.app.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -23,7 +23,7 @@ import com.revenuecat.purchases.purchaseWith
 
 /**
  * This screen IS the Block 0 gate: "a fake purchase must succeed end-to-end before you
- * write any feature code." Wire your Test Store API key into LughaApplication.kt first,
+ * write any feature code." Wire your Test Store API key into RootApplication.kt first,
  * then run this screen and tap the button — a successful purchase + unlocked state
  * proves the whole Next Gen contest requirement (SDK powering a real IAP) works before
  * you sink time into content or polish.

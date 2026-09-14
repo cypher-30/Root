@@ -1,4 +1,4 @@
-package com.lugha.app.data
+package com.root.app.data
 
 /**
  * A few hand-typed phrases so Block 1 (core loop) is demoable before Block 2 (real

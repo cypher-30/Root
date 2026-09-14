@@ -1,5 +1,5 @@
 <resources>
     <!-- Base theme — Compose owns the actual Material 3 theming (ui/theme/Theme.kt);
          this just needs to exist for the manifest and the launch splash. -->
-    <style name="Theme.Lugha" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.Root" parent="android:Theme.Material.Light.NoActionBar" />
 </resources>

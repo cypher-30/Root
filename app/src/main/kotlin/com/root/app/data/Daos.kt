@@ -1,4 +1,4 @@
-package com.lugha.app.data
+package com.root.app.data
 
 import androidx.room.Dao
 import androidx.room.Insert

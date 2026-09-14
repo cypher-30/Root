@@ -1,4 +1,4 @@
-package com.lugha.app.ui
+package com.root.app.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -18,8 +18,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.lugha.app.data.ConfidenceLevel
-import com.lugha.app.data.PhraseEntity
+import com.root.app.data.ConfidenceLevel
+import com.root.app.data.PhraseEntity
 
 /**
  * The core loop: prompt -> reveal -> self-rate. Kumbuka's Blank/Shaky/OK/Solid scale,

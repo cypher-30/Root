@@ -1,4 +1,4 @@
-package com.lugha.app
+package com.root.app
 
 import android.app.Application
 import com.revenuecat.purchases.LogLevel
@@ -10,7 +10,7 @@ import com.revenuecat.purchases.PurchasesConfiguration
  * write any feature code." This is the wiring for that — it just needs a real key.
  *
  * Manual steps only you can do (need your own account/browser session):
- *   1. Sign up at https://app.revenuecat.com and create a new project ("Lugha").
+ *   1. Sign up at https://app.revenuecat.com and create a new project ("Root").
  *   2. In the project, go to Apps > add a Test Store app (no Play/App Store account
  *      needed for this — that's the whole point of Next Gen's relaxed rules).
  *   3. Copy the Test Store API key (starts with "test_...") and paste it below,
@@ -20,7 +20,7 @@ import com.revenuecat.purchases.PurchasesConfiguration
  *   4. Create one Entitlement (e.g. "premium") and one Product/Package behind it in
  *      the dashboard — Paywall.kt below expects an entitlement identifier of "premium".
  */
-class LughaApplication : Application() {
+class RootApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         Purchases.logLevel = LogLevel.DEBUG

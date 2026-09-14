@@ -1,4 +1,4 @@
-package com.lugha.app
+package com.root.app
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -21,12 +21,12 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.lugha.app.data.AppDatabase
-import com.lugha.app.data.Scheduler
-import com.lugha.app.data.SeedData
-import com.lugha.app.ui.PaywallScreen
-import com.lugha.app.ui.PracticeScreen
-import com.lugha.app.ui.theme.LughaTheme
+import com.root.app.data.AppDatabase
+import com.root.app.data.Scheduler
+import com.root.app.data.SeedData
+import com.root.app.ui.PaywallScreen
+import com.root.app.ui.PracticeScreen
+import com.root.app.ui.theme.RootTheme
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -37,7 +37,7 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch { SeedData.seedIfEmpty(db) }
 
         setContent {
-            LughaTheme {
+            RootTheme {
                 val navController = rememberNavController()
                 NavHost(navController = navController, startDestination = "home") {
                     composable("home") {
@@ -47,7 +47,7 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     composable("practice") {
-                        var phrases by remember { mutableStateOf(emptyList<com.lugha.app.data.PhraseEntity>()) }
+                        var phrases by remember { mutableStateOf(emptyList<com.root.app.data.PhraseEntity>()) }
                         androidx.compose.runtime.LaunchedEffect(Unit) {
                             phrases = db.attemptDao().observeDueToday(System.currentTimeMillis()).first()
                         }
@@ -56,7 +56,7 @@ class MainActivity : ComponentActivity() {
                             onRate = { phrase, confidence ->
                                 lifecycleScope.launch {
                                     db.attemptDao().insert(
-                                        com.lugha.app.data.AttemptEntity(
+                                        com.root.app.data.AttemptEntity(
                                             phraseId = phrase.id,
                                             confidence = confidence,
                                             nextDueAt = Scheduler.nextDueAt(confidence),
@@ -84,7 +84,7 @@ private fun HomeScreen(onPractice: () -> Unit, onUnlock: () -> Unit) {
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text("Lugha")
+            Text("Root")
             Text("Practice today's due phrases, or unlock every pack.")
             Button(onClick = onPractice) { Text("Practice") }
             Button(onClick = onUnlock) { Text("Unlock all packs") }

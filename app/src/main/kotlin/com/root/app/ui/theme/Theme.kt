@@ -1,4 +1,4 @@
-package com.lugha.app.ui.theme
+package com.root.app.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -9,21 +9,21 @@ import androidx.compose.ui.graphics.Color
 
 // Placeholder palette — a real design pass happens in Block 3 of the plan.
 // Deliberately Kenyan-flag-adjacent (green/black/red) as a starting point, not a final call.
-private val LughaGreen = Color(0xFF1B5E3A)
-private val LughaGreenDark = Color(0xFF7ED0A0)
+private val RootGreen = Color(0xFF1B5E3A)
+private val RootGreenDark = Color(0xFF7ED0A0)
 
 private val LightColors = lightColorScheme(
-    primary = LughaGreen,
+    primary = RootGreen,
     onPrimary = Color.White,
 )
 
 private val DarkColors = darkColorScheme(
-    primary = LughaGreenDark,
+    primary = RootGreenDark,
     onPrimary = Color.Black,
 )
 
 @Composable
-fun LughaTheme(
+fun RootTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {

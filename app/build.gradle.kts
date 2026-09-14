@@ -7,11 +7,11 @@ plugins {
 }
 
 android {
-    namespace = "com.lugha.app"
+    namespace = "com.root.app"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.lugha.app"
+        applicationId = "com.root.app"
         minSdk = 26
         targetSdk = 36
         versionCode = 1

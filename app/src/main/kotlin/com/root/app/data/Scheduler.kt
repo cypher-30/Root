@@ -1,4 +1,4 @@
-package com.lugha.app.data
+package com.root.app.data
 
 import java.util.concurrent.TimeUnit
 

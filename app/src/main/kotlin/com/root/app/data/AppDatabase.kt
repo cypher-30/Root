@@ -1,4 +1,4 @@
-package com.lugha.app.data
+package com.root.app.data
 
 import android.content.Context
 import androidx.room.Database
@@ -35,7 +35,7 @@ abstract class AppDatabase : RoomDatabase() {
                 instance ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
-                    "lugha.db",
+                    "root.db",
                 ).build().also { instance = it }
             }
     }
