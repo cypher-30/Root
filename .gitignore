@@ -1,0 +1,20 @@
+# Local machine config — never commit, points at your own SDK path
+local.properties
+
+# Build outputs
+*.iml
+.gradle/
+build/
+/captures/
+.externalNativeBuild/
+.cxx/
+out/
+
+# IDE
+.idea/
+*.hprof
+.DS_Store
+
+# Signing (if you ever add a real release keystore, never commit it)
+*.jks
+*.keystore
