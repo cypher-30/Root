@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Placeholder glyph — replace before the real app-icon/screenshot deliverable is due
-     (Block 3 of the plan). This is just enough for the app to install and launch. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M54,24 L66,54 L54,84 L42,54 Z" />
+    <group android:scaleX="0.65" android:scaleY="0.65" android:translateX="21.5" android:translateY="21.5">
+        <path android:strokeColor="#27251F" android:strokeWidth="2.3" android:strokeLineCap="square"
+            android:pathData="M50,12 C50,27 48,42 51,56 C53,66 49,77 48,90 M49,34 C39,43 29,44 22,55 L12,69 M50,45 C62,50 65,59 76,64 L89,69 M30,47 C29,58 32,64 27,75 L23,86 M67,58 C64,68 69,77 71,85" />
+        <path android:fillColor="#27251F" android:pathData="M48,12 A2,2 0,1 0,52 12 A2,2 0,1 0,48 12" />
+    </group>
 </vector>

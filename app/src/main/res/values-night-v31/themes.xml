@@ -1,0 +1,11 @@
+<resources>
+    <style name="Theme.Root" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#201E1A</item>
+        <item name="android:statusBarColor">#201E1A</item>
+        <item name="android:navigationBarColor">#201E1A</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowSplashScreenBackground">#201E1A</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_splash_seed</item>
+    </style>
+</resources>

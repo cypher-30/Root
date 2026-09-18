@@ -1,11 +1,11 @@
 <resources>
-    <!-- Base theme — Compose owns the actual Material 3 theming (ui/theme/Theme.kt);
-         this just needs to exist for the manifest and the launch splash. -->
     <style name="Theme.Root" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">#F4F0E8</item>
         <item name="android:statusBarColor">#F4F0E8</item>
-        <item name="android:navigationBarColor">#201E1A</item>
+        <item name="android:navigationBarColor">#F4F0E8</item>
         <item name="android:windowLightStatusBar">true</item>
-        <item name="android:fontFamily">sans</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowSplashScreenBackground">#F4F0E8</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_splash_seed</item>
     </style>
 </resources>
