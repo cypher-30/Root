@@ -17,6 +17,11 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // The RevenueCat key is injected via BuildConfig rather than hardcoded, so it
+        // can be supplied per-developer in a user-level, untracked gradle.properties
+        // (see README's "Optional Test Store purchases" section) and never committed.
+        val revenueCatKey = providers.gradleProperty("ROOT_REVENUECAT_API_KEY").orElse("").get()
+        buildConfigField("String", "REVENUECAT_API_KEY", "\"${revenueCatKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
     }
 
     buildTypes {
@@ -36,6 +41,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     sourceSets["main"].kotlin.srcDirs("src/main/kotlin")
@@ -52,6 +58,7 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.9.2")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.6")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.6")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.6")
     implementation("androidx.navigation:navigation-compose:2.8.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
 
@@ -64,10 +71,8 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.1")
 
     // -- RevenueCat (paywall / in-app purchase — required for Shipaton Next Gen) --
-    // Pin to whatever the current stable release is when you set this up:
-    // https://github.com/RevenueCat/purchases-android/releases
-    // The version below is a known-good floor; bump it on first Gradle sync.
-    implementation("com.revenuecat.purchases:purchases:8.16.0")
+    // Test Store requires Android SDK 9.9.0 or later.
+    implementation("com.revenuecat.purchases:purchases:9.9.0")
 
     // -- Testing --
     testImplementation("junit:junit:4.13.2")
