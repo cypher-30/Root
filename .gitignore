@@ -1,6 +1,12 @@
 # Local machine config — never commit, points at your own SDK path
 local.properties
 
+# Local session handoff notes for solo/AI-assisted work — not teammate documentation.
+# See docs/DEVELOPMENT.md for the durable, shared onboarding guide.
+HANDOFF.md
+claude.md
+CLAUDE.md
+
 # Build outputs
 *.iml
 .gradle/

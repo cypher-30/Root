@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+     Root's manifest is intentionally small: one launcher Activity, one FileProvider
+     (for the sharing feature's temporary image URIs), one home-screen widget
+     receiver. There is no application backend, so there are no other components,
+     services, or cleartext-traffic exceptions to declare.
+-->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- RevenueCat's Test Store needs no network for purchases themselves, but the SDK's
@@ -7,11 +13,13 @@
 
     <application
         android:name=".RootApplication"
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:theme="@style/Theme.Root"
         android:supportsRtl="true">
+        <!-- Backup is disabled: uninstalling removes local practice data, and there
+             is no server-side copy to restore from (see README's privacy section). -->
 
         <activity
             android:name=".MainActivity"
