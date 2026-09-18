@@ -49,7 +49,8 @@ android {
 
 dependencies {
     // -- Compose --
-    val composeBom = platform("androidx.compose:compose-bom:2024.09.00")
+    // Stay on the Kotlin-2.0-compatible Compose line; take its patched UI artifacts.
+    val composeBom = platform("androidx.compose:compose-bom:2025.01.01")
     implementation(composeBom)
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
@@ -59,18 +60,20 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.6")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.6")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.6")
+    // Home-screen widget (see widget/RootWidget.kt); Glance renders with RemoteViews,
+    // not Compose directly, so it cannot share the bundled custom-font pipeline.
+    implementation("androidx.glance:glance-appwidget:1.1.1")
     implementation("androidx.navigation:navigation-compose:2.8.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     // -- Room (local-first persistence, per DESIGN.md §7) --
-    implementation("androidx.room:room-runtime:2.6.1")
-    implementation("androidx.room:room-ktx:2.6.1")
-    ksp("androidx.room:room-compiler:2.6.1")
+    implementation("androidx.room:room-runtime:2.7.2")
+    implementation("androidx.room:room-ktx:2.7.2")
+    ksp("androidx.room:room-compiler:2.7.2")
 
     // -- Serialization (Course-Pack-style JSON, per DESIGN.md §7) --
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.1")
 
-    // -- RevenueCat (paywall / in-app purchase — required for Shipaton Next Gen) --
     // Test Store requires Android SDK 9.9.0 or later.
     implementation("com.revenuecat.purchases:purchases:9.9.0")
 

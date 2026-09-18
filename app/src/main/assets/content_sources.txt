@@ -1,0 +1,20 @@
+Root content provenance
+
+Shona / Greetings
+Eight common greetings and courtesies, checked on 15 September 2026 against:
+Omniglot, "Useful Shona phrases"
+https://www.omniglot.com/language/phrases/shona.php
+The source credits phrase contributors Emma Thembani and Ernest Mdende.
+
+Root uses short everyday expressions, with English recall prompts specifying
+one person / more than one person where the source distinguishes sg / pl.
+This is a small starter selection, not an imported course or a claim to cover
+all dialects, registers, or respectful forms of address.
+
+Status: source-checked; native-speaker review for this app is pending.
+No source recordings, illustrations, or course materials have been imported.
+Authentic reference audio still needs to be supplied or recorded with consent.
+
+Dholuo / Greetings
+Three pre-existing, hand-entered development samples.
+Status: unreviewed; no authentic reference recordings bundled.

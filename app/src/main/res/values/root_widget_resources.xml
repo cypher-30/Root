@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="root_widget_description">Today\'s due phrase in the target language, visible on your home screen. Tap to practice.</string>
+    <string name="root_widget_loading">Root - Your words</string>
+    <color name="root_widget_paper">#F4F0E8</color>
+    <color name="root_widget_ink">#27251F</color>
+    <color name="root_widget_muted">#655E53</color>
+</resources>

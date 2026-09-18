@@ -8,9 +8,9 @@ import androidx.room.PrimaryKey
 import java.util.UUID
 
 /**
- * Schema convention borrowed from Kumbuka's DESIGN.md §7: every entity keys on a UUID
- * (never an autoincrement int) and carries its own `updatedAt`, so content can be
- * re-imported or updated later without breaking a learner's existing history.
+ * Every entity keys on a UUID (never an autoincrement int) and carries its own
+ * `updatedAt`, so content can be re-imported or updated later without breaking a
+ * learner's existing history.
  */
 
 @Entity(tableName = "languages")

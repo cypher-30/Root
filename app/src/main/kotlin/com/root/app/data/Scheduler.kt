@@ -15,12 +15,10 @@ import java.util.concurrent.TimeUnit
  * out of scope for the hackathon build.
  */
 object Scheduler {
-    private val intervalsByConfidence: Map<ConfidenceLevel, Long> = mapOf(
-        ConfidenceLevel.MISSED to TimeUnit.HOURS.toMillis(4),
-        ConfidenceLevel.CLOSE to TimeUnit.DAYS.toMillis(1),
-        ConfidenceLevel.GOT_IT to TimeUnit.DAYS.toMillis(4),
-    )
-
     fun nextDueAt(confidence: ConfidenceLevel, now: Long = System.currentTimeMillis()): Long =
-        now + (intervalsByConfidence[confidence] ?: TimeUnit.HOURS.toMillis(4))
+        now + when (confidence) {
+            ConfidenceLevel.MISSED -> TimeUnit.HOURS.toMillis(4)
+            ConfidenceLevel.CLOSE -> TimeUnit.DAYS.toMillis(1)
+            ConfidenceLevel.GOT_IT -> TimeUnit.DAYS.toMillis(4)
+        }
 }

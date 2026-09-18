@@ -1,14 +1,16 @@
 package com.root.app.data
 
+import androidx.room.withTransaction
+
 /**
- * A few hand-typed phrases so Block 1 (core loop) is demoable before Block 2 (real
- * Kencorpus-sourced content) lands. Delete this once real packs exist — it exists only
- * so "does the practice loop work" doesn't block on "is the content pipeline done."
- * Placeholder Dholuo greetings only — NOT reviewed by a native speaker yet; do not ship
- * these to the demo video without the Block 2 review step.
+ * Dholuo development samples and a source-checked Shona starter pack.
+ * Neither pack has completed native-speaker review. Shona spelling and usage
+ * provenance is bundled in assets/content_sources.txt.
+ * Authentic native-speaker reference audio is unavailable; null audio is intentional,
+ * not a placeholder to replace with a manufactured voice.
  */
 object SeedData {
-    suspend fun seedIfEmpty(db: AppDatabase) {
+    suspend fun seedIfEmpty(db: AppDatabase) = db.withTransaction {
         val languages = db.languageDao()
         val packs = db.packDao()
         val phrases = db.phraseDao()
@@ -29,13 +31,48 @@ object SeedData {
         val directions = PackEntity(id = "pack-dholuo-directions", languageId = dholuo.id, theme = "Directions", sortOrder = 5, isFree = false)
 
         val seedPhrases = listOf(
-            PhraseEntity(packId = greetings.id, prompt = "Hello", answer = "Amosi", audioAsset = null),
-            PhraseEntity(packId = greetings.id, prompt = "How are you?", answer = "Idhi nade?", audioAsset = null),
-            PhraseEntity(packId = greetings.id, prompt = "Thank you", answer = "Erokamano", audioAsset = null),
+            PhraseEntity(id = "phrase-dholuo-hello", packId = greetings.id, prompt = "Hello", answer = "Amosi", audioAsset = null),
+            PhraseEntity(id = "phrase-dholuo-how-are-you", packId = greetings.id, prompt = "How are you?", answer = "Idhi nade?", audioAsset = null),
+            PhraseEntity(id = "phrase-dholuo-thank-you", packId = greetings.id, prompt = "Thank you", answer = "Erokamano", audioAsset = null),
         )
 
-        languages.upsertAll(listOf(dholuo))
-        packs.upsertAll(listOf(greetings, family, market, numbers, food, directions))
-        phrases.upsertAll(seedPhrases)
+        languages.insertMissing(listOf(dholuo))
+        packs.insertMissing(listOf(greetings, family, market, numbers, food, directions))
+        // Earlier installs used random phrase IDs. Leave populated packs (and their
+        // edits/history) intact instead of duplicating or replacing those phrases.
+        if (phrases.countForPack(greetings.id) == 0) {
+            phrases.insertMissing(seedPhrases)
+        }
+
+        // Reuse a learner-created Shona language rather than listing it twice.
+        val shona = languages.getAll().firstOrNull { it.name.equals("Shona", ignoreCase = true) }
+            ?: LanguageEntity(id = "lang-shona", name = "Shona", isPremium = false)
+        val shonaGreetings = PackEntity(
+            id = "pack-shona-greetings",
+            languageId = shona.id,
+            theme = "Greetings",
+            sortOrder = 0,
+            isFree = true,
+        )
+        languages.insertMissing(listOf(shona))
+        packs.insertMissing(listOf(shonaGreetings))
+        phrases.insertMissing(listOf(
+            PhraseEntity(id = "phrase-shona-greetings-01", packId = shonaGreetings.id,
+                prompt = "Hello (one person)", answer = "Mhoro", audioAsset = null),
+            PhraseEntity(id = "phrase-shona-greetings-02", packId = shonaGreetings.id,
+                prompt = "Hello (more than one person)", answer = "Mhoroi", audioAsset = null),
+            PhraseEntity(id = "phrase-shona-greetings-03", packId = shonaGreetings.id,
+                prompt = "Welcome", answer = "Mauya", audioAsset = null),
+            PhraseEntity(id = "phrase-shona-greetings-04", packId = shonaGreetings.id,
+                prompt = "Good morning", answer = "Mangwanani", audioAsset = null),
+            PhraseEntity(id = "phrase-shona-greetings-05", packId = shonaGreetings.id,
+                prompt = "Good afternoon", answer = "Masikati", audioAsset = null),
+            PhraseEntity(id = "phrase-shona-greetings-06", packId = shonaGreetings.id,
+                prompt = "Good evening", answer = "Manheru", audioAsset = null),
+            PhraseEntity(id = "phrase-shona-greetings-07", packId = shonaGreetings.id,
+                prompt = "Thank you (one person)", answer = "Waita zvako", audioAsset = null),
+            PhraseEntity(id = "phrase-shona-greetings-08", packId = shonaGreetings.id,
+                prompt = "Thank you (more than one person)", answer = "Maita zvenyu", audioAsset = null),
+        ))
     }
 }
