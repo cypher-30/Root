@@ -24,6 +24,15 @@
         <!-- Backup is disabled: uninstalling removes local practice data, and there
              is no server-side copy to restore from (see README's privacy section). -->
 
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.sharedfiles"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <!-- Grants only the app's own cache/shared directory (see shared_paths.xml)
+                 read access to the share-sheet target; nothing else is exposed. -->
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/shared_paths" />
+        </provider>
         <activity
             android:name=".MainActivity"
             android:exported="true"
