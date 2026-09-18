@@ -1,91 +1,159 @@
 # Root
 
-A practice app for reconnecting with **your** heritage language — whichever one that
-is. Short daily prompts, self-rated recall, local-first, no accounts, no backend, no
-model (the scheduler is a hand-written interval rule, on purpose — see `Scheduler.kt`).
-A Shipaton 2026 (Next Gen / student category) entry.
+A quiet practice app for reconnecting with your heritage language. **A session, not
+a destination:** open on a word, bring it to mind, rate your recall, and leave.
 
-**Positioning:** language-agnostic, not Kenya-specific. The pitch is "practice your
-mother tongue," not "practice a Kenyan language" — the first shipped pack (Dholuo, via
-the Kencorpus dataset) is just the first pack, not the app's whole identity. This
-matters for the demo video framing and for any future pack additions: nothing about the
-data model assumes one country or one language family (see `Entities.kt` — a `Language`
-is just a name and a set of packs under it).
+Root is a native Android / Jetpack Compose prototype, not a collection of disconnected
+mockups. The same screens work in warm-paper light mode and warm-charcoal dark mode.
+Practice, contributed phrases, recordings, scheduling, and challenges live on-device.
+No learner account, app backend, automated pronunciation score, streak, or leaderboard.
+Optional purchases use RevenueCat and therefore need network access; that is separate
+from offline practice.
 
-Originally scoped from `SU-PLUS-Project-Ideas-Report.pdf`'s archive entry `80387145`
-("A Kenyan indigenous language-based communication mobile application", 2020), and
-deliberately sharing its stack (Kotlin, Jetpack Compose, Room) with the Kumbuka semester
-project, so this doubles as a rehearsal for that build.
+## The experience
 
-Full plan: `~/.claude/plans/abundant-brewing-mccarthy.md` on the machine this was
-scaffolded on — copy its content into this repo's `docs/` if you want it versioned here
-too. (Written when the project was still named "Lugha" — the plan's Block structure and
-gates still apply, just mentally swap the name.)
+- A root-line mark, editorial wordmark, adaptive app icon, and restrained drawn-path
+  launch sequence lasting 3.2 seconds, with brief seed and finished-mark pauses.
+- Home opens directly into a small recall deck. Reveal surfaces the word through
+  fade, upward drift, and soft-to-sharp focus.
+- **Missed / Close / Got it** buttons or left / up / right swipes. Missed cards return
+  once within a session; repeated misses never trap you in an endless deck.
+- Roots grow only for distinct phrases rated **Got it**. The completion state invites
+  a pause instead of awarding a score.
+- Secondary sheets lead to theme packs, language selection, content unlocks, an image
+  sharing card, and a form for your own words.
+- A weekly conversation nudge, reference-audio playback, local voice recording and
+  comparison, and a home-screen widget.
+- **The design study** in the overflow shows icon sizes, launch keyframes, and motion /
+  haptic annotations. “Replay launch” makes the sequence inspectable.
 
-## Status
+See [the design system and motion specification](docs/DESIGN.md) and
+[the development and onboarding guide](docs/DEVELOPMENT.md).
 
-This is a **Block 0/1 skeleton**, not a finished app:
-- ✅ Project scaffolded — Gradle/Kotlin/Compose/Room wired, builds clean (`gradlew :app:assembleDebug` verified).
-- ✅ Core loop stubbed — Home → Practice (prompt/reveal/rate) → hand-written scheduler → Paywall.
-- ✅ 3 seed Dholuo phrases (`SeedData.kt`) so the loop is demoable before real content lands — **not native-speaker-reviewed, do not use in the demo video.**
-- ⬜ RevenueCat wired but **needs your own API key** — see below. Nothing purchase-related works until this is done.
-- ⬜ Real content (Block 2) — Kencorpus curation, ~150 phrases across 6-8 packs, native-speaker review.
-- ⬜ Real paywall product/entitlement config in the RevenueCat dashboard.
-- ⬜ Icon, screenshot, demo video (Blocks 3-4) — framed as language-agnostic per the positioning above.
+## Run
 
-## Setup — manual steps that need your own accounts
+Requirements: Android Studio or Android SDK 36, JDK 17, and an Android device/emulator
+running API 26+. The Gradle wrapper is included.
 
-I can't do these for you (they need your login/browser session), but they're quick:
-
-1. **RevenueCat account + Test Store** (~10 min)
-   - Sign up at https://app.revenuecat.com, create a project called "Root".
-   - Add a **Test Store** app inside it — this is what makes Next Gen not need a Play
-     Console account. Copy its API key (starts with `test_`).
-   - Create one **Entitlement** named `premium`, and one **Package**/product attached
-     to it (any name — e.g. "Unlock all packs").
-   - Paste the API key into `app/src/main/kotlin/com/root/app/RootApplication.kt`,
-     replacing `test_REPLACE_WITH_YOUR_TEST_STORE_KEY`.
-
-2. **Open in Android Studio**
-   - Open this folder as a project. Let Gradle sync — first sync downloads Gradle 8.9
-     itself (the wrapper jar is already committed) plus dependencies, so it needs network
-     and a few minutes.
-   - If a dependency version in `app/build.gradle.kts` has gone stale by the time you do
-     this (the RevenueCat SDK version especially — check
-     https://github.com/RevenueCat/purchases-android/releases), bump it; Android Studio's
-     sync error will tell you exactly which one.
-
-3. **Run it.** Home → Practice should work immediately (seed data). Home → Unlock all
-   packs is the Block-0 gate from the plan — confirm a Test Store purchase completes and
-   the screen flips to "Unlocked" before building anything else.
-
-4. **GitHub repo** — this folder is already `git init`'d with the LICENSE committed on
-   the first commit (a Next Gen submission requirement). Create an empty public repo on
-   GitHub, then:
-   ```
-   git remote add origin <your-repo-url>
-   git push -u origin main
-   ```
-
-## Project layout
-
-```
-app/src/main/kotlin/com/root/app/
-  MainActivity.kt          — NavHost: home / practice / paywall
-  RootApplication.kt       — RevenueCat SDK init (needs your API key)
-  data/
-    Entities.kt             — Language/Pack/Phrase/Attempt, UUID+updatedAt convention
-    Daos.kt                 — Room queries, including the "due today" query
-    AppDatabase.kt
-    Scheduler.kt            — the hand-written interval rule (no model)
-    SeedData.kt             — placeholder Dholuo phrases, delete once Block 2 content lands
-  ui/
-    PracticeScreen.kt        — prompt → reveal → Blank/Shaky/OK/Solid rating
-    PaywallScreen.kt          — RevenueCat offering fetch + purchase flow
-    theme/Theme.kt
+```powershell
+.\gradlew.bat :app:assembleDebug
+.\gradlew.bat :app:installDebug
 ```
 
-## License
+Output: `app\build\outputs\apk\debug\app-debug.apk`.
 
-MIT — see `LICENSE`. Required for Shipaton Next Gen submissions (public repo + open
-source license file).
+No API key is needed to open the prototype, practice, contribute, record, share, or
+use the widget. Select **More options → Paper & ink** to choose System, Light, or Dark.
+
+### Optional Test Store purchases
+
+The old SDK pin could not support RevenueCat Test Store. Root now uses **9.9.0**, the
+[documented minimum Android version](https://www.revenuecat.com/docs/test-and-launch/sandbox/test-store).
+
+1. In your RevenueCat project, create a Test Store, an offering with a product/package,
+   and attach the product to entitlement **`premium`**.
+2. Put its public SDK key in your **user-level**, untracked Gradle properties:
+
+   ```properties
+   ROOT_REVENUECAT_API_KEY=test_your_key_here
+   ```
+
+3. Build a debug APK. The paywall uses the configured product's localized price,
+   purchase result, and entitlement. Restore is available.
+
+Never put secret API keys in the source tree. Never distribute a release using a
+Test Store key. Without a configured SDK, the paywall remains a labeled content
+preview; it does not pretend a purchase succeeded. Practice never depends on billing
+initialization or a successful network response.
+
+## Content: an important boundary
+
+Two languages are available now: **Dholuo** and **Shona**, each with a free Greetings
+pack. Choose **More options → Language → Shona** (or use Change language in Packs).
+Your active language and existing recall history are preserved when the app updates.
+
+Shona includes **eight source-checked starter phrases**: singular/plural greetings,
+welcome, morning/afternoon/evening greetings, and singular/plural thanks. Spelling and
+usage were checked against [Omniglot's Shona phrases](https://www.omniglot.com/language/phrases/shona.php),
+which credits Emma Thembani and Ernest Mdende. Source-checking is **not native-speaker
+approval**; dialect, register, and respectful usage still need review. Provenance also
+ships offline in `app\src\main\assets\content_sources.txt`.
+
+The bundled Dholuo greetings remain **three unreviewed development samples**. Its other
+catalog packs are shells and say “Coming soon.” This implementation does not turn
+those samples into native-speaker-reviewed teaching content. Do not present them as
+reviewed material in a public demo or sale.
+
+No genuine reference recordings were supplied. Root does not fabricate a Dholuo or Shona
+voice or substitute English text-to-speech. Missing audio is handled explicitly.
+Use **Add a word of your own** to save a phrase and an optional reference recording;
+get the speaker's permission first. Learner comparison recordings stay separate.
+User-authored content is free, including a language you add yourself.
+
+Before content launch: curate licensed phrases, obtain native-speaker review, record
+or license pronunciation audio, and populate the paid/reward packs. Do not sell empty
+catalog entries. The original Kencorpus curation project remains a separate content
+deliverable, not something the visual prototype silently claims to have completed.
+
+## Sharing is not a referral system
+
+**Teach someone one word** exports a PNG with the target phrase, its meaning, and the
+Root mark. Android's system share sheet receives a temporary, read-only content URI.
+
+Opening that share sheet unlocks the Market reward locally, even if the sheet is
+cancelled. The screen says so. Root cannot verify delivery, an install, or a friend's
+activity; it does not claim otherwise. A generation/launch failure does not earn the
+reward. Market content is still “Coming soon” until curated phrases are supplied.
+
+## Local data and privacy
+
+- Room holds language packs, phrases, attempts, and weekly challenges.
+- Fixed next-review intervals: **Missed: four hours; Close: one day; Got it: four days**.
+  Same-session retry is a separate, bounded queue rule.
+- Seeding is idempotent and preserves existing phrase IDs and learner history.
+- Active language, appearance, and sharing reward are device-local preferences.
+- Microphone permission is requested only for recording. Audio lives in app-internal
+  storage; sharing a phrase card does not share your recordings.
+- Android backup is disabled. Uninstalling the app removes its local practice data.
+- RevenueCat, when configured, has its own network and anonymous purchase identity;
+  “no account” is not a claim that configured billing sends no data.
+
+## Verification
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest
+# With a running emulator / attached device:
+$env:ANDROID_SERIAL = "emulator-5554" # Choose your intended test device explicitly.
+.\gradlew.bat :app:connectedDebugAndroidTest
+```
+
+Unit coverage includes bounded recall sessions and scheduler rules. Device tests cover
+reveal/rating accessibility, both themes, the design study, session closure, and
+connected navigation. Visual and real-purchase checks are described in
+[DESIGN.md](docs/DESIGN.md#verification).
+
+## Code map
+
+```text
+app\src\main\kotlin\com\root\app\
+  MainActivity.kt       — connected navigation, theme and language sheets
+  RootViewModel.kt      — session state, saved-state restoration, UI integration
+  RootApplication.kt    — optional guarded billing initialization
+  data\                 — Room, repository, seed content, queue, scheduling, preferences
+  billing\              — shared premium entitlement state
+  sharing\              — phrase-card image generation / sharing
+  audio\                — local playback and recording
+  widget\               — Glance due-phrase widget
+  ui\                   — practice, completion, packs, paywall, invite, contribution
+    theme\              — color, serif/grotesque type, tight shapes, paper grain
+    root\               — shared ordered vector branches
+    brand\              — icon-scale mark and wordmark lockup
+    launch\             — ink seed → roots → wordmark
+    motion\             — restrained springs, easing, haptic vocabulary
+```
+
+Source Serif 4 and Inter are bundled under the SIL Open Font License. Their licenses
+ship in `app\src\main\assets\licenses`. App code: MIT — see [LICENSE](LICENSE).
+
+For the full architecture walkthrough, data flow, and extension guide, see
+[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
