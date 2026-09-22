@@ -1,0 +1,6 @@
+client_id	path	sentence_id	sentence	sentence_domain	up_votes	down_votes	age	gender	accents	variant	locale	segment
+c1	sw_clip_0001.mp3	s0001	Habari za asubuhi	greeting	3	0	twenties	male		standard	sw	
+c2	sw_clip_0002.mp3	s0002	Jina langu ni Root	general	2	0		female		standard	sw	
+c3	sw_clip_reported.mp3	s0003	Sentensi hii ina shaka	general	1	0					sw	
+c4	sw_clip_missing.mp3	s0004	Faili la sauti halipo	general	4	0					sw	
+c1	fr_clip_0001.mp3	s0101	Bonjour tout le monde	greeting	5	0		male		standard	fr	
