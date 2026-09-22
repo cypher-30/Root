@@ -184,3 +184,34 @@ data class PracticeQueueEntryEntity(
     @ColumnInfo(name = "origin_entry_id") val originEntryId: String?,
     val state: QueueEntryState,
 )
+
+/**
+ * Local-only consent record for a personally-contributed phrase's optional
+ * reference recording (see [com.root.app.ui.ContributeScreen]/
+ * [RootRepository.contribute]). Exists only while its [PhraseEntity] does —
+ * `ON DELETE CASCADE` means deleting the phrase (see
+ * [RootRepository.deletePersonalPhrase]) permanently removes this consent
+ * record too, never leaving an orphaned consent trail for audio that no
+ * longer exists. This models "consent covers local recording only": there is
+ * no server-side record, no re-sharing, and no separate opt-out flow — the
+ * only way this consent record stops existing is the phrase (and its
+ * recording) being deleted from this device. [speakerLabel] is optional
+ * free text the contributor entered to remember who was recorded (e.g. "Aunt
+ * Rudo"), never a real identity/contact record.
+ */
+@Entity(
+    tableName = "phrase_consents",
+    foreignKeys = [
+        ForeignKey(
+            entity = PhraseEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["phrase_id"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+)
+data class PhraseConsentEntity(
+    @PrimaryKey @ColumnInfo(name = "phrase_id") val phraseId: String,
+    @ColumnInfo(name = "speaker_label") val speakerLabel: String?,
+    @ColumnInfo(name = "consent_given_at") val consentGivenAt: Long = System.currentTimeMillis(),
+)

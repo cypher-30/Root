@@ -3,6 +3,7 @@ package com.root.app.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -50,12 +52,14 @@ import kotlinx.coroutines.withContext
 @Composable
 fun ContributeScreen(
     initialLanguageName: String,
-    onSave: suspend (languageName: String, prompt: String, answer: String, audioPath: String?) -> Unit,
+    onSave: suspend (languageName: String, prompt: String, answer: String, audioPath: String?, speakerLabel: String?, consentConfirmed: Boolean) -> Unit,
     onBack: () -> Unit,
 ) {
     var languageName by rememberSaveable { mutableStateOf(initialLanguageName) }
     var prompt by rememberSaveable { mutableStateOf("") }
     var answer by rememberSaveable { mutableStateOf("") }
+    var speakerLabel by rememberSaveable { mutableStateOf("") }
+    var consentConfirmed by rememberSaveable { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
     var saved by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -106,6 +110,28 @@ fun ContributeScreen(
         )
         Text("With their permission, record a speaker saying this phrase. The recording stays on this device and becomes the reference only when you save.")
         VoiceRecordingControls(session, enabled = !saving && !saved)
+        if (session.hasRecording) {
+            OutlinedTextField(
+                value = speakerLabel,
+                onValueChange = { speakerLabel = it },
+                label = { Text("Who's speaking? (optional)") },
+                supportingText = { Text("For example: Grandma. Never shared, just a note for you.") },
+                enabled = !saving && !saved,
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.small,
+            )
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Checkbox(
+                    checked = consentConfirmed,
+                    onCheckedChange = { consentConfirmed = it },
+                    enabled = !saving && !saved,
+                )
+                Text(
+                    "I have this person's permission to record them and keep this recording on my device.",
+                    modifier = Modifier.padding(start = 4.dp),
+                )
+            }
+        }
         error?.let {
             Text(
                 it,
@@ -119,7 +145,8 @@ fun ContributeScreen(
         }
         OutlinedButton(
             enabled = !saving && !saved && !session.isRecording &&
-                languageName.isNotBlank() && prompt.isNotBlank() && answer.isNotBlank(),
+                languageName.isNotBlank() && prompt.isNotBlank() && answer.isNotBlank() &&
+                (!session.hasRecording || consentConfirmed),
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.small,
             onClick = {
@@ -129,12 +156,13 @@ fun ContributeScreen(
                     val language = languageName.trim()
                     val meaning = prompt.trim()
                     val phrase = answer.trim()
+                    val speaker = speakerLabel.trim()
                     scope.launch {
                         // Do not delete audio between a committed database save and ownership transfer.
                         withContext(NonCancellable) {
                             try {
                                 val path = session.beginContributionSave()
-                                onSave(language, meaning, phrase, path)
+                                onSave(language, meaning, phrase, path, speaker.takeIf { it.isNotEmpty() }, consentConfirmed)
                                 session.endContributionSave(success = true)
                                 saved = true
                             } catch (cancelled: CancellationException) {

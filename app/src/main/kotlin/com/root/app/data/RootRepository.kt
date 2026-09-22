@@ -132,6 +132,8 @@ class RootRepository(context: Context) {
         prompt: String,
         answer: String,
         audioPath: String?,
+        speakerLabel: String? = null,
+        consentConfirmed: Boolean = false,
     ): PhraseEntity {
         val name = languageName.trim()
         val cleanPrompt = prompt.trim()
@@ -144,6 +146,13 @@ class RootRepository(context: Context) {
             val file = File(it).canonicalFile
             require(file.toPath().startsWith(context.filesDir.canonicalFile.toPath()) && file.isFile) {
                 "Reference recording must be an existing app-local file."
+            }
+            // A reference recording is always of a real person; it can never be
+            // attached without an explicit, per-save confirmation that this
+            // learner has that person's permission to record and keep it on
+            // this device. Consent covers this local recording only.
+            require(consentConfirmed) {
+                "Recording someone else requires confirming you have their permission first."
             }
             file.path
         }
@@ -167,7 +176,70 @@ class RootRepository(context: Context) {
                 audioAsset = audio,
             )
             db.phraseDao().upsertAll(listOf(phrase))
+            if (audio != null) {
+                db.consentDao().upsert(
+                    PhraseConsentEntity(
+                        phraseId = phrase.id,
+                        speakerLabel = speakerLabel?.trim()?.takeIf { it.isNotEmpty() },
+                    ),
+                )
+            }
             phrase
+        }
+    }
+
+    /** The learner's own "Your words" archive for [languageId] — never a
+     *  catalog/pack-managed phrase — optionally filtered by [query] (matched
+     *  against either side of the card, case-insensitive). Backs the archive
+     *  screen's list + search. */
+    fun personalPhrases(languageId: String, query: String = ""): kotlinx.coroutines.flow.Flow<List<PhraseEntity>> =
+        db.phraseDao().observePersonal(ContentAccess.userPackId(languageId), query.trim())
+
+    suspend fun consentFor(phraseId: String): PhraseConsentEntity? = db.consentDao().getForPhrase(phraseId)
+
+    /** Edits a personal phrase's text in place. Never touches practice/attempt
+     *  history or the recording — only [deletePersonalPhrase] does that. Rejects
+     *  any phrase that is not actually in this language's "Your words" pack, so
+     *  a catalog-managed phrase can never be silently rewritten through this path. */
+    suspend fun updatePersonalPhrase(languageId: String, phraseId: String, prompt: String, answer: String) {
+        val cleanPrompt = prompt.trim()
+        val cleanAnswer = answer.trim()
+        require(cleanPrompt.isNotEmpty()) { "Prompt is required." }
+        require(cleanAnswer.isNotEmpty()) { "Answer is required." }
+        db.withTransaction {
+            val existing = requireNotNull(db.phraseDao().getById(phraseId)) { "Unknown phrase: $phraseId" }
+            require(existing.packId == ContentAccess.userPackId(languageId)) {
+                "Only a personally-contributed phrase can be edited here."
+            }
+            db.phraseDao().upsertAll(listOf(existing.copy(prompt = cleanPrompt, answer = cleanAnswer, updatedAt = System.currentTimeMillis())))
+        }
+    }
+
+    /**
+     * Permanently deletes a personally-contributed phrase: its text, its
+     * [PhraseConsentEntity] and any on-disk recording, and its full
+     * [AttemptEntity] practice history (`ON DELETE CASCADE`). This is
+     * irreversible by design — the caller (archive UI) must have already
+     * confirmed with the learner before calling this. Rejects any phrase that
+     * is not actually in this language's "Your words" pack, so a
+     * catalog-managed phrase (whose retirement/lifecycle is entirely
+     * different — see [ManagedContentAccess]) can never be deleted through
+     * this path.
+     */
+    suspend fun deletePersonalPhrase(languageId: String, phraseId: String) {
+        val recordingPath = db.withTransaction {
+            val existing = requireNotNull(db.phraseDao().getById(phraseId)) { "Unknown phrase: $phraseId" }
+            require(existing.packId == ContentAccess.userPackId(languageId)) {
+                "Only a personally-contributed phrase can be deleted here."
+            }
+            // Row delete cascades to attempts + consent record inside this
+            // same transaction; the on-disk file is removed after commit below.
+            db.phraseDao().deleteById(phraseId)
+            existing.audioAsset
+        }
+        recordingPath?.let { path ->
+            val file = File(path).canonicalFile
+            if (file.toPath().startsWith(context.filesDir.canonicalFile.toPath())) file.delete()
         }
     }
 

@@ -74,8 +74,9 @@ class Converters {
         PackVersionEntity::class, InstalledPackEntity::class, PackInstallJobEntity::class,
         ManagedPhraseEntity::class, ContentAssetEntity::class,
         LessonRunEntity::class, LearningEventEntity::class, LessonRunCommandEntity::class,
+        PhraseConsentEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -88,6 +89,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun practiceDao(): PracticeDao
     abstract fun contentDao(): ContentDao
     abstract fun learningDao(): LearningDao
+    abstract fun consentDao(): ConsentDao
 
     companion object {
         /**
@@ -352,6 +354,29 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Version 4 -> 5: adds [PhraseConsentEntity], the local-only consent
+         * record for a personally-contributed phrase's optional reference
+         * recording (see docs/TEACHING_CONTRACTS.md and [RootRepository.contribute]/
+         * [RootRepository.deletePersonalPhrase]). Purely additive — no existing
+         * table or row is touched, so an existing learner's languages/packs/
+         * phrases/attempts/practice/content/lesson history survives unchanged.
+         */
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS phrase_consents (
+                        phrase_id TEXT NOT NULL PRIMARY KEY,
+                        speaker_label TEXT,
+                        consent_given_at INTEGER NOT NULL,
+                        FOREIGN KEY(phrase_id) REFERENCES phrases(id) ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         @Volatile private var instance: AppDatabase? = null
 
         fun get(context: Context): AppDatabase =
@@ -361,7 +386,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "root.db",
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .build().also { instance = it }
             }
     }

@@ -340,8 +340,15 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
         } catch (_: Exception) { error = "Couldn’t save that just yet. Please try again." }
     }
 
-    suspend fun contribute(language: String, prompt: String, answer: String, audio: String?) {
-        repository.contribute(language, prompt, answer, audio)
+    suspend fun contribute(
+        language: String,
+        prompt: String,
+        answer: String,
+        audio: String?,
+        speakerLabel: String? = null,
+        consentConfirmed: Boolean = false,
+    ) {
+        repository.contribute(language, prompt, answer, audio, speakerLabel, consentConfirmed)
         // The reference now belongs to the saved phrase, even if refreshing UI fails.
         try {
             languages = repository.languages()

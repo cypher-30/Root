@@ -67,6 +67,39 @@ interface PhraseDao {
 
     @Query("SELECT COUNT(*) FROM phrases WHERE pack_id = :packId AND NOT EXISTS (SELECT 1 FROM managed_phrases m WHERE m.phrase_id = phrases.id AND m.retired = 1)")
     suspend fun countForPack(packId: String): Int
+
+    /** The learner's own "Your words" archive for one language, optionally
+     *  filtered by a case-insensitive substring of either side of the card —
+     *  used by the archive screen's search box. Empty [query] returns every
+     *  personal phrase, newest first. */
+    @Query(
+        """
+        SELECT * FROM phrases
+        WHERE pack_id = :packId
+            AND (:query = '' OR prompt LIKE '%' || :query || '%' COLLATE NOCASE OR answer LIKE '%' || :query || '%' COLLATE NOCASE)
+        ORDER BY updated_at DESC, id
+        """
+    )
+    fun observePersonal(packId: String, query: String): Flow<List<PhraseEntity>>
+
+    /** Permanently removes one phrase row. Cascades to its [AttemptEntity]
+     *  history and [PhraseConsentEntity] (both `ON DELETE CASCADE`) — see
+     *  [RootRepository.deletePersonalPhrase] for the full permanent-delete
+     *  contract (also removes the on-disk recording file, which Room cannot
+     *  do on its own). */
+    @Query("DELETE FROM phrases WHERE id = :id")
+    suspend fun deleteById(id: String)
+}
+
+/** DAO for [PhraseConsentEntity] — see that entity's doc for the "local
+ *  recording only" consent contract this backs. */
+@Dao
+interface ConsentDao {
+    @Upsert
+    suspend fun upsert(consent: PhraseConsentEntity)
+
+    @Query("SELECT * FROM phrase_consents WHERE phrase_id = :phraseId")
+    suspend fun getForPhrase(phraseId: String): PhraseConsentEntity?
 }
 
 @Dao

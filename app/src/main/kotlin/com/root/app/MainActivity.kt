@@ -25,6 +25,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.root.app.data.ReferralPrefs
 import com.root.app.data.ContentAccess
+import com.root.app.archive.ArchiveScreen
 import com.root.app.teach.ContentViewModel
 import com.root.app.teach.LessonViewModel
 import com.root.app.ui.*
@@ -175,11 +176,23 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
             }
             composable("contribute") {
                 ContributeScreen(initialLanguageName = vm.activeLanguage?.name ?: "",
-                    onSave = { language, prompt, answer, audio ->
-                        vm.contribute(language, prompt, answer, audio)
+                    onSave = { language, prompt, answer, audio, speakerLabel, consentConfirmed ->
+                        vm.contribute(language, prompt, answer, audio, speakerLabel, consentConfirmed)
                         nav.popBackStack("home", false)
                     },
                     onBack = { nav.popBackStack() })
+            }
+            composable("archive") {
+                val language = vm.activeLanguage
+                if (language != null) {
+                    ArchiveScreen(
+                        languageId = language.id,
+                        languageName = language.name,
+                        onBack = { nav.popBackStack() },
+                    )
+                } else {
+                    nav.popBackStack()
+                }
             }
             composable("study") {
                 DesignStudyScreen({ nav.popBackStack() }, { nav.navigate("launch-study") })
@@ -295,6 +308,7 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
                 MenuEntry("Unlock more words") { open("paywall") }
                 MenuEntry("Teach someone one word") { open("invite") }
                 MenuEntry("Add a word of your own") { open("contribute") }
+                MenuEntry("Your words") { open("archive") }
                 MenuEntry("Language · ${vm.activeLanguage?.name ?: "Choose"}") { more = false; languagePicker = true }
                 HorizontalDivider(Modifier.padding(vertical = 12.dp))
                 Text("PAPER & INK", style = RootType.label, color = MaterialTheme.colorScheme.onSurfaceVariant)
