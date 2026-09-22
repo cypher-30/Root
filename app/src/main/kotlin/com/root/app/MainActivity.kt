@@ -25,9 +25,14 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.root.app.data.ReferralPrefs
 import com.root.app.data.ContentAccess
+import com.root.app.teach.ContentViewModel
+import com.root.app.teach.LessonViewModel
 import com.root.app.ui.*
 import com.root.app.ui.icon.RootIcons
 import com.root.app.ui.launch.LaunchScreen
+import com.root.app.ui.teach.TeachCatalogScreen
+import com.root.app.ui.teach.TeachLessonScreen
+import com.root.app.ui.teach.TeachUnitDetailScreen
 import com.root.app.ui.theme.RootTheme
 import com.root.app.ui.theme.RootType
 
@@ -81,6 +86,13 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
     val nav = rememberNavController()
     var more by rememberSaveable { mutableStateOf(false) }
     var languagePicker by rememberSaveable { mutableStateOf(false) }
+    // Selected teaching unit/lesson for the "learn" routes below. Kept as simple
+    // saveable state (matching the "invite"/"contribute" routes' pattern) rather
+    // than NavHost path arguments, since this integration deliberately stays
+    // minimal and coexists with the existing home/packs navigation untouched.
+    var selectedUnitId by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedLessonId by rememberSaveable { mutableStateOf<String?>(null) }
+    val contentVm: ContentViewModel = viewModel(factory = ContentViewModel.factory())
     val lifecycleOwner = LocalLifecycleOwner.current
     val snackbar = remember { SnackbarHostState() }
     DisposableEffect(lifecycleOwner) {
@@ -175,6 +187,98 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
             composable("launch-study") {
                 LaunchScreen { nav.popBackStack("study", false) }
             }
+            composable("learn") {
+                TeachCatalogScreen(
+                    rows = contentVm.rows,
+                    onOpenUnit = { unitId -> selectedUnitId = unitId; nav.navigate("learnUnit") },
+                    onDownload = contentVm::download,
+                    onRetry = contentVm::retry,
+                    onUpdate = contentVm::update,
+                    onBack = { nav.popBackStack() },
+                )
+            }
+            composable("learnUnit") {
+                val unitId = selectedUnitId
+                val row = unitId?.let { id -> contentVm.row(id) }
+                if (unitId == null || row == null) {
+                    LaunchedEffect(Unit) { nav.popBackStack() }
+                } else {
+                    // Lesson bodies are loaded lazily (a manifest read) the first
+                    // time this unit's detail screen opens; safe to call every
+                    // time since it's a no-op once already merged into rows.
+                    LaunchedEffect(unitId) { contentVm.loadDetail(unitId) }
+                    TeachUnitDetailScreen(
+                        pack = row.pack,
+                        lessons = row.lessons,
+                        onOpenLesson = { lesson -> selectedLessonId = lesson.id; nav.navigate("learnLesson") },
+                        onBack = { nav.popBackStack() },
+                        onDownload = { contentVm.download(unitId) },
+                        onCancel = { contentVm.cancel(unitId) },
+                        onUninstall = { contentVm.uninstall(unitId) },
+                        onRetry = { contentVm.retry(unitId) },
+                        onUpdate = { contentVm.update(unitId) },
+                        isResumable = { lessonId -> lessonId in contentVm.resumableLessonIds },
+                        // The linked recall phrases live in the pack sharing this
+                        // unit's own id (PackEntity.id == PackManifest.id).
+                        // startPackPractice durably switches the active
+                        // language/pack itself — this must never be
+                        // `vm.startSession(unitId)` while the active language
+                        // stays on whatever was last practiced, since the unit's
+                        // language and the current recall language can
+                        // genuinely differ.
+                        onReviewPhrases = if (row.pack.phraseCount > 0 && row.pack.installedVersion != null) {
+                            {
+                                vm.startPackPractice(unitId)
+                                nav.navigate("home") { popUpTo("home") { inclusive = true }; launchSingleTop = true }
+                            }
+                        } else null,
+                    )
+                }
+            }
+            composable("learnLesson") {
+                val lessonId = selectedLessonId
+                val unitId = selectedUnitId
+                val row = unitId?.let { contentVm.row(it) }
+                // Defensive reload: a cold process resume can land directly on
+                // this route (SavedStateHandle-restored selection) before the
+                // unit-detail screen has ever fetched its manifest.
+                LaunchedEffect(unitId) { if (unitId != null) contentVm.loadDetail(unitId) }
+                val lesson = row?.lessons?.firstOrNull { it.id == lessonId }
+                val packVersion = row?.pack?.installedVersion
+                if (lessonId == null || unitId == null || lesson == null || packVersion == null) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Opening lesson…", style = MaterialTheme.typography.bodyLarge)
+                    }
+                } else {
+                    // Keyed per lesson so switching lessons never reuses another
+                    // lesson's SavedStateHandle-held run ID.
+                    val lessonVm: LessonViewModel = viewModel(
+                        key = "lesson-$lessonId",
+                        factory = LessonViewModel.factory(
+                            audioResolver = contentVm.audioResolver(unitId),
+                            assetAvailable = { packId, version, assetId -> contentVm.assetAvailable(packId, version, assetId) },
+                        ),
+                    )
+                    LaunchedEffect(lessonId) { lessonVm.start(unitId, packVersion, lessonId, lesson) }
+                    // Leaving this destination (back press, or navigating away)
+                    // pauses the run — it is never silently reset or force-completed.
+                    DisposableEffect(lessonId) { onDispose { lessonVm.pause() } }
+                    TeachLessonScreen(
+                        lesson = lesson,
+                        run = lessonVm.run,
+                        error = lessonVm.error,
+                        audioSource = lessonVm::audioSource,
+                        onChoice = lessonVm::submitChoice,
+                        onTokens = lessonVm::submitTokens,
+                        onSelfAssessed = lessonVm::submitSelfAssessment,
+                        onReveal = lessonVm::revealSupport,
+                        onAcknowledgeUnavailable = lessonVm::acknowledgeUnavailableAudio,
+                        onContinue = lessonVm::continueStep,
+                        onRestart = lessonVm::restart,
+                        onBack = { nav.popBackStack() },
+                    )
+                }
+            }
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).safeDrawingPadding())
     }
@@ -187,6 +291,7 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
                     IconButton(onClick = { more = false }) { Icon(RootIcons.Close, "Close options") }
                 }
                 MenuEntry("Browse phrase packs") { open("packs") }
+                MenuEntry("Learn a teaching unit") { open("learn") }
                 MenuEntry("Unlock more words") { open("paywall") }
                 MenuEntry("Teach someone one word") { open("invite") }
                 MenuEntry("Add a word of your own") { open("contribute") }

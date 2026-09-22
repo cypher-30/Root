@@ -30,6 +30,11 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.root.app.audio.RootAudioSession
 import com.root.app.data.PhraseEntity
 
+/** Internal (module-scoped, so usable from `com.root.app.ui.teach.LessonScreen`
+ *  in this same module) so lesson playback can reuse the same session
+ *  lifecycle/audio-focus handling as phrase practice, instead of duplicating it.
+ *  `phraseId` scopes a learner recording; pass a distinct lesson step id so a
+ *  lesson speaking take never overwrites an unrelated phrase clip. */
 @Composable
 internal fun rememberRootAudioSession(phraseId: String? = null): RootAudioSession {
     val context = LocalContext.current
@@ -81,6 +86,9 @@ fun AudioPracticeControls(phrase: PhraseEntity) {
     }
 }
 
+/** Internal: reusable record/play/delete controls bound to a [RootAudioSession],
+ *  independent of any specific phrase — used by phrase practice and lesson
+ *  reflection ("optional self-assessed recording") alike. */
 @Composable
 internal fun VoiceRecordingControls(
     session: RootAudioSession,

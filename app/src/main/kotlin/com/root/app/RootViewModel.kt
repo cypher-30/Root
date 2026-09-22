@@ -212,6 +212,28 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
         finally { loading = false }
     }
 
+    fun startPackPractice(packId: String) = viewModelScope.launch {
+        loading = true
+        try {
+            val pack = requireNotNull(repository.db.packDao().getById(packId)) { "Pack is unavailable" }
+            val language = requireNotNull(repository.db.languageDao().getById(pack.languageId)) { "Language is unavailable" }
+            repository.setActiveLanguage(language.id)
+            activeLanguage = language
+            languages = repository.languages()
+            sharePhrase = null
+            refreshDetails()
+            startSessionInternal(packId)
+            updateWidget()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            Log.e("Root", "Unable to start downloaded phrase practice", failure)
+            error = "These words couldn't be opened. Please try again."
+        } finally {
+            loading = false
+        }
+    }
+
     /** Ends any current run for this scope's *previous* language/pack — switching
      *  scope always durably ends the old run, it is never resumed later — then
      *  resumes or starts the durable run for the new scope. */

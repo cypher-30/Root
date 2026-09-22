@@ -43,4 +43,17 @@ class PhraseCardTest {
         assertTrue(image.height <= 8192)
         image.recycle()
     }
+
+    @Test fun requiredAttributionAddsVisibleSpaceAndCannotBeSilentlyTruncated() {
+        val phrase = PhraseEntity(packId = "image-test", prompt = "Hello", answer = "Hello", audioAsset = null)
+        val plain = PhraseCardRenderer.render(context, phrase, "Test", palette)
+        val credited = PhraseCardRenderer.render(context, phrase, "Test", palette,
+            attribution = "Text: Example author. CC BY 4.0. https://example.org/source\nAdapted for practice.")
+        assertTrue(credited.height > plain.height)
+        assertThrows(com.root.app.sharing.PhraseCardException::class.java) {
+            PhraseCardRenderer.render(context, phrase, "Test", palette, attribution = "x".repeat(6_001))
+        }
+        plain.recycle()
+        credited.recycle()
+    }
 }

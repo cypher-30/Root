@@ -12,6 +12,8 @@ import com.root.app.data.PracticeSessionEntity
 import com.root.app.data.PracticeSessionStatus
 import com.root.app.data.QueueEntryState
 import com.root.app.data.Scheduler
+import com.root.app.data.ManagedContentAccess
+import com.root.app.data.InstalledPackStatus
 
 /** One page's worth of due phrases queued per run — genuinely bounded, unlike the
  *  previous unbounded in-memory `SessionQueue`. */
@@ -150,6 +152,8 @@ class PracticeRepository(
         val pack = phrase?.let { db.packDao().getById(it.packId) }
         val language = pack?.let { db.languageDao().getById(it.languageId) }
         val accessible = phrase != null && pack != null && language != null &&
+            ManagedContentAccess.isEligible(db.contentDao().getManagedPhrase(entry.phraseId)) &&
+            db.contentDao().getInstalledPack(pack.id)?.status != InstalledPackStatus.RETIRED &&
             ContentAccess.canAccess(language, pack, premium(), rewardUnlocked())
         if (!accessible) {
             dao.updateEntryState(entry.id, QueueEntryState.SKIPPED)
@@ -223,6 +227,8 @@ class PracticeRepository(
             val pack = phrase?.let { db.packDao().getById(it.packId) }
             val language = pack?.let { db.languageDao().getById(it.languageId) }
             val accessible = phrase != null && pack != null && language != null &&
+                ManagedContentAccess.isEligible(db.contentDao().getManagedPhrase(entry.phraseId)) &&
+                db.contentDao().getInstalledPack(pack.id)?.status != InstalledPackStatus.RETIRED &&
                 ContentAccess.canAccess(language, pack, premium(), rewardUnlocked())
             if (accessible) break
             dao.updateEntryState(entry.id, QueueEntryState.SKIPPED)

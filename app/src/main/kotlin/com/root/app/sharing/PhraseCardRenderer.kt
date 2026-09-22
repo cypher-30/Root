@@ -39,6 +39,7 @@ object PhraseCardRenderer {
         phrase: PhraseEntity,
         languageName: String,
         palette: PhraseCardPalette,
+        attribution: String = "",
     ): Bitmap {
         if (phrase.answer.isBlank() || phrase.prompt.isBlank()) {
             throw PhraseCardException("This phrase needs both a word and its meaning before it can be shared.")
@@ -55,7 +56,14 @@ object PhraseCardRenderer {
         val dividerY = MARGIN + language.height + 40f
         val bodyTop = dividerY + 100f
         val bodyHeight = answer.height + 40f + meaning.height
-        val height = max(1350, (bodyTop + bodyHeight + 260f).toInt())
+        if (attribution.length > 6_000) {
+            throw PhraseCardException("The required credits are too long for an image. Share a different phrase.")
+        }
+        val credits = attribution.takeIf { it.isNotBlank() }?.let {
+            layout(it, textPaint(sans, 22f, palette.secondaryInk))
+        }
+        val creditHeight = credits?.let { it.height + 40 } ?: 0
+        val height = max(1350, (bodyTop + bodyHeight + 260f).toInt()) + creditHeight
         if (height > 8192) {
             throw PhraseCardException("This phrase is too long for a readable image. Choose a shorter phrase.")
         }
@@ -69,18 +77,18 @@ object PhraseCardRenderer {
         }
         drawLayout(canvas, language, MARGIN.toFloat(), MARGIN.toFloat())
         canvas.drawLine(MARGIN.toFloat(), dividerY, (WIDTH - MARGIN).toFloat(), dividerY, rulePaint)
-        val availableHeight = height - 240f - bodyTop
+        val availableHeight = height - creditHeight - 240f - bodyTop
         val answerTop = bodyTop + max(0f, (availableHeight - bodyHeight) / 2f)
         drawLayout(canvas, answer, MARGIN.toFloat(), answerTop)
         drawLayout(canvas, meaning, MARGIN.toFloat(), answerTop + answer.height + 40f)
 
-        val footerY = height - 180f
+        val footerY = height - creditHeight - 180f
         canvas.drawLine(MARGIN.toFloat(), footerY, (WIDTH - MARGIN).toFloat(), footerY, rulePaint)
         val brandPaint = textPaint(serif, 68f, palette.ink)
-        canvas.drawText("Root", MARGIN + 88f, height - 78f, brandPaint)
+        canvas.drawText("Root", MARGIN + 88f, height - creditHeight - 78f, brandPaint)
         val footer = textPaint(sans, 24f, palette.secondaryInk)
         footer.textAlign = Paint.Align.RIGHT
-        canvas.drawText("A word to keep. A word to give.", (WIDTH - MARGIN).toFloat(), height - 80f, footer)
+        canvas.drawText("A word to keep. A word to give.", (WIDTH - MARGIN).toFloat(), height - creditHeight - 80f, footer)
         val pigment = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = palette.ink
             strokeWidth = 2f
@@ -88,12 +96,13 @@ object PhraseCardRenderer {
             style = Paint.Style.STROKE
         }
         canvas.save()
-        canvas.translate(MARGIN.toFloat(), height - 148f)
+        canvas.translate(MARGIN.toFloat(), height - creditHeight - 148f)
         canvas.scale(0.72f, 0.72f)
         RootGeometry.branches().forEach { canvas.drawPath(it.asAndroidPath(), pigment) }
         pigment.style = Paint.Style.FILL
         canvas.drawCircle(50f, 12f, 2f, pigment)
         canvas.restore()
+        credits?.let { drawLayout(canvas, it, MARGIN.toFloat(), height - creditHeight.toFloat()) }
         return bitmap
     }
 

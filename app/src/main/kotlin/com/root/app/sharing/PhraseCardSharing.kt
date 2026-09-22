@@ -11,6 +11,12 @@ import android.util.Log
 import androidx.core.content.FileProvider
 import com.root.app.data.PhraseEntity
 import com.root.app.data.ReferralPrefs
+import com.root.app.data.AppDatabase
+import com.root.app.data.InstalledPackStatus
+import com.root.app.content.ContentJson
+import com.root.app.content.PackManifest
+import com.root.app.content.PublicationStatus
+import kotlinx.serialization.decodeFromString
 import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.Dispatchers
@@ -35,7 +41,8 @@ object PhraseCardSharing {
         }
         cleanupOldCards(directory)
         ensureActive()
-        val bitmap = PhraseCardRenderer.render(appContext, phrase, languageName, palette)
+        val bitmap = PhraseCardRenderer.render(appContext, phrase, languageName, palette,
+            attribution = attribution(appContext, phrase))
         var handedOff = false
         try {
             val file = File.createTempFile("root-word-", ".png", directory)
@@ -61,6 +68,28 @@ object PhraseCardSharing {
             }
         } finally {
             if (!handedOff) bitmap.recycle()
+        }
+    }
+
+    private suspend fun attribution(context: Context, phrase: PhraseEntity): String {
+        val db = AppDatabase.get(context)
+        val dao = db.contentDao()
+        val managed = dao.getManagedPhrase(phrase.id) ?: return ""
+        if (managed.retired || dao.getInstalledPack(managed.packId)?.status != InstalledPackStatus.READY) {
+            throw PhraseCardException("This phrase is no longer available for sharing.")
+        }
+        val current = db.phraseDao().getById(phrase.id)
+        if (current?.prompt != phrase.prompt || current.answer != phrase.answer) {
+            throw PhraseCardException("This phrase has changed. Reopen it before sharing.")
+        }
+        val revision = dao.getPackVersion(managed.packId, managed.packVersion)
+            ?: throw PhraseCardException("The source credits for this phrase are unavailable.")
+        val manifest = ContentJson.decodeFromString<PackManifest>(revision.manifestJson)
+        if (manifest.publication != PublicationStatus.PUBLISHED || manifest.credits.isEmpty()) {
+            throw PhraseCardException("This development content is not approved for public sharing.")
+        }
+        return manifest.credits.joinToString("\n") {
+            listOfNotNull(it.text, it.license, it.sourceUrl).joinToString(" / ")
         }
     }
 
