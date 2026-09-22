@@ -90,6 +90,25 @@ interface AttemptDao {
     /** Same ordering as [dueForLanguage] but genuinely bounded — used to build one
      *  page of a practice run (and by the widget's single-row preview) instead of
      *  ever loading a language's entire due list into memory. */
+    /** Same as [dueForLanguagePage] but excludes phrases already queued in
+     *  [sessionId] via a SQL subquery instead of the caller loading every
+     *  already-queued phrase id into memory and inflating the page limit — so a
+     *  session's per-page query cost stays bounded by [limit] regardless of how
+     *  many phrases the run has already queued over its lifetime. */
+    @Query(
+        "$DUE_PHRASES_WHERE " +
+            "AND p.id NOT IN (SELECT phrase_id FROM practice_queue_entries WHERE session_id = :sessionId) " +
+            "$DUE_PHRASES_ORDER LIMIT :limit",
+    )
+    suspend fun dueForLanguagePageExcludingSession(
+        sessionId: String,
+        languageId: String,
+        nowMillis: Long,
+        unlockedPackIds: List<String>,
+        packId: String? = null,
+        limit: Int,
+    ): List<PhraseEntity>
+
     @Query("$DUE_PHRASES_QUERY LIMIT :limit")
     suspend fun dueForLanguagePage(
         languageId: String,
@@ -146,7 +165,7 @@ interface AttemptDao {
 // of first exposures — see the plan's "do not starve due reviews behind unseen cards"
 // rule. Due reviews are then ordered most-overdue-first; unseen phrases follow in a
 // stable editorial order.
-internal const val DUE_PHRASES_QUERY = """
+internal const val DUE_PHRASES_WHERE = """
     SELECT p.* FROM phrases p
     JOIN packs pk ON pk.id = p.pack_id
     LEFT JOIN attempts a ON a.rowid = (
@@ -159,8 +178,11 @@ internal const val DUE_PHRASES_QUERY = """
         AND (:packId IS NULL OR pk.id = :packId)
         AND NOT EXISTS (SELECT 1 FROM managed_phrases m WHERE m.phrase_id = p.id AND m.retired = 1)
         AND (a.next_due_at IS NULL OR a.next_due_at <= :nowMillis)
+"""
+internal const val DUE_PHRASES_ORDER = """
     ORDER BY CASE WHEN a.next_due_at IS NULL THEN 1 ELSE 0 END, a.next_due_at, pk.sortOrder, p.id
 """
+internal const val DUE_PHRASES_QUERY = "$DUE_PHRASES_WHERE $DUE_PHRASES_ORDER"
 
 /**
  * Backs [com.root.app.practice.PracticeRepository]. All mutation happens inside
@@ -241,9 +263,6 @@ interface PracticeDao {
 
     @Query("SELECT MAX(position) FROM practice_queue_entries WHERE session_id = :sessionId")
     suspend fun maxPosition(sessionId: String): Int?
-
-    @Query("SELECT phrase_id FROM practice_queue_entries WHERE session_id = :sessionId")
-    suspend fun phraseIdsInSession(sessionId: String): List<String>
 }
 
 @Dao

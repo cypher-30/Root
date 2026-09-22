@@ -15,8 +15,11 @@ import com.root.app.data.Scheduler
 import com.root.app.data.ManagedContentAccess
 import com.root.app.data.InstalledPackStatus
 
-/** One page's worth of due phrases queued per run — genuinely bounded, unlike the
- *  previous unbounded in-memory `SessionQueue`. */
+/** One page's worth of due phrases queued per run — bounded by [dueForLanguagePageExcludingSession]'s
+ *  SQL-level exclusion of already-queued phrases, so per-page query cost stays
+ *  O(PAGE_SIZE) regardless of how long the run has been going, unlike the
+ *  previous unbounded in-memory `SessionQueue` (and an earlier bug here that grew
+ *  the query's own LIMIT by the session's cumulative phrase count). */
 private const val PAGE_SIZE = 200
 
 /** A durable snapshot of one queued occurrence, reconstructed as a [PhraseEntity] so
@@ -106,15 +109,14 @@ class PracticeRepository(
         val session = dao.getSession(sessionId) ?: return false
         val unlocked = ContentAccess.unlockedPackIds(db, session.languageId, premium(), rewardUnlocked())
         if (unlocked.isEmpty()) return false
-        val existing = dao.phraseIdsInSession(sessionId).toSet()
-        val due = db.attemptDao().dueForLanguagePage(
+        return db.attemptDao().dueForLanguagePageExcludingSession(
+            sessionId = sessionId,
             languageId = session.languageId,
             nowMillis = System.currentTimeMillis(),
             unlockedPackIds = unlocked,
             packId = session.packId,
-            limit = PAGE_SIZE + existing.size,
-        )
-        return due.any { it.id !in existing }
+            limit = 1,
+        ).isNotEmpty()
     }
 
     /** A single bounded lookup for the widget's one-row preview — never loads a
@@ -258,14 +260,14 @@ class PracticeRepository(
     private suspend fun fillPage(session: PracticeSessionEntity): Boolean {
         val unlocked = ContentAccess.unlockedPackIds(db, session.languageId, premium(), rewardUnlocked())
         if (unlocked.isEmpty()) return false
-        val existing = dao.phraseIdsInSession(session.id).toSet()
-        val due = db.attemptDao().dueForLanguagePage(
+        val due = db.attemptDao().dueForLanguagePageExcludingSession(
+            sessionId = session.id,
             languageId = session.languageId,
             nowMillis = System.currentTimeMillis(),
             unlockedPackIds = unlocked,
             packId = session.packId,
-            limit = PAGE_SIZE + existing.size,
-        ).filter { it.id !in existing }.take(PAGE_SIZE)
+            limit = PAGE_SIZE,
+        )
         if (due.isEmpty()) return false
         var position = session.nextPosition
         val entries = due.map { phrase ->
