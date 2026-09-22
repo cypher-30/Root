@@ -6,7 +6,7 @@ a destination:** open on a word, bring it to mind, rate your recall, and leave.
 Root is a native Android / Jetpack Compose prototype, not a collection of disconnected
 mockups. The same screens work in warm-paper light mode and warm-charcoal dark mode.
 Practice, contributed phrases, recordings, scheduling, and challenges live on-device.
-No learner account, app backend, automated pronunciation score, streak, or leaderboard.
+No learner account, progress-sync backend, automated pronunciation score, streak, or leaderboard.
 Optional purchases use RevenueCat and therefore need network access; that is separate
 from offline practice.
 
@@ -95,6 +95,44 @@ or license pronunciation audio, and populate the paid/reward packs. Do not sell 
 catalog entries. The original Kencorpus curation project remains a separate content
 deliverable, not something the visual prototype silently claims to have completed.
 
+### Teaching and downloadable content
+
+The next backend foundation adds versioned content contracts, a Room-backed lesson
+runner, and a Python content toolchain. Guided conversations, listening/comprehension,
+and pattern workshops use the same activity model. Teaching events stay separate
+from recall ratings: completing a lesson never automatically records **Got it** or
+claims speaking proficiency.
+
+Debug builds include a **development-only Shona unit**. Its dialogue and pattern
+activities demonstrate the flow; native-speaker review and authentic matching audio
+are still outstanding. Listening with no recording stays explicitly unavailable,
+not completed through a transcript-only substitute. Development packs are excluded
+from release assets and made unavailable if a release replaces a debug install.
+
+The content toolchain supports KenCorpus, FLEURS, Common Voice, and Tatoeba source
+formats. An importer is not an approved curriculum: text, translations, explanations,
+audio rights, attribution, and revision-specific review must pass publication gates.
+See [the content runbook](docs/CONTENT.md) and
+[teaching contracts](docs/TEACHING_CONTRACTS.md).
+
+Optional public downloads use a configured HTTPS catalog. Put the **public URL** in
+your user-level Gradle properties, never a service-role key:
+
+```properties
+ROOT_CONTENT_CATALOG_URL=https://YOUR_PROJECT.supabase.co/storage/v1/object/public/root-content/catalog.json
+```
+
+Without this setting, bundled/local practice remains available and refreshing the
+remote catalog reports that downloads are not configured. No Supabase project has
+been provisioned by this change. Hosting verification and the reviewed Shona release
+remain external gates; configuring a URL alone does not satisfy them.
+
+Downloads are explicit, bounded, hash-verified, and activated only after their
+files and database records are ready. Failed updates preserve the installed version.
+Lesson runs pin their content revision and resume after leaving or process death.
+Removing a downloaded pack preserves learning/recall history and personal recordings.
+Public packs must be free; protected paid delivery and account sync are not implemented.
+
 ## Sharing is not a referral system
 
 **Teach someone one word** exports a PNG with the target phrase, its meaning, and the
@@ -107,13 +145,16 @@ reward. Market content is still “Coming soon” until curated phrases are supp
 
 ## Local data and privacy
 
-- Room holds language packs, phrases, attempts, and weekly challenges.
+- Room holds language packs, phrases, attempts, weekly challenges, immutable installed
+  content revisions, installation jobs, and separate lesson runs/events.
 - Fixed next-review intervals: **Missed: four hours; Close: one day; Got it: four days**.
   Same-session retry is a separate, bounded queue rule.
 - Seeding is idempotent and preserves existing phrase IDs and learner history.
 - Active language, appearance, and sharing reward are device-local preferences.
 - Microphone permission is requested only for recording. Audio lives in app-internal
   storage; sharing a phrase card does not share your recordings.
+- Downloaded phrase exports include their required credits in the PNG itself.
+  New development teaching content is not approved for public image sharing.
 - Android backup is disabled. Uninstalling the app removes its local practice data.
 - RevenueCat, when configured, has its own network and anonymous purchase identity;
   “no account” is not a claim that configured billing sends no data.
@@ -142,6 +183,8 @@ app\src\main\kotlin\com\root\app\
   RootApplication.kt    — optional guarded billing initialization
   data\                 — Room, repository, seed content, scheduling, preferences
   practice\             — durable, Room-backed practice session engine (paging, rating, resume, stop/close)
+  content\              — versioned pack contracts, validation, HTTPS delivery and atomic activation
+  learning\             — durable teaching commands and separate learning evidence
   billing\              — shared premium entitlement state
   sharing\              — phrase-card image generation / sharing
   audio\                — local playback and recording
@@ -153,6 +196,9 @@ app\src\main\kotlin\com\root\app\
     launch\             — ink seed → roots → wordmark
     motion\             — restrained springs, easing, haptic vocabulary
 ```
+
+`tools\content\` contains the Python ingestion/build/publish CLI;
+`content\` contains shared schemas, source metadata, fixtures, and editorial inputs.
 
 Source Serif 4 and Inter are bundled under the SIL Open Font License. Their licenses
 ship in `app\src\main\assets\licenses`. App code: MIT — see [LICENSE](LICENSE).

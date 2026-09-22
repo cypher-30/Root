@@ -201,6 +201,22 @@ recreation, process death, or reopening the app resumes the same run instead of
 replaying an in-memory history. The active language and appearance persist locally.
 Audio lifecycle is separate from visual recomposition.
 
+Teaching uses separate revision-pinned lesson runs. Leaving a lesson pauses it;
+Restart keeps earlier evidence and begins a new run. Guided conversation,
+listening/comprehension and pattern construction share the same runner. Completing
+required steps is not a pronunciation score, a recall rating, or a proficiency
+certificate. Hints, revealed transcripts and retries remain assisted evidence.
+Missing authentic audio blocks a listening task rather than silently turning it
+into reading.
+
+The minimal teaching/catalog views are functional integration, not a replacement
+for the frontend redesign. They must distinguish development review status,
+remote availability, installation/update state and learning progress. Keep a
+working installed pack usable when an update fails. All required source credits
+are available offline; exported managed phrases retain credits in the image.
+See [the shared teaching contracts](TEACHING_CONTRACTS.md) and
+[content operations](CONTENT.md).
+
 ## Verification
 
 Use the existing Gradle/JUnit/Compose tooling:

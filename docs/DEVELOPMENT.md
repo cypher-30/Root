@@ -24,6 +24,8 @@ All Kotlin lives under `app/src/main/kotlin/com/root/app/`.
 | (root) | `MainActivity` (navigation/theme host), `RootApplication` (billing bootstrap), `RootViewModel` (all UI-facing state) |
 | `data/` | Room entities/DAOs/migrations, `RootRepository` (the one door into persistence), `Scheduler` (due-date rules), `ContentAccess` (pack unlock rules), `SeedData` (bundled starter content), preference wrappers |
 | `practice/` | `PracticeRepository`: the durable, Room-backed practice session engine (queue paging, rating, resume, stop/close) |
+| `content/` | Serializable catalog/pack contracts, validation, bounded HTTPS transport, immutable pack files, WorkManager installs and availability |
+| `learning/` | Transactional lesson commands, revision-pinned runs, response evaluation and learning evidence separate from recall |
 | `billing/` | RevenueCat configuration guard, shared entitlement cache (`EntitlementStore`), paywall state machine (`PaywallViewModel`) |
 | `audio/` | `RootAudioSession`: recording/playback lifecycle, permission handling, file ownership |
 | `sharing/` | PNG phrase-card rendering (`PhraseCardRenderer`) and FileProvider-backed sharing (`PhraseCardSharing`) |
@@ -86,14 +88,34 @@ All Kotlin lives under `app/src/main/kotlin/com/root/app/`.
   and old data survived — Room throws on any schema mismatch, so a clean reopen is
   the main correctness signal.
 
+The database is now version 4. The v3-to-v4 migration adds content versions,
+installed pointers/jobs, managed-phrase mappings, media references, and lesson
+runs/events/command receipts. Existing phrase IDs and attempts are not replaced.
+Migration fixtures for older databases must use legacy-only DAOs, not new queries
+that reference tables absent from their historical schema.
+
+Curated updates never take over an unmanaged phrase/pack ID. Managed retirement
+changes availability rather than deleting parent rows (which would cascade-delete
+attempts). Due queries, access/revalidation, widget selection and sharing apply that
+availability. Failed updates do not change the installed pointer. Filesystem rename
+and Room commit are separate operations: immutable files are made ready first,
+then the database pointer is committed, with interrupted requests exposed for retry.
+
+Teaching's Back action pauses an unfinished run; explicit Restart creates new
+evidence without deleting old runs. This differs intentionally from phrase
+practice's existing Stop/Close behavior. Hints/transcript reveals are persisted
+before display, and repeated/assisted responses do not become independent success.
+Use the shared contracts in [TEACHING_CONTRACTS.md](TEACHING_CONTRACTS.md).
+
 ## Extending Root
 
 - **New screen/route**: add a composable under `ui/`, wire a `composable("route")`
   block in `MainActivity.RootNavigation`, and add any new state/actions to
   `RootViewModel` rather than giving the screen direct repository access.
-- **New content pack/language**: add entities in `SeedData` using `insertMissing`
-  (never `upsertAll`, which would overwrite existing learner data) and document
-  provenance in `app/src/main/assets/content_sources.txt`.
+- **New curated teaching pack/language**: use the source registry, editorial
+  review gates and deterministic pack builder in [CONTENT.md](CONTENT.md).
+  `SeedData` remains the legacy starter initializer, not the downloadable-content
+  publisher. Never bulk-upsert imported content over learner-owned records.
 - **New DAO query**: add it to the relevant `Dao` interface in `Daos.kt`; keep
   read paths going through `RootRepository`, not directly from ViewModels/UI.
 - **New motion/haptic**: add constants to `RootMotion`/`RootHaptics` rather than
