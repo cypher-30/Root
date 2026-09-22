@@ -24,3 +24,13 @@ out/
 # Signing (if you ever add a real release keystore, never commit it)
 *.jks
 *.keystore
+
+# Content tooling: local corpora, generated packs, and Python environments.
+tools/content/**/__pycache__/
+tools/content/.venv/
+content/raw/
+content/cache/
+content/dist/
+
+# Kotlin compiler daemon logs/session cache (IDE/Gradle local state, not source)
+.kotlin/
