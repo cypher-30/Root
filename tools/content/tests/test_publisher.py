@@ -34,7 +34,7 @@ class PublisherTests(unittest.TestCase):
         store = {}
         publisher = SupabasePublisher(
             self._target(),
-            upload_fn=lambda key, data, ct: store.__setitem__(key, data),
+            upload_fn=lambda key, data, ct, mutable: store.__setitem__(key, data),
             get_fn=lambda url, max_bytes=0: FakeResp(store[url.rsplit("/", 1)[-1]]),
         )
         with self.assertRaises(PublishNotApproved):
@@ -49,7 +49,7 @@ class PublisherTests(unittest.TestCase):
         store = {}
         upload_order = []
 
-        def fake_upload(key, data, content_type):
+        def fake_upload(key, data, content_type, mutable):
             upload_order.append(key)
             store[key] = data
 
@@ -89,7 +89,7 @@ class PublisherTests(unittest.TestCase):
         self.assertEqual(called, [])  # never uploaded a hash-mismatched payload
 
     def test_publish_pack_detects_post_upload_verification_mismatch(self):
-        def fake_upload(key, data, content_type):
+        def fake_upload(key, data, content_type, mutable):
             pass  # simulate silent corruption: nothing actually stored
 
         def fake_get(url, max_bytes=0):
@@ -108,9 +108,11 @@ class PublisherTests(unittest.TestCase):
 
     def test_publish_catalog_last_after_packs(self):
         store = {}
+        mutability = {}
 
-        def fake_upload(key, data, content_type):
+        def fake_upload(key, data, content_type, mutable):
             store[key] = data
+            mutability[key] = mutable
 
         def fake_get(url, max_bytes=0):
             key = url.rsplit("/storage/v1/object/public/content/", 1)[-1]
@@ -120,6 +122,55 @@ class PublisherTests(unittest.TestCase):
         catalog_bytes = b'{"catalogRevision":2}'
         publisher.publish_catalog("catalog.json", catalog_bytes, sha256_hex(catalog_bytes), approved=True)
         self.assertIn("catalog.json", store)
+        # The catalog pointer must be uploaded mutably (x-upsert) since every
+        # release overwrites the same key -- unlike pack assets/manifests.
+        self.assertTrue(mutability["catalog.json"])
+
+    def test_publish_catalog_overwrites_same_key_across_releases(self):
+        store = {}
+
+        def fake_upload(key, data, content_type, mutable):
+            if key in store and not mutable:
+                raise AssertionError("release 2 must upload the catalog key mutably")
+            store[key] = data
+
+        def fake_get(url, max_bytes=0):
+            key = url.rsplit("/storage/v1/object/public/content/", 1)[-1]
+            return FakeResp(store[key])
+
+        publisher = SupabasePublisher(self._target(), upload_fn=fake_upload, get_fn=fake_get)
+        first = b'{"catalogRevision":1}'
+        publisher.publish_catalog("catalog.json", first, sha256_hex(first), approved=True)
+        second = b'{"catalogRevision":2}'
+        publisher.publish_catalog("catalog.json", second, sha256_hex(second), approved=True)
+        self.assertEqual(store["catalog.json"], second)
+
+    def test_publish_pack_assets_and_manifest_are_uploaded_immutably(self):
+        store = {}
+        mutability = {}
+
+        def fake_upload(key, data, content_type, mutable):
+            store[key] = data
+            mutability[key] = mutable
+
+        def fake_get(url, max_bytes=0):
+            key = url.rsplit("/storage/v1/object/public/content/", 1)[-1]
+            return FakeResp(store[key])
+
+        publisher = SupabasePublisher(self._target(), upload_fn=fake_upload, get_fn=fake_get)
+        asset_bytes = b"fake-audio-bytes"
+        asset_sha = sha256_hex(asset_bytes)
+        manifest_bytes = b'{"id":"pack.x"}'
+        manifest_sha = sha256_hex(manifest_bytes)
+        publisher.publish_pack(
+            asset_uploads=[("assets/pack.x/a.m4a", asset_bytes, "audio/mp4", asset_sha)],
+            manifest_key="manifests/pack.x/v1.json",
+            manifest_bytes=manifest_bytes,
+            manifest_sha256=manifest_sha,
+            approved=True,
+        )
+        self.assertFalse(mutability["assets/pack.x/a.m4a"])
+        self.assertFalse(mutability["manifests/pack.x/v1.json"])
 
     def test_credentials_never_appear_in_object_urls(self):
         target = self._target()

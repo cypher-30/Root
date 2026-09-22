@@ -1,11 +1,15 @@
 """Controlled Supabase Storage publisher.
 
 Publishes files first, verifies stored objects, then immutable manifests,
-and updates the catalog pointer last. Maintainer credentials come only from
-environment variables (never committed, never logged, never BuildConfig).
-No upload proceeds without an explicit project/bucket selection and an
-explicit approval flag from the caller -- this module never infers "publish"
-from merely having credentials present.
+and updates the catalog pointer last. Pack assets/manifests are uploaded
+immutably (x-upsert: false) since they are content-addressed and must never
+be silently overwritten; the catalog pointer is the one object uploaded
+mutably (x-upsert: true), since every release updates that same key in
+place. Maintainer credentials come only from environment variables (never
+committed, never logged, never BuildConfig). No upload proceeds without an
+explicit project/bucket selection and an explicit approval flag from the
+caller -- this module never infers "publish" from merely having credentials
+present.
 """
 from __future__ import annotations
 
@@ -79,12 +83,17 @@ class SupabasePublisher:
             "apikey": self._target.service_key,
         }
 
-    def _default_upload(self, object_key: str, data: bytes, content_type: str) -> None:
+    def _default_upload(self, object_key: str, data: bytes, content_type: str, mutable: bool) -> None:
         import urllib.request
         url = self._target.object_url(object_key)
         headers = dict(self._auth_headers())
         headers["Content-Type"] = content_type
-        headers["x-upsert"] = "false"  # Never overwrite an immutable version.
+        # Pack assets/manifests are content-addressed and must never be
+        # overwritten (x-upsert: false). The catalog pointer is the one
+        # object that *must* be mutable -- every release updates the same
+        # catalog key in place (x-upsert: true) -- otherwise every release
+        # after the first would fail with a conflict on this exact object.
+        headers["x-upsert"] = "true" if mutable else "false"
         req = urllib.request.Request(url, data=data, headers=headers, method="POST")
         try:
             with urllib.request.urlopen(req, timeout=60) as resp:
@@ -95,7 +104,9 @@ class SupabasePublisher:
         except Exception as e:
             raise PublishVerificationFailed("Upload of " + object_key + " failed: " + str(e)) from e
 
-    def upload_object(self, object_key: str, data: bytes, content_type: str, expected_sha256: str) -> None:
+    def upload_object(
+        self, object_key: str, data: bytes, content_type: str, expected_sha256: str, mutable: bool = False,
+    ) -> None:
         from .canonical import sha256_hex
         actual = sha256_hex(data)
         if actual != expected_sha256:
@@ -103,7 +114,7 @@ class SupabasePublisher:
                 "Refusing to upload " + object_key + ": local hash " + actual
                 + " != expected " + expected_sha256
             )
-        self._upload_fn(object_key, data, content_type)
+        self._upload_fn(object_key, data, content_type, mutable)
 
     def verify_object(self, object_key: str, expected_sha256: str) -> bool:
         from .canonical import sha256_hex
@@ -142,6 +153,6 @@ class SupabasePublisher:
         """Catalog pointer update -- always the last step of a release."""
         if not approved:
             raise PublishNotApproved("publish_catalog requires an explicit approved=True from the caller.")
-        self.upload_object(catalog_key, catalog_bytes, "application/json", catalog_sha256)
+        self.upload_object(catalog_key, catalog_bytes, "application/json", catalog_sha256, mutable=True)
         if not self.verify_object(catalog_key, catalog_sha256):
             raise PublishVerificationFailed("Post-upload verification failed for catalog " + catalog_key)
