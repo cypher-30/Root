@@ -1,7 +1,6 @@
 package com.root.app
 
 import android.app.Application
-import android.os.Bundle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -11,6 +10,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.root.app.billing.EntitlementStore
 import com.root.app.data.*
+import com.root.app.practice.PracticeRateResult
+import com.root.app.practice.PracticeSessionState
 import com.root.app.ui.PackRow
 import com.root.app.widget.RootWidget
 import androidx.glance.appwidget.updateAll
@@ -28,24 +29,26 @@ import com.root.app.ui.motion.RootMotion
  * active language and its packs, the current practice session, entitlement/reward
  * flags, and appearance.
  *
- * Session state ([current], [correct], [turn], etc.) is snapshotted into
- * [SavedStateHandle] after every rating so a process death/recreation (rotation,
- * low-memory kill) can restore the learner's exact position — see [saveSession] and
- * the restoration branch in [load]. A restored session younger than 24 hours and
- * still fully unlocked is replayed via [SessionQueue.rate]; otherwise a fresh
- * session is started.
+ * Practice state is durably owned by Room via [RootRepository.practice] (see
+ * [com.root.app.practice.PracticeRepository]) — this replaces the previous in-memory
+ * `SessionQueue` plus Bundle-based [SavedStateHandle] restoration. Only the small,
+ * bounded [sessionId] is kept in [SavedStateHandle]; a process death/recreation
+ * simply reloads that session's current state from the database, which is always the
+ * source of truth, so there is no 24-hour expiry and no risk of restoring stale or
+ * partially-saved in-memory history.
  */
 class RootViewModel(application: Application, private val saved: SavedStateHandle) : AndroidViewModel(application) {
     private val repository = RootRepository(application)
     private val access = EntitlementStore(application)
-    // The live session queue. Recreated on load/selectLanguage/startSession/contribute;
-    // null only before the first successful load.
-    private var queue: SessionQueue? = null
-    private var initialPhrases = emptyList<PhraseEntity>()
-    // Rating history for the current session, replayed onto a fresh SessionQueue on restore.
-    private val history = arrayListOf<String>()
-    // Serializes rate() calls: a rapid double-tap/double-swipe must not double-count.
+    // Serializes rate()/stop()/continue() calls: a rapid double-tap/double-swipe must
+    // not double-count or race against a concurrent stop.
     private val ratingMutex = Mutex()
+    private var sessionId: String?
+        get() = saved["session.id"]
+        set(value) { saved["session.id"] = value }
+    private var sessionPackId: String?
+        get() = saved["session.packId"]
+        set(value) { saved["session.packId"] = value }
     var loading by mutableStateOf(true)
         private set
     var loadFailed by mutableStateOf(false)
@@ -62,6 +65,7 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
         private set
     var current by mutableStateOf<PhraseEntity?>(null)
         private set
+    private var currentEntryId: String? = null
     var sharePhrase by mutableStateOf<PhraseEntity?>(null)
         private set
     var correct by mutableIntStateOf(0)
@@ -71,6 +75,11 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
     var capability by mutableIntStateOf(0)
         private set
     var completed by mutableStateOf(false)
+        private set
+    // True once a session page completes and re-querying due phrases (excluding those
+    // already queued this run) finds more available. Distinct from "completed": there
+    // is no fixed session size to reach before offering more.
+    var canPracticeMore by mutableStateOf(false)
         private set
     var challenge by mutableStateOf<WeeklyChallengeEntity?>(null)
         private set
@@ -114,24 +123,21 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
             activeLanguage = languages.firstOrNull { it.id == repository.activeLanguageId() } ?: languages.firstOrNull()
             activeLanguage?.let { repository.setActiveLanguage(it.id) }
             refreshDetails()
-            val restored = saved.get<ArrayList<Bundle>>("session.phrases")
-            val sessionAge = System.currentTimeMillis() - (saved.get<Long>("session.created") ?: 0L)
-            if (!restored.isNullOrEmpty() && sessionAge < 24 * 60 * 60 * 1000L &&
-                saved.get<String>("session.language") == activeLanguage?.id) {
-                val allowed = rows.filter { ContentAccess.canAccess(activeLanguage!!, it.pack, premium, reward) }
-                    .map { it.pack.id }.toSet()
-                val original = restored.map { it.toPhrase() }
-                if (original.any { it.packId !in allowed }) {
-                    startSessionInternal(null)
+            val language = activeLanguage
+            val existingSession = sessionId
+            if (language != null && existingSession != null) {
+                // Resume this device's durable run if it is still for the active
+                // language/pack scope; a scope mismatch (e.g. active language changed
+                // through another path) starts a fresh one instead of misapplying it.
+                val state = repository.practiceState(existingSession)
+                if (state != null && state.languageId == language.id && state.packId == sessionPackId) {
+                    applyState(state)
                 } else {
-                    initialPhrases = original
-                    history.clear()
-                    history.addAll(saved.get<ArrayList<String>>("session.history") ?: arrayListOf())
-                    queue = SessionQueue(initialPhrases)
-                    history.forEach { queue?.rate(ConfidenceLevel.valueOf(it)) }
-                    updateSession()
+                    startSessionInternal(sessionPackId)
                 }
-            } else startSessionInternal(null)
+            } else if (language != null) {
+                startSessionInternal(null)
+            }
             error = null
         } catch (e: CancellationException) { throw e }
         catch (e: Exception) {
@@ -167,11 +173,22 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
         access.refresh { active ->
             viewModelScope.launch {
                 premium = active
-                if (!loading) refreshDetails()
+                if (!loading) { refreshDetails(); revalidateCurrent() }
                 updateWidget()
             }
         }
-        if (!loading) viewModelScope.launch { refreshDetails(); updateWidget() }
+        if (!loading) viewModelScope.launch { refreshDetails(); revalidateCurrent(); updateWidget() }
+    }
+
+    /** Drops the current card if its content became inaccessible (pack locked/
+     *  removed) since it was queued, instead of leaving it visible until the next
+     *  rating attempt discovers this. Best-effort: [rate] rechecks access again at
+     *  commit time regardless, so a missed revalidation here is never unsafe. */
+    private suspend fun revalidateCurrent() {
+        val sid = sessionId ?: return
+        try { applyState(repository.revalidatePractice(sid)) }
+        catch (e: CancellationException) { throw e }
+        catch (_: Exception) { /* next rate() call still rechecks access */ }
     }
 
     fun selectLanguage(language: LanguageEntity) = viewModelScope.launch {
@@ -195,28 +212,67 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
         finally { loading = false }
     }
 
+    /** Ends any current run for this scope's *previous* language/pack — switching
+     *  scope always durably ends the old run, it is never resumed later — then
+     *  resumes or starts the durable run for the new scope. */
     private suspend fun startSessionInternal(packId: String?) {
         val language = activeLanguage ?: return
-        initialPhrases = repository.duePhrases(language.id, packId, premium).take(8)
-        saved["session.created"] = System.currentTimeMillis()
-        history.clear()
-        queue = SessionQueue(initialPhrases)
-        updateSession()
-        saveSession()
+        sessionId?.let { previous ->
+            val previousState = repository.practiceState(previous)
+            if (previousState != null && (previousState.languageId != language.id || previousState.packId != packId)) {
+                repository.stopPractice(previous, PracticeEndReason.SCOPE_CHANGED)
+            }
+        }
+        sessionPackId = packId
+        val state = repository.beginOrResumePractice(language.id, packId)
+        sessionId = state?.sessionId
+        applyState(state)
     }
 
-    private fun updateSession() {
-        current = queue?.current
+    /** Called after a session page completes (see [canPracticeMore]) to fetch and
+     *  append the next page of due phrases rather than starting an unrelated new
+     *  session. Preserves this session's correct/turn counts and identity. */
+    fun continuePractice() = viewModelScope.launch {
+        val sid = sessionId ?: return@launch
+        try {
+            applyState(repository.continuePractice(sid))
+        } catch (_: Exception) { error = "Couldn’t fetch more words right now. Please try again." }
+    }
+
+    /** Durably ends the run (it is never later resumed) without closing the screen:
+     *  the learner sees the same page-complete/session-complete summary as running
+     *  out of due phrases, just triggered early. */
+    fun stopSession() = viewModelScope.launch {
+        val sid = sessionId ?: return@launch
+        try {
+            if (repository.stopPractice(sid, PracticeEndReason.STOPPED)) {
+                applyState(repository.practiceState(sid))
+            } else error = "Couldn’t stop just yet. Please try again."
+        } catch (_: Exception) { error = "Couldn’t stop just yet. Please try again." }
+    }
+
+    /** Durably ends the run before invoking [onClosed] (typically finishing the
+     *  Activity), so closing a session can never leave a run open that looks
+     *  finished on screen but silently resumes later. */
+    fun closeSession(onClosed: () -> Unit) = viewModelScope.launch {
+        val sid = sessionId
+        try {
+            val ok = sid == null || repository.stopPractice(sid, PracticeEndReason.CLOSED)
+            if (ok) {
+                if (sid != null) applyState(repository.practiceState(sid))
+                onClosed()
+            } else error = "Couldn’t close just yet. Please try again."
+        } catch (_: Exception) { error = "Couldn’t close just yet. Please try again." }
+    }
+
+    private fun applyState(state: PracticeSessionState?) {
+        current = state?.current?.phrase
+        currentEntryId = state?.current?.entryId
         current?.let { sharePhrase = it }
-        correct = queue?.correctCount ?: 0
-        turn = queue?.ratedCount ?: 0
+        correct = state?.correctCount ?: 0
+        turn = state?.turn ?: 0
         completed = current == null && turn > 0
-    }
-
-    private fun saveSession() {
-        saved["session.language"] = activeLanguage?.id
-        saved["session.phrases"] = ArrayList(initialPhrases.map { it.toBundle() })
-        saved["session.history"] = ArrayList(history)
+        canPracticeMore = state != null && current == null && state.hasMoreAfterPage
     }
 
     suspend fun rate(phraseId: String, level: ConfidenceLevel): Boolean =
@@ -225,19 +281,24 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
     /** Persists the attempt, advances the queue, and refreshes derived state. Guarded
      *  by [ratingMutex] so a second rating call while one is still in flight (e.g. a
      *  fast double-tap racing the exit animation) is dropped instead of double-counted.
-     *  Returns false on a stale/mismatched phrase, a lock conflict, or a save failure;
-     *  the UI restores the card in that case rather than treating it as rated. */
+     *  Returns false on a stale/mismatched phrase, a lock conflict, an ended session,
+     *  or a save failure; the UI restores the card in that case rather than treating
+     *  it as rated. */
     private suspend fun persistRating(phraseId: String, level: ConfidenceLevel): Boolean {
         if (!ratingMutex.tryLock()) return false
         return try {
+            val sid = sessionId ?: return false
+            val entryId = currentEntryId ?: return false
             if (current?.id != phraseId) return false
-            repository.recordAttempt(phraseId, level)
-            queue?.rate(level)
-            history.add(level.name)
-            saveSession()
+            val result = repository.ratePractice(sid, entryId, level)
             // Save first; presentation may be disposed by rotation or navigation.
             if (RootMotion.enabled()) delay(if (level == ConfidenceLevel.MISSED) 1500 else 1000)
-            updateSession()
+            when (result) {
+                is PracticeRateResult.Committed -> applyState(result.state)
+                is PracticeRateResult.AlreadyCommitted -> applyState(result.state)
+                is PracticeRateResult.Unavailable -> { applyState(result.state); return false }
+                PracticeRateResult.SessionEnded -> return false
+            }
             try { capability = repository.capabilityCount(activeLanguage!!.id) }
             catch (e: CancellationException) { throw e }
             catch (e: Exception) { Log.w("Root", "Recall saved, but summary could not refresh", e) }
@@ -280,13 +341,4 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
         catch (e: CancellationException) { throw e }
         catch (e: Exception) { Log.w("Root", "Practice saved; widget update failed", e) }
     }
-
-    private fun PhraseEntity.toBundle() = Bundle().apply {
-        putString("id", id); putString("pack", packId); putString("prompt", prompt)
-        putString("answer", answer); putString("audio", audioAsset)
-    }
-    private fun Bundle.toPhrase() = PhraseEntity(
-        id = getString("id")!!, packId = getString("pack")!!, prompt = getString("prompt")!!,
-        answer = getString("answer")!!, audioAsset = getString("audio"),
-    )
 }

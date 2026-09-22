@@ -32,7 +32,6 @@ import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.root.app.MainActivity
 import com.root.app.R
-import com.root.app.billing.EntitlementStore
 import com.root.app.data.RootRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -83,10 +82,12 @@ class RootWidget : GlanceAppWidget() {
             if (language == null) {
                 WidgetPhrase(body = "Your words start here.", footer = "Open Root to add a phrase.", appearance = appearance)
             } else {
-                val due = repository.duePhrases(
+                // Bounded single-row lookup (see PracticeRepository.nextDuePhrase) —
+                // never loads the language's whole due list just to show one card.
+                val due = repository.nextDuePhrase(
                     language.id,
-                    premium = EntitlementStore(context).isPremium(),
-                ).firstOrNull()
+                    packId = null,
+                )
                 if (due == null) {
                     WidgetPhrase(
                         language = language.name,

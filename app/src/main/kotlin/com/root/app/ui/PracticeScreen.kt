@@ -68,6 +68,10 @@ fun PracticeScreen(
     onRate: suspend (ConfidenceLevel) -> Boolean,
     onMore: () -> Unit,
     onTeach: () -> Unit,
+    // Placed before the trailing-lambda `challenge` parameter, not after: existing
+    // call sites pass `challenge` as a trailing lambda, which always binds to the
+    // *last* parameter — appending onStop after `challenge` would silently break them.
+    onStop: () -> Unit = {},
     challenge: @Composable () -> Unit = {},
 ) {
     Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
@@ -96,6 +100,12 @@ fun PracticeScreen(
             Icon(RootIcons.Share, null, Modifier.size(16.dp))
             Spacer(Modifier.width(8.dp))
             Text("Teach someone this word")
+        }
+        // Durably ends the run (see PracticeRepository.stop) without leaving the
+        // screen; the learner sees the same completion state as running out of
+        // due phrases, just triggered on demand.
+        TextButton(onClick = onStop, contentPadding = PaddingValues(vertical = 8.dp)) {
+            Text("Stop for now")
         }
         HorizontalDivider(Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant)
         challenge()

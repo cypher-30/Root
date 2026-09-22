@@ -67,13 +67,18 @@ fun RootPath(
     }
 }
 
-/** The in-session "roots grown" indicator: progress is `correct / 8`, the fixed
- *  session cap (see [com.root.app.data.SessionQueue]'s `initialLimit`), animated with
- *  [RootMotion.settle] rather than a linear tween so growth reads as organic. */
+/** The in-session "roots grown" indicator. Practice is no longer capped at a fixed
+ *  count (see [com.root.app.practice.PracticeRepository]'s page-based paging), so
+ *  progress can no longer be a literal fraction of a hard denominator — that would
+ *  either finish the visual early or make it effectively unreachable for a long
+ *  session. This uses a saturating curve that approaches full growth as [correct]
+ *  increases, with the same early-session feel as the old `correct / 8`. Replace with
+ *  a jointly designed visual once the frontend redesign defines one; this is an
+ *  interim decoupling, not a final answer. */
 @Composable
 fun RecallRoots(correct: Int, modifier: Modifier = Modifier) {
     val progress by animateFloatAsState(
-        targetValue = (correct / 8f).coerceIn(0f, 1f),
+        targetValue = (1f - 1f / (1f + correct / 6f)).coerceIn(0f, 1f),
         animationSpec = RootMotion.settle(), label = "Recall roots",
     )
     RootPath(progress, modifier, MaterialTheme.colorScheme.tertiary, showGuide = true,

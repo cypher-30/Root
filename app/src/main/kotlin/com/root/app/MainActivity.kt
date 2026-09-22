@@ -114,13 +114,23 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
                         val phrase = vm.current!!
                         PracticeScreen(phrase, vm.activeLanguage!!.name, vm.correct, vm.turn,
                             onRate = { vm.rate(phrase.id, it) }, onMore = { more = true },
-                            onTeach = { open("invite") }) {
+                            // "Stop for now" durably ends the run in Room without
+                            // navigating away — the next composition falls through
+                            // to the completed branch below, same as running out
+                            // of due phrases.
+                            onTeach = { open("invite") }, onStop = { vm.stopSession() }) {
                             WeeklyChallengeCard(vm.challenge) { vm.completeChallenge() }
                         }
                     }
                     else -> SessionCompleteScreen(vm.correct, vm.capability, vm.completed,
-                        vm.activeLanguage!!.name, vm.challenge, { vm.completeChallenge() }, { more = true }, onClose,
-                        onRefresh = { vm.startSession() })
+                        vm.activeLanguage!!.name, vm.challenge, { vm.completeChallenge() }, { more = true },
+                        // Durably end the run before finishing the Activity (onClose),
+                        // so a session can never look finished on screen while a run
+                        // is still open in Room and silently resumable later.
+                        { vm.closeSession(onClose) },
+                        onRefresh = { vm.startSession() },
+                        canPracticeMore = vm.canPracticeMore,
+                        onContinuePracticing = { vm.continuePractice() })
                 }
             }
             composable("packs") {

@@ -76,6 +76,8 @@ fun SessionCompleteScreen(
     challenge: WeeklyChallengeEntity?, onChallenge: () -> Unit,
     onMore: () -> Unit, onDone: () -> Unit,
     onRefresh: () -> Unit = {},
+    canPracticeMore: Boolean = false,
+    onContinuePracticing: () -> Unit = {},
 ) {
     Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -95,7 +97,13 @@ fun SessionCompleteScreen(
         RecallRoots(correct, Modifier.fillMaxWidth().height(130.dp).padding(vertical = 16.dp))
         if (capability > 0) Text("$capability ${if (capability == 1) "phrase" else "phrases"} you recalled at last practice.",
             style = MaterialTheme.typography.bodyMedium)
-        OutlinedButton(onClick = onDone, modifier = Modifier.padding(top = 24.dp), shape = MaterialTheme.shapes.small) {
+        // Quiet ritual, open continuation: a page finished, but there is no fixed
+        // session size — offer to keep going rather than forcing a restart/new session.
+        if (completed && canPracticeMore) {
+            OutlinedButton(onClick = onContinuePracticing, modifier = Modifier.padding(top = 24.dp),
+                shape = MaterialTheme.shapes.small) { Text("Keep practicing") }
+        }
+        OutlinedButton(onClick = onDone, modifier = Modifier.padding(top = 12.dp), shape = MaterialTheme.shapes.small) {
             Text("Close this session")
         }
         TextButton(onClick = onRefresh) { Text("Check for due words") }
