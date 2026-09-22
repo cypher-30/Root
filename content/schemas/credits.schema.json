@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://root.app/content/schemas/credits.schema.json",
+  "title": "Credits",
+  "description": "Attribution attached to a phrase/asset/manifest, matching the Kotlin wire shape Credits(text, license?, sourceUrl?). This is the shipped, user-facing attribution only -- the pipeline's richer internal rights/review tracking (provenance.schema.json, content/sources/registry.json) is never embedded in a manifest; it is reduced to this shape before a manifest is built.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["text"],
+  "properties": {
+    "text": { "type": "string", "minLength": 1 },
+    "license": { "type": ["string", "null"], "default": null },
+    "sourceUrl": { "type": ["string", "null"], "default": null }
+  }
+}

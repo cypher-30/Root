@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "sources": [
+    {
+      "sourceId": "fleurs",
+      "releaseId": "google/fleurs@main",
+      "releaseUrl": "https://huggingface.co/datasets/google/fleurs",
+      "retrievedAt": "2026-09-22",
+      "components": [
+        {
+          "componentKind": "audio",
+          "license": "CC-BY-4.0",
+          "requiredCredit": "Google FLEURS (CC BY 4.0)",
+          "rightsStatus": "cleared",
+          "reviewStatus": "source_checked",
+          "notes": "Official card lists CC BY 4.0 and 102 languages including Shona (sn), Luo/Dholuo (luo_ke), and Swahili (sw_ke) configs. FLEURS is sentence-read speech, not a beginner course; still needs native review before publication and exact per-clip alignment verification against source keys."
+        },
+        {
+          "componentKind": "target_text",
+          "license": "CC-BY-4.0",
+          "requiredCredit": "Google FLEURS (CC BY 4.0)",
+          "rightsStatus": "cleared",
+          "reviewStatus": "source_checked",
+          "notes": "Transcripts distributed alongside audio under the same CC BY 4.0 terms."
+        },
+        {
+          "componentKind": "translation",
+          "license": "UNKNOWN",
+          "rightsStatus": "unknown",
+          "reviewStatus": "unreviewed",
+          "notes": "FLEURS is monolingual sentence-read speech; no editorially reviewed translation is supplied by the source. Root must author/verify any translation separately before publication."
+        }
+      ]
+    },
+    {
+      "sourceId": "kencorpus",
+      "releaseId": "doi:10.7910/DVN/6N5V1K@v9.1",
+      "releaseUrl": "https://dataverse.harvard.edu/api/datasets/:persistentId/?persistentId=doi:10.7910/DVN/6N5V1K",
+      "retrievedAt": "2026-09-22",
+      "components": [
+        {
+          "componentKind": "target_text",
+          "license": "CC-BY-4.0",
+          "requiredCredit": "KenCorpus (Harvard Dataverse, CC BY 4.0)",
+          "rightsStatus": "cleared",
+          "reviewStatus": "source_checked",
+          "notes": "Dataverse metadata (latest version 9.1) declares CC BY 4.0 with 4,837 listed files across mixed text/speech content. The dataset-level language field currently reads Swahili despite the broader Dholuo/Swahili/Luhya description; per-file metadata and manual review govern which files are actually usable, not that field alone."
+        },
+        {
+          "componentKind": "audio",
+          "license": "CC-BY-4.0",
+          "requiredCredit": "KenCorpus (Harvard Dataverse, CC BY 4.0)",
+          "rightsStatus": "unknown",
+          "reviewStatus": "unreviewed",
+          "notes": "Speech files exist in the release but text/audio alignment must be verified per file before any component is marked cleared; unclear alignment is quarantined, not assumed."
+        }
+      ]
+    },
+    {
+      "sourceId": "common_voice",
+      "releaseId": "cv-authorized-local-release",
+      "releaseUrl": "https://github.com/common-voice/cv-dataset/tree/main/datasets/scripted-speech",
+      "retrievedAt": "2026-09-22",
+      "components": [
+        {
+          "componentKind": "target_text",
+          "license": "CC0-1.0",
+          "requiredCredit": "Mozilla Common Voice (CC0 sentence collection where applicable)",
+          "rightsStatus": "unknown",
+          "reviewStatus": "unreviewed",
+          "notes": "Placeholder entry: this repository has no authorized local Common Voice release staged yet. The exact pinned locale license/datasheet must be inspected at import time; do not inherit a blanket license assumption from older releases. Update releaseId/license once a real authorized release is available."
+        },
+        {
+          "componentKind": "audio",
+          "license": "UNKNOWN",
+          "rightsStatus": "unknown",
+          "reviewStatus": "unreviewed",
+          "notes": "Only validated.tsv clips (not reported.tsv) may ever be considered; contributor demographic fields are excluded from any app artifact. Requires an authorized local archive/documented download; adapter must not bypass access restrictions."
+        }
+      ]
+    },
+    {
+      "sourceId": "tatoeba",
+      "releaseId": "tatoeba-export-2026-09-22",
+      "releaseUrl": "https://tatoeba.org/en/downloads",
+      "retrievedAt": "2026-09-22",
+      "components": [
+        {
+          "componentKind": "target_text",
+          "license": "CC-BY-2.0-FR",
+          "requiredCredit": "Tatoeba contributors (CC BY 2.0 FR)",
+          "rightsStatus": "cleared",
+          "reviewStatus": "source_checked",
+          "notes": "Sentence and direct link exports are CC BY 2.0 FR by default per Tatoeba's downloads/terms pages; a CC0 subset may exist for specific sentences and must be checked per-sentence, not assumed globally."
+        },
+        {
+          "componentKind": "translation",
+          "license": "CC-BY-2.0-FR",
+          "requiredCredit": "Tatoeba contributors (CC BY 2.0 FR)",
+          "rightsStatus": "cleared",
+          "reviewStatus": "source_checked",
+          "notes": "Direct links (links.csv equivalent) express sentence-to-translation pairs; translation rights follow the same CC BY 2.0 FR default as sentences."
+        },
+        {
+          "componentKind": "audio",
+          "license": "UNKNOWN",
+          "rightsStatus": "unknown",
+          "reviewStatus": "unreviewed",
+          "notes": "Audio license is contributor-selected per recording and is NOT covered by the text/translation CC BY 2.0 FR default. Each audio file's license must be resolved individually; unresolved or incompatible audio terms are rejected, not imported."
+        }
+      ]
+    }
+  ]
+}

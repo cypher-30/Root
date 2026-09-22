@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://root.app/content/schemas/lesson.schema.json",
+  "title": "Lesson",
+  "description": "Matches Kotlin Lesson(id, revision, title, objective, format, activities[], requiredActivityIds[], linkedPhraseIds[]=[], prerequisiteLessonIds[]=[]). A lesson does not derive a universal grammar template automatically; pattern_workshop activities must be explicitly authored. requiredActivityIds (not a per-activity flag, and never empty -- see its own description) is what the runner uses to decide which activities gate lesson completion.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "revision", "title", "objective", "format", "activities", "requiredActivityIds"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "revision": { "type": "integer", "minimum": 1 },
+    "title": { "type": "string", "minLength": 1 },
+    "objective": { "type": "string", "minLength": 1 },
+    "format": { "type": "string", "enum": ["guided_conversation", "listening", "pattern_workshop"] },
+    "activities": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "activity-step.schema.json" }
+    },
+    "requiredActivityIds": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "Activity ids (from activities[]) whose completion gates the lesson; required and non-empty (Kotlin ContentValidator's NO_REQUIRED_ACTIVITIES rule rejects an empty list -- there is no such thing as a lesson with zero required steps). A required activity may still honestly be unable to complete yet (e.g. a listening activity with no audio: it stays the required, blocking step, just permanently un-completable until real audio exists -- that is a runtime AUDIO_UNAVAILABLE outcome, not a reason to omit it here). Optional activities (e.g. Reflection, SpeakingPrompt) are simply left out of this array, never marked via a per-activity flag."
+    },
+    "linkedPhraseIds": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Recall phrase ids this lesson references; installing/completing a lesson never mutates recall scheduling directly."
+    },
+    "prerequisiteLessonIds": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Soft prerequisites: editorial ordering hints. The Kotlin validator DFS-checks these for cycles/unresolved references."
+    }
+  }
+}

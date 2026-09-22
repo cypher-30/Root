@@ -1,0 +1,14 @@
+{
+  "sourceId": "fleurs",
+  "releaseId": "google/fleurs@main",
+  "itemId": "sn_zw-test-0001",
+  "sourceUrl": "https://huggingface.co/datasets/google/fleurs",
+  "componentLicense": "CC-BY-4.0",
+  "componentKind": "audio",
+  "requiredCredit": "Google FLEURS (CC BY 4.0)",
+  "author": null,
+  "transformationNotes": null,
+  "rightsStatus": "cleared",
+  "reviewStatus": "source_checked",
+  "reviewRevision": null
+}

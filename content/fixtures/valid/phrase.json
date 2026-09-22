@@ -1,0 +1,9 @@
+{
+  "id": "phrase.sn.greeting.001",
+  "prompt": "Mhoro!",
+  "meaning": "Hello!",
+  "register": "informal",
+  "context": "Greeting someone you know",
+  "audioAssetId": "asset.sn.greeting.001",
+  "credits": { "text": "Root development editorial content", "license": null, "sourceUrl": null }
+}

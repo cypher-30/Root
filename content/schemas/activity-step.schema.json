@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://root.app/content/schemas/activity-step.schema.json",
+  "title": "Activity",
+  "description": "One discriminated activity within a lesson's activities[] array, matching Kotlin Activity sealed via 'kind'. There is no evidenceType/required field authored here: evidence type is computed at runtime by the LessonRunner, and whether an activity gates lesson completion is determined solely by Lesson.requiredActivityIds. Token construction uses occurrence ids so repeated words are addressable; accepted answers are explicit ids/sequences, never fuzzy text matching.",
+  "type": "object",
+  "required": ["id", "kind"],
+  "allOf": [
+    {
+      "if": { "properties": { "kind": { "const": "dialogue_turn" } }, "required": ["kind"] },
+      "then": {
+        "required": ["speaker", "text"],
+        "properties": {
+          "speaker": { "type": "string", "minLength": 1 },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Target-language text spoken in this turn. Follows the same field-direction convention as ManagedPhrase.prompt (target-language) vs 'translation' (known-language gloss)."
+          },
+          "translation": {
+            "type": ["string", "null"],
+            "default": null,
+            "description": "Learner-known-language gloss of 'text', analogous to ManagedPhrase.meaning. Never the target-language text itself."
+          },
+          "audioAssetId": { "type": ["string", "null"], "default": null },
+          "linkedPhraseId": { "type": ["string", "null"], "default": null }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "pattern_explanation" } }, "required": ["kind"] },
+      "then": {
+        "required": ["explanation", "examples"],
+        "properties": {
+          "explanation": { "type": "string", "minLength": 1 },
+          "examples": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Phrase ids (or short illustrative strings) supporting the explanation, never derived automatically from a universal grammar template."
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "choice" } }, "required": ["kind"] },
+      "then": {
+        "required": ["task"],
+        "properties": {
+          "task": { "$ref": "choice-task.schema.json" },
+          "assistanceHint": { "type": ["string", "null"], "default": null }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "ordered_tokens" } }, "required": ["kind"] },
+      "then": {
+        "required": ["task"],
+        "properties": {
+          "task": { "$ref": "ordered-token-task.schema.json" },
+          "assistanceHint": { "type": ["string", "null"], "default": null }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "listening" } }, "required": ["kind"] },
+      "then": {
+        "required": ["comprehension"],
+        "properties": {
+          "audioAssetId": {
+            "type": ["string", "null"],
+            "minLength": 1,
+            "description": "Nullable: null means no authentic recording exists yet (development-only). A semantic gate (gates.check_audio_assets_present_for_publication), not this schema alone, refuses null audioAssetId once publication='published' and refuses any non-null id that has no matching manifest asset. Never invent a placeholder asset id/hash/duration to satisfy this field. The runner returns AUDIO_UNAVAILABLE when null."
+          },
+          "unavailableReason": { "type": ["string", "null"], "default": null },
+          "transcript": {
+            "type": ["string", "null"],
+            "default": null,
+            "description": "Target-language transcript of the audio, matching the ManagedPhrase.prompt (target-language) convention."
+          },
+          "translation": {
+            "type": ["string", "null"],
+            "default": null,
+            "description": "Learner-known-language gloss of 'transcript', matching the ManagedPhrase.meaning convention. Never the target-language text itself."
+          },
+          "comprehension": { "$ref": "evaluable-task.schema.json" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "kind": { "const": "listening" }, "audioAssetId": { "type": "null" } },
+        "required": ["kind", "audioAssetId"]
+      },
+      "then": {
+        "required": ["unavailableReason"],
+        "properties": { "unavailableReason": { "type": "string", "minLength": 1 } }
+      }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "reflection" } }, "required": ["kind"] },
+      "then": { "required": ["prompt"], "properties": { "prompt": { "type": "string", "minLength": 1 } } }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "speaking_prompt" } }, "required": ["kind"] },
+      "then": { "required": ["prompt"], "properties": { "prompt": { "type": "string", "minLength": 1 } } }
+    }
+  ],
+  "properties": {
+    "id": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "dialogue_turn", "pattern_explanation", "choice", "ordered_tokens",
+        "listening", "reflection", "speaking_prompt"
+      ]
+    }
+  }
+}

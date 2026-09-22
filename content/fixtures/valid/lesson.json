@@ -1,0 +1,32 @@
+{
+  "id": "lesson.sn.greeting.conversation",
+  "revision": 1,
+  "title": "Greeting Conversation",
+  "objective": "Greet someone and continue a short exchange",
+  "format": "guided_conversation",
+  "prerequisiteLessonIds": [],
+  "activities": [
+    { "id": "step1", "kind": "dialogue_turn", "speaker": "Tendai", "text": "Mhoro!" },
+    { "id": "step2", "kind": "dialogue_turn", "speaker": "Rudo", "text": "Mhoro, makadii?" },
+    { "id": "step3", "kind": "choice",
+      "task": {
+        "id": "step3-task",
+        "prompt": "How do you reply to 'Makadii?'",
+        "choices": [ { "id": "c1", "text": "Ndiripo, maswera sei?" }, { "id": "c2", "text": "Ndatenda" } ],
+        "acceptedChoiceIds": ["c1"]
+      }
+    },
+    { "id": "step4", "kind": "dialogue_turn", "speaker": "Tendai", "text": "Maswera sei?" },
+    { "id": "step5", "kind": "ordered_tokens",
+      "task": {
+        "id": "step5-task",
+        "prompt": "Build the changed-context reply",
+        "tokens": [ { "occurrenceId": "t1", "text": "Ndaswera" }, { "occurrenceId": "t2", "text": "zvakanaka" } ],
+        "acceptedSequences": [["t1", "t2"]]
+      }
+    },
+    { "id": "step6", "kind": "reflection", "prompt": "What changed in the second exchange?" }
+  ],
+  "requiredActivityIds": ["step1", "step2", "step3", "step4", "step5"],
+  "linkedPhraseIds": ["phrase.sn.greeting.001"]
+}

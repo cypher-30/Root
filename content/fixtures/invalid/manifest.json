@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "minReaderVersion": 1,
+  "id": "pack.shona.pilot",
+  "version": 1,
+  "language": { "id": "sn", "code": "sn", "name": "Shona" },
+  "title": "Greetings: Shona pilot",
+  "objective": "Greet someone and continue a short exchange",
+  "publication": "public",
+  "phrases": [],
+  "lessons": [],
+  "assets": [
+    { "id": "a1", "key": "assets/../escape.m4a", "sha256": "zz", "bytes": 1, "mimeType": "audio/mp4" }
+  ],
+  "credits": []
+}

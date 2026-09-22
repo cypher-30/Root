@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://root.app/content/schemas/phrase.schema.json",
+  "title": "ManagedPhrase",
+  "description": "A pack-owned recall/content item, matching Kotlin ManagedPhrase(id, prompt, meaning, audioAssetId?, register?, context?, credits?). This is the shipped wire shape only: richer internal rights/review tracking (revision, provenance) lives in the pipeline's own editorial authoring records and content/sources/registry.json, never in the manifest itself. IMPORTANT field-direction convention (matches the parent's PhraseEntity projection: PhraseEntity.answer = wire.prompt, PhraseEntity.prompt = wire.meaning): 'prompt' is the TARGET-LANGUAGE text being taught (the expected recall answer, e.g. Shona 'Mhoro'), and 'meaning' is the LEARNER-KNOWN-LANGUAGE gloss/recall cue (e.g. English 'Hello'). Reversing these inverts phrase display end-to-end -- every adapter/build script must map target-language text into 'prompt' and the known-language gloss into 'meaning', never the other way around.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "prompt", "meaning"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "prompt": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Target-language text being taught (the expected recall answer). Never the learner's known-language gloss -- see the schema-level field-direction convention note above."
+    },
+    "meaning": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Learner-known-language gloss/recall cue for this phrase. Never the target-language text -- see the schema-level field-direction convention note above."
+    },
+    "audioAssetId": { "type": ["string", "null"], "default": null },
+    "register": { "type": ["string", "null"], "default": null },
+    "context": { "type": ["string", "null"], "default": null },
+    "credits": { "$ref": "credits.schema.json" }
+  }
+}

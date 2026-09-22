@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://root.app/content/schemas/language-reference.schema.json",
+  "title": "ContentLanguage",
+  "description": "Stable content language identity, matching Kotlin ContentLanguage(id, code, name, variety?, script?). Never infer a dialect from a display name; 'variety' and 'script' are explicit, separately reviewed fields.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "code", "name"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "code": {
+      "type": "string",
+      "description": "Canonical language code (e.g. BCP-47 primary subtag such as 'sn', 'luo', 'sw').",
+      "pattern": "^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$"
+    },
+    "name": { "type": "string", "minLength": 1 },
+    "variety": { "type": ["string", "null"], "default": null },
+    "script": { "type": ["string", "null"], "default": null }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "id": "asset.sn.greeting.001",
+  "key": "../../etc/passwd",
+  "sha256": "not-a-hash",
+  "bytes": 999999999,
+  "mimeType": "video/mp4"
+}

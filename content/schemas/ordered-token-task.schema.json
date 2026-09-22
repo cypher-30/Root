@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://root.app/content/schemas/ordered-token-task.schema.json",
+  "title": "OrderedTokenTask",
+  "description": "Matches Kotlin OrderedTokenTask(id, prompt, tokens[], acceptedSequences[][], feedbackCorrect?, feedbackIncorrect?) / TokenOccurrence(occurrenceId, text). Reused both as an 'ordered_tokens' Activity's task and inside a Listening activity's EvaluableTask comprehension check. Token identity is the occurrence id (not the token text) so repeated words are addressable; accepted sequences are explicit occurrence-id permutations, never fuzzy text matching.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "prompt", "tokens", "acceptedSequences"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "prompt": { "type": "string", "minLength": 1 },
+    "tokens": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["occurrenceId", "text"],
+        "properties": {
+          "occurrenceId": { "type": "string", "minLength": 1 },
+          "text": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "acceptedSequences": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+    },
+    "feedbackCorrect": { "type": ["string", "null"], "default": null },
+    "feedbackIncorrect": { "type": ["string", "null"], "default": null }
+  }
+}

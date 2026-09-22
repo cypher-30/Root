@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "sources": [
+    {
+      "sourceId": "tatoeba",
+      "releaseId": "tatoeba-export-test",
+      "releaseUrl": "https://tatoeba.org/en/downloads",
+      "retrievedAt": "2026-01-01",
+      "components": [
+        {
+          "componentKind": "target_text",
+          "license": "CC-BY-2.0-FR",
+          "requiredCredit": "Tatoeba contributors (CC BY 2.0 FR)",
+          "rightsStatus": "cleared",
+          "reviewStatus": "source_checked",
+          "reviewRevision": null,
+          "notes": null
+        }
+      ]
+    }
+  ]
+}

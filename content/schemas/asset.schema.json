@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://root.app/content/schemas/asset.schema.json",
+  "title": "ManifestAsset",
+  "description": "One immutable media object (currently audio), matching Kotlin ManifestAsset(id, key, sha256, bytes, mimeType, durationMs?, sampleRateHz?, credits?). 'key' is resolved against the configured HTTPS content origin only; it must be a safe relative path with no traversal.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id", "key", "sha256", "bytes", "mimeType"
+  ],
+  "properties": {
+    "id": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "key": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^assets/audio-[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "description": "Parent transport convention: filename is derived from the asset id (audio-<assetId><ext>), never the original source filename. No '..'/'.' path segments, percent-encoding, query strings, colons, or backslashes are possible under this pattern because every segment must start with an alphanumeric character."
+    },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "bytes": { "type": "integer", "minimum": 1, "maximum": 20971520 },
+    "mimeType": { "type": "string", "enum": ["audio/mp4", "audio/aac", "audio/wav", "audio/mpeg"] },
+    "durationMs": { "type": ["integer", "null"], "minimum": 0, "default": null },
+    "sampleRateHz": { "type": ["integer", "null"], "minimum": 0, "default": null },
+    "credits": { "$ref": "credits.schema.json" }
+  }
+}

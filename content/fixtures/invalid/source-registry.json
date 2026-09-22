@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "sources": [
+    {
+      "sourceId": "not_a_known_source",
+      "releaseId": "x",
+      "components": [
+        { "componentKind": "audio", "license": "CC-BY-4.0", "rightsStatus": "definitely", "reviewStatus": "native_reviewed" }
+      ]
+    }
+  ]
+}

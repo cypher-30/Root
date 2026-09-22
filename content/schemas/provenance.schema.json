@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://root.app/content/schemas/provenance.schema.json",
+  "title": "Provenance",
+  "description": "Source release/item/file lineage, rights, and review status for one content component (text, translation, editorial notes, activity wording, or audio). source_checked is not native_reviewed; review is a distinct editorial gate.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sourceId", "releaseId", "componentLicense", "rightsStatus", "reviewStatus"
+  ],
+  "properties": {
+    "sourceId": {
+      "type": "string",
+      "enum": ["fleurs", "kencorpus", "common_voice", "tatoeba", "original", "root_editorial"]
+    },
+    "releaseId": { "type": "string", "minLength": 1, "description": "Pinned dataset/config/split, Dataverse version, CV release/locale, or Tatoeba export date." },
+    "itemId": { "type": ["string", "null"], "default": null, "description": "Source-native item/sentence/clip/file identifier." },
+    "sourceUrl": { "type": ["string", "null"], "default": null },
+    "componentLicense": {
+      "type": "string",
+      "description": "SPDX-like license tag for exactly this component, e.g. CC-BY-4.0, CC-BY-2.0-FR, CC0-1.0, MIT, UNKNOWN."
+    },
+    "componentKind": {
+      "type": "string",
+      "enum": ["target_text", "translation", "editorial_notes", "activity_wording", "audio"],
+      "default": "target_text"
+    },
+    "requiredCredit": { "type": ["string", "null"], "default": null },
+    "author": { "type": ["string", "null"], "default": null },
+    "transformationNotes": { "type": ["string", "null"], "default": null },
+    "rightsStatus": {
+      "type": "string",
+      "enum": ["cleared", "unknown", "incompatible"]
+    },
+    "reviewStatus": {
+      "type": "string",
+      "enum": ["unreviewed", "source_checked", "native_reviewed", "stale"]
+    },
+    "reviewRevision": { "type": ["integer", "null"], "minimum": 0, "default": null }
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://root.app/content/schemas/catalog.schema.json",
+  "title": "Catalog",
+  "description": "Matches Kotlin Catalog(schemaVersion, catalogRevision, entries[]) / CatalogEntry(id, version, language, title, publication, unitCount, lessonCount, phraseCount, audioCount, manifestKey, manifestSha256, manifestBytes, downloadBytes, retired=false). Total serialized size must stay <= 2 MiB. Retired packs remain listed with retired=true so offline devices can react without an unpromised immediate revocation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "catalogRevision", "entries"],
+  "properties": {
+    "schemaVersion": { "type": "integer", "minimum": 1 },
+    "catalogRevision": { "type": "integer", "minimum": 1 },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id", "version", "language", "title", "publication", "phraseCount",
+          "unitCount", "lessonCount", "audioCount", "manifestKey",
+          "manifestSha256", "manifestBytes", "downloadBytes", "retired"
+        ],
+        "properties": {
+          "id": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+          "version": { "type": "integer", "minimum": 1 },
+          "language": { "$ref": "language-reference.schema.json" },
+          "title": { "type": "string", "minLength": 1 },
+          "publication": {
+            "type": "string",
+            "enum": ["development", "published"],
+            "description": "Matches Kotlin PublicationStatus. Copied verbatim from the manifest's own top-level 'publication' string; no nested revision (see manifest.schema.json)."
+          },
+          "phraseCount": { "type": "integer", "minimum": 0 },
+          "unitCount": { "type": "integer", "minimum": 0 },
+          "lessonCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Exact number of lesson entries in the manifest's lessons[] array. Distinct from unitCount (a coarser topical grouping); always the literal len(manifest.lessons)."
+          },
+          "audioCount": { "type": "integer", "minimum": 0 },
+          "manifestKey": {
+            "type": "string",
+            "maxLength": 512,
+            "pattern": "^root_content/versions/[A-Za-z0-9][A-Za-z0-9._-]*/[1-9][0-9]*/manifest\\.json$",
+            "description": "Parent's immutable manifest storage convention: root_content/versions/<packId>/<version>/manifest.json."
+          },
+          "manifestSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "manifestBytes": { "type": "integer", "minimum": 1, "maximum": 4194304 },
+          "downloadBytes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 52428800,
+            "description": "Honest total download size shown to the user before requesting the pack: manifestBytes + sum(asset.bytes). Never manifestBytes alone. Capped at 50 MiB."
+          },
+          "retired": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

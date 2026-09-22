@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://root.app/content/schemas/evaluable-task.schema.json",
+  "title": "EvaluableTask",
+  "description": "Matches Kotlin EvaluableTask sealed via 'kind': 'choice_task' -> Choice(task: ChoiceTask), 'ordered_token_task' -> OrderedTokens(task: OrderedTokenTask). Used as a Listening activity's required 'comprehension' check.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "task"],
+  "properties": {
+    "kind": { "type": "string", "enum": ["choice_task", "ordered_token_task"] },
+    "task": { "type": "object" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "kind": { "const": "choice_task" } }, "required": ["kind"] },
+      "then": { "properties": { "task": { "$ref": "choice-task.schema.json" } } }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "ordered_token_task" } }, "required": ["kind"] },
+      "then": { "properties": { "task": { "$ref": "ordered-token-task.schema.json" } } }
+    }
+  ]
+}

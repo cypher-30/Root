@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "minReaderVersion": 1,
+  "id": "pack.shona.pilot",
+  "version": 1,
+  "language": { "id": "sn", "code": "sn", "name": "Shona" },
+  "title": "Greetings: Shona pilot",
+  "objective": "Greet someone and continue a short exchange",
+  "publication": "development",
+  "phrases": [
+    {
+      "id": "phrase.sn.greeting.001",
+      "prompt": "Mhoro!",
+      "meaning": "Hello!",
+      "audioAssetId": "asset.sn.greeting.001"
+    }
+  ],
+  "lessons": [
+    {
+      "id": "lesson.sn.greeting.conversation",
+      "revision": 1,
+      "title": "Greeting Conversation",
+      "objective": "Greet someone and continue a short exchange",
+      "format": "guided_conversation",
+      "activities": [
+        { "id": "step1", "kind": "dialogue_turn", "speaker": "Tendai", "text": "Mhoro!" }
+      ],
+      "requiredActivityIds": ["step1"],
+      "linkedPhraseIds": ["phrase.sn.greeting.001"]
+    }
+  ],
+  "assets": [
+    {
+      "id": "asset.sn.greeting.001",
+      "key": "assets/audio-asset.sn.greeting.001.m4a",
+      "sha256": "cf2d5a53f4a4491f083eccb6ca25403f713d628964c4113ab01e522fdd505723",
+      "bytes": 245760,
+      "mimeType": "audio/mp4"
+    }
+  ],
+  "credits": [
+    { "text": "Root development editorial content", "license": null, "sourceUrl": null }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://root.app/content/schemas/manifest.schema.json",
+  "title": "PackManifest",
+  "description": "Immutable per-version pack manifest, matching Kotlin PackManifest(schemaVersion, minReaderVersion, id, version, language, title, objective, publication, phrases[], lessons[], assets[], credits[]=[]). schemaVersion/minReaderVersion gate client compatibility explicitly; publication (a plain \"development\"|\"published\" string enum, matching Kotlin PublicationStatus) governs what the public catalog may reference. There is no nested revision on publication: pack-level versioning lives in 'version' and lesson-level versioning lives in each Lesson's own 'revision' field, never duplicated here. Total serialized size must stay <= 4 MiB (manifest JSON ceiling) and the pack's assets must together respect the 256-asset / 20 MiB-per-asset / 50 MiB-total ceilings enforced by the builder, not by this schema alone.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion", "minReaderVersion", "id", "version", "language",
+    "title", "objective", "publication", "phrases", "lessons", "assets", "credits"
+  ],
+  "properties": {
+    "schemaVersion": { "type": "integer", "minimum": 1 },
+    "minReaderVersion": { "type": "integer", "minimum": 1 },
+    "id": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "version": { "type": "integer", "minimum": 1 },
+    "language": { "$ref": "language-reference.schema.json" },
+    "title": { "type": "string", "minLength": 1 },
+    "objective": { "type": "string", "minLength": 1 },
+    "publication": {
+      "type": "string",
+      "enum": ["development", "published"],
+      "description": "Matches Kotlin PublicationStatus. No 'retired' value here -- retirement is an install-time/catalog concept (CatalogEntry.retired, Room InstalledPackStatus.RETIRED), never an editorial content state on the manifest itself."
+    },
+    "phrases": { "type": "array", "items": { "$ref": "phrase.schema.json" } },
+    "lessons": { "type": "array", "items": { "$ref": "lesson.schema.json" } },
+    "assets": { "type": "array", "items": { "$ref": "asset.schema.json" } },
+    "credits": { "type": "array", "items": { "$ref": "credits.schema.json" } }
+  }
+}

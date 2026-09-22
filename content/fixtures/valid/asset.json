@@ -1,0 +1,10 @@
+{
+  "id": "asset.sn.greeting.001",
+  "key": "assets/audio-asset.sn.greeting.001.m4a",
+  "sha256": "cf2d5a53f4a4491f083eccb6ca25403f713d628964c4113ab01e522fdd505723",
+  "bytes": 245760,
+  "mimeType": "audio/mp4",
+  "durationMs": 1800,
+  "sampleRateHz": 44100,
+  "credits": { "text": "Root development editorial content", "license": null, "sourceUrl": null }
+}

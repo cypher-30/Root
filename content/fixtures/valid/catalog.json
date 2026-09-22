@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "catalogRevision": 1,
+  "entries": [
+    {
+      "id": "pack.shona.pilot",
+      "version": 1,
+      "language": { "id": "sn", "code": "sn", "name": "Shona" },
+      "title": "Greetings: Shona pilot",
+      "publication": "published",
+      "phraseCount": 1,
+      "unitCount": 1,
+      "lessonCount": 1,
+      "audioCount": 1,
+      "manifestKey": "root_content/versions/pack.shona.pilot/1/manifest.json",
+      "manifestSha256": "cf2d5a53f4a4491f083eccb6ca25403f713d628964c4113ab01e522fdd505723",
+      "manifestBytes": 1381,
+      "downloadBytes": 247141,
+      "retired": false
+    }
+  ]
+}

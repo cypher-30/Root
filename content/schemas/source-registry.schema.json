@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://root.app/content/schemas/source-registry.schema.json",
+  "title": "SourceComponentRegistry",
+  "description": "Machine-readable rights/review record for source components, distinct from editorial content itself. Every imported candidate row must resolve to (or be quarantined pending) a registry entry before it can reach a pack manifest. source_checked != native_reviewed; this file records both explicitly per component.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "sources"],
+  "properties": {
+    "schemaVersion": { "type": "integer", "minimum": 1 },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sourceId", "releaseId", "components"],
+        "properties": {
+          "sourceId": { "type": "string", "enum": ["fleurs", "kencorpus", "common_voice", "tatoeba", "original", "root_editorial"] },
+          "releaseId": { "type": "string", "minLength": 1 },
+          "releaseUrl": { "type": ["string", "null"], "default": null },
+          "retrievedAt": { "type": ["string", "null"], "default": null, "description": "ISO date the release/terms evidence was inspected; kept in the registry, not baked into content hashes." },
+          "components": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["componentKind", "license", "rightsStatus", "reviewStatus"],
+              "properties": {
+                "componentKind": { "type": "string", "enum": ["target_text", "translation", "editorial_notes", "activity_wording", "audio"] },
+                "license": { "type": "string" },
+                "requiredCredit": { "type": ["string", "null"], "default": null },
+                "rightsStatus": { "type": "string", "enum": ["cleared", "unknown", "incompatible"] },
+                "reviewStatus": { "type": "string", "enum": ["unreviewed", "source_checked", "native_reviewed", "stale"] },
+                "reviewRevision": { "type": ["integer", "null"], "default": null },
+                "notes": { "type": ["string", "null"], "default": null }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
