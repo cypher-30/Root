@@ -127,9 +127,10 @@ $env:ANDROID_SERIAL = "emulator-5554" # Choose your intended test device explici
 .\gradlew.bat :app:connectedDebugAndroidTest
 ```
 
-Unit coverage includes bounded recall sessions and scheduler rules. Device tests cover
-reveal/rating accessibility, both themes, the design study, session closure, and
-connected navigation. Visual and real-purchase checks are described in
+Unit coverage includes scheduler rules. Device tests cover the durable practice
+session engine (resume, paging, idempotent rating, one-retry rule, stop/close), the
+Room schema migration, reveal/rating accessibility, both themes, the design study,
+session closure, and connected navigation. Visual and real-purchase checks are described in
 [DESIGN.md](docs/DESIGN.md#verification).
 
 ## Code map
@@ -137,9 +138,10 @@ connected navigation. Visual and real-purchase checks are described in
 ```text
 app\src\main\kotlin\com\root\app\
   MainActivity.kt       — connected navigation, theme and language sheets
-  RootViewModel.kt      — session state, saved-state restoration, UI integration
+  RootViewModel.kt      — thin UI adapter over PracticeRepository; only a session id is saved-state
   RootApplication.kt    — optional guarded billing initialization
-  data\                 — Room, repository, seed content, queue, scheduling, preferences
+  data\                 — Room, repository, seed content, scheduling, preferences
+  practice\             — durable, Room-backed practice session engine (paging, rating, resume, stop/close)
   billing\              — shared premium entitlement state
   sharing\              — phrase-card image generation / sharing
   audio\                — local playback and recording

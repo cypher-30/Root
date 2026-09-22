@@ -138,8 +138,10 @@ drag is not an outcome. Cancellation settles the card back. Buttons and accessib
 custom actions invoke the same rating transaction.
 
 Ratings are unavailable before reveal and while a rating is exiting/saving. A save
-failure restores the card instead of silently consuming it. The deck is capped at eight
-initial distinct phrases, with at most one same-session retry per missed phrase.
+failure restores the card instead of silently consuming it. The deck pages through
+due phrases in bounded database reads rather than an unbounded in-memory list, with
+at most one same-session retry per missed phrase, and the run persists durably
+across restarts until you rate through everything due or explicitly stop/close it.
 
 The root is not a disguised accuracy percentage. Its eight-step growth reflects
 distinct successful recalls, not the ratio of right answers to attempts. “Close”
@@ -193,9 +195,11 @@ preserving existing IDs/history instead of replacing parents and cascading delet
 Latest-attempt selection is deterministic, and eligible queues respect language and
 pack access. Schema evolution preserves learner content.
 
-The UI uses a ViewModel with saved session snapshots and outcome history to restore
-position after recreation without re-inserting the history. The active language and
-appearance persist locally. Audio lifecycle is separate from visual recomposition.
+The UI uses a thin ViewModel over `PracticeRepository`, which persists the run (queue,
+ratings, and cursor) durably in Room; only a session id is kept in saved state, so
+recreation, process death, or reopening the app resumes the same run instead of
+replaying an in-memory history. The active language and appearance persist locally.
+Audio lifecycle is separate from visual recomposition.
 
 ## Verification
 
