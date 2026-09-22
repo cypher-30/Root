@@ -56,7 +56,7 @@ interface PhraseDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertMissing(phrases: List<PhraseEntity>)
 
-    @Query("SELECT * FROM phrases WHERE pack_id = :packId ORDER BY id")
+    @Query("SELECT * FROM phrases WHERE pack_id = :packId AND NOT EXISTS (SELECT 1 FROM managed_phrases m WHERE m.phrase_id = phrases.id AND m.retired = 1) ORDER BY id")
     suspend fun getForPack(packId: String): List<PhraseEntity>
 
     @Query("SELECT * FROM phrases WHERE id = :id")
@@ -65,7 +65,7 @@ interface PhraseDao {
     @Query("SELECT * FROM phrases WHERE pack_id = :packId")
     fun observeForPack(packId: String): Flow<List<PhraseEntity>>
 
-    @Query("SELECT COUNT(*) FROM phrases WHERE pack_id = :packId")
+    @Query("SELECT COUNT(*) FROM phrases WHERE pack_id = :packId AND NOT EXISTS (SELECT 1 FROM managed_phrases m WHERE m.phrase_id = phrases.id AND m.retired = 1)")
     suspend fun countForPack(packId: String): Int
 }
 
@@ -157,6 +157,7 @@ internal const val DUE_PHRASES_QUERY = """
     WHERE pk.language_id = :languageId
         AND pk.id IN (:unlockedPackIds)
         AND (:packId IS NULL OR pk.id = :packId)
+        AND NOT EXISTS (SELECT 1 FROM managed_phrases m WHERE m.phrase_id = p.id AND m.retired = 1)
         AND (a.next_due_at IS NULL OR a.next_due_at <= :nowMillis)
     ORDER BY CASE WHEN a.next_due_at IS NULL THEN 1 ELSE 0 END, a.next_due_at, pk.sortOrder, p.id
 """

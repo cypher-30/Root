@@ -1,6 +1,9 @@
 package com.root.app.data
 
 import androidx.room.Database
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
@@ -19,6 +22,22 @@ import org.junit.Test
  * baseline schema this test migrates from is byte-for-byte what version 2 actually
  * was, so [Migration2To3Test] only has to get [AppDatabase.MIGRATION_2_3] right.
  */
+/** Minimal DAOs scoped to exactly what the v2 baseline needs to seed data —
+ *  deliberately NOT the full production [PhraseDao]/[AttemptDao], whose
+ *  queries now join `managed_phrases` (a table that did not exist until
+ *  version 4 and must never be assumed present by a v2 schema snapshot). */
+@Dao
+interface BaselinePhraseDao {
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertMissing(phrases: List<PhraseEntity>)
+}
+
+@Dao
+interface BaselineAttemptDao {
+    @Insert
+    suspend fun insert(attempt: AttemptEntity)
+}
+
 @Database(
     entities = [
         LanguageEntity::class, PackEntity::class, PhraseEntity::class,
@@ -31,8 +50,8 @@ import org.junit.Test
 abstract class AppDatabaseV2 : RoomDatabase() {
     abstract fun languageDao(): LanguageDao
     abstract fun packDao(): PackDao
-    abstract fun phraseDao(): PhraseDao
-    abstract fun attemptDao(): AttemptDao
+    abstract fun phraseDao(): BaselinePhraseDao
+    abstract fun attemptDao(): BaselineAttemptDao
 }
 
 /**
@@ -62,9 +81,11 @@ class Migration2To3Test {
 
         // Opening with the real entity set is itself the strongest assertion here:
         // Room validates the post-migration schema against what AppDatabase's
-        // entities expect and throws if MIGRATION_2_3's SQL disagrees with them.
+        // entities expect and throws if any migration's SQL disagrees with them.
+        // AppDatabase is now at version 4, so the full 2->3->4 path must be
+        // registered even though this test only exercises the 2->3 step's data.
         val migrated = Room.databaseBuilder(context, AppDatabase::class.java, dbName)
-            .addMigrations(AppDatabase.MIGRATION_2_3)
+            .addMigrations(AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4)
             .build()
         try {
             runBlocking {

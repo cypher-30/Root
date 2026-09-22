@@ -53,6 +53,7 @@ class RootRepository(context: Context) {
         practice.nextDuePhrase(languageId, packId)
 
     suspend fun initialize() {
+        com.root.app.content.ContentBuildPolicy.apply(db)
         SeedData.seedIfEmpty(db)
         val languages = languages()
         if (languages.none { it.id == activeLanguageId() }) {
@@ -92,6 +93,7 @@ class RootRepository(context: Context) {
     suspend fun phrase(id: String): PhraseEntity? {
         require(id.isNotBlank()) { "Phrase ID cannot be blank." }
         val phrase = db.phraseDao().getById(id) ?: return null
+        if (!ManagedContentAccess.isEligible(db.contentDao().getManagedPhrase(id))) return null
         val pack = requireNotNull(db.packDao().getById(phrase.packId)) { "Phrase pack is missing." }
         return phrase.takeIf { canAccess(pack, access.isPremium()) }
     }
@@ -174,6 +176,7 @@ class RootRepository(context: Context) {
 
     private suspend fun canAccess(pack: PackEntity, premium: Boolean): Boolean {
         val language = requireNotNull(db.languageDao().getById(pack.languageId)) { "Pack language is missing." }
-        return ContentAccess.canAccess(language, pack, premium, ReferralPrefs.hasUnlockedReward(context))
+        return db.contentDao().getInstalledPack(pack.id)?.status != InstalledPackStatus.RETIRED &&
+            ContentAccess.canAccess(language, pack, premium, ReferralPrefs.hasUnlockedReward(context))
     }
 }

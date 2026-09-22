@@ -26,7 +26,10 @@ object ContentAccess {
     ): List<String> {
         val language = db.languageDao().getById(languageId) ?: return emptyList()
         return db.packDao().getForLanguage(languageId)
-            .filter { canAccess(language, it, premium, rewardUnlocked) }
+            .filter {
+                canAccess(language, it, premium, rewardUnlocked) &&
+                    db.contentDao().getInstalledPack(it.id)?.status != InstalledPackStatus.RETIRED
+            }
             .map { it.id }
     }
 }

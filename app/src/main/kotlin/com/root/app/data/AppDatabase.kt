@@ -35,6 +35,30 @@ class Converters {
 
     @TypeConverter
     fun toEntryState(value: String): QueueEntryState = QueueEntryState.valueOf(value)
+
+    @TypeConverter
+    fun fromInstalledPackStatus(value: InstalledPackStatus): String = value.name
+
+    @TypeConverter
+    fun toInstalledPackStatus(value: String): InstalledPackStatus = InstalledPackStatus.valueOf(value)
+
+    @TypeConverter
+    fun fromPackInstallJobStatus(value: PackInstallJobStatus): String = value.name
+
+    @TypeConverter
+    fun toPackInstallJobStatus(value: String): PackInstallJobStatus = PackInstallJobStatus.valueOf(value)
+
+    @TypeConverter
+    fun fromLessonRunStatus(value: LessonRunStatus): String = value.name
+
+    @TypeConverter
+    fun toLessonRunStatus(value: String): LessonRunStatus = LessonRunStatus.valueOf(value)
+
+    @TypeConverter
+    fun fromLearningEventKind(value: LearningEventKind): String = value.name
+
+    @TypeConverter
+    fun toLearningEventKind(value: String): LearningEventKind = LearningEventKind.valueOf(value)
 }
 
 /**
@@ -47,8 +71,11 @@ class Converters {
         LanguageEntity::class, PackEntity::class, PhraseEntity::class,
         AttemptEntity::class, WeeklyChallengeEntity::class,
         PracticeSessionEntity::class, PracticeQueueEntryEntity::class,
+        PackVersionEntity::class, InstalledPackEntity::class, PackInstallJobEntity::class,
+        ManagedPhraseEntity::class, ContentAssetEntity::class,
+        LessonRunEntity::class, LearningEventEntity::class, LessonRunCommandEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -59,6 +86,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun attemptDao(): AttemptDao
     abstract fun challengeDao(): ChallengeDao
     abstract fun practiceDao(): PracticeDao
+    abstract fun contentDao(): ContentDao
+    abstract fun learningDao(): LearningDao
 
     companion object {
         /**
@@ -146,6 +175,183 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Version 3 -> 4: adds the downloadable-teaching-content foundation —
+         * immutable pack version manifests, install jobs, installed-pack
+         * pointers, managed-phrase mapping, per-asset records, and the durable
+         * lesson-run/event/command tables. Purely additive: every v3 table and
+         * row is untouched, so an existing learner's languages/packs/phrases/
+         * attempts/practice history survive unchanged. See
+         * docs/TEACHING_CONTRACTS.md for the Room API this unlocks.
+         */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS pack_versions (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        pack_id TEXT NOT NULL,
+                        version INTEGER NOT NULL,
+                        schema_version INTEGER NOT NULL,
+                        min_reader_version INTEGER NOT NULL,
+                        language_id TEXT NOT NULL,
+                        language_code TEXT NOT NULL,
+                        language_name TEXT NOT NULL,
+                        title TEXT NOT NULL,
+                        publication TEXT NOT NULL,
+                        manifest_json TEXT NOT NULL,
+                        manifest_sha256 TEXT NOT NULL,
+                        phrase_count INTEGER NOT NULL,
+                        lesson_count INTEGER NOT NULL,
+                        asset_count INTEGER NOT NULL,
+                        created_at INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_pack_versions_pack_id_version ON pack_versions(pack_id, version)"
+                )
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS installed_packs (
+                        pack_id TEXT NOT NULL PRIMARY KEY,
+                        current_version INTEGER NOT NULL,
+                        status TEXT NOT NULL,
+                        installed_at INTEGER NOT NULL,
+                        updated_at INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS pack_install_jobs (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        request_id TEXT NOT NULL,
+                        pack_id TEXT NOT NULL,
+                        target_version INTEGER NOT NULL,
+                        status TEXT NOT NULL,
+                        error_message TEXT,
+                        started_at INTEGER NOT NULL,
+                        updated_at INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_pack_install_jobs_request_id ON pack_install_jobs(request_id)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_pack_install_jobs_pack_id ON pack_install_jobs(pack_id)"
+                )
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS managed_phrases (
+                        phrase_id TEXT NOT NULL PRIMARY KEY,
+                        pack_id TEXT NOT NULL,
+                        pack_version INTEGER NOT NULL,
+                        source_phrase_id TEXT NOT NULL,
+                        retired INTEGER NOT NULL,
+                        updated_at INTEGER NOT NULL,
+                        FOREIGN KEY(phrase_id) REFERENCES phrases(id) ON DELETE RESTRICT
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_managed_phrases_phrase_id ON managed_phrases(phrase_id)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_managed_phrases_pack_id ON managed_phrases(pack_id)"
+                )
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS content_assets (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        pack_id TEXT NOT NULL,
+                        pack_version INTEGER NOT NULL,
+                        asset_id TEXT NOT NULL,
+                        key TEXT NOT NULL,
+                        sha256 TEXT NOT NULL,
+                        bytes INTEGER NOT NULL,
+                        mime_type TEXT NOT NULL,
+                        duration_ms INTEGER,
+                        local_uri TEXT
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_content_assets_pack_id_pack_version_asset_id ON content_assets(pack_id, pack_version, asset_id)"
+                )
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS lesson_runs (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        lesson_id TEXT NOT NULL,
+                        pack_id TEXT NOT NULL,
+                        pack_version INTEGER NOT NULL,
+                        lesson_revision INTEGER NOT NULL,
+                        status TEXT NOT NULL,
+                        current_step_index INTEGER NOT NULL,
+                        revealed_activity_ids TEXT NOT NULL,
+                        superseded_by_run_id TEXT,
+                        started_at INTEGER NOT NULL,
+                        completed_at INTEGER,
+                        updated_at INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_lesson_runs_lesson_id ON lesson_runs(lesson_id)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_lesson_runs_lesson_id_status ON lesson_runs(lesson_id, status)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_lesson_runs_pack_id_lesson_id_status ON lesson_runs(pack_id, lesson_id, status)"
+                )
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS learning_events (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        run_id TEXT NOT NULL,
+                        activity_id TEXT NOT NULL,
+                        kind TEXT NOT NULL,
+                        response_json TEXT,
+                        correct INTEGER,
+                        occurred_at INTEGER NOT NULL,
+                        FOREIGN KEY(run_id) REFERENCES lesson_runs(id) ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_learning_events_run_id ON learning_events(run_id)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_learning_events_run_id_activity_id ON learning_events(run_id, activity_id)"
+                )
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS lesson_run_commands (
+                        command_id TEXT NOT NULL PRIMARY KEY,
+                        run_id TEXT NOT NULL,
+                        command_type TEXT NOT NULL,
+                        payload_hash TEXT NOT NULL,
+                        result_json TEXT NOT NULL,
+                        applied_at INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_lesson_run_commands_run_id ON lesson_run_commands(run_id)"
+                )
+            }
+        }
+
         @Volatile private var instance: AppDatabase? = null
 
         fun get(context: Context): AppDatabase =
@@ -155,7 +361,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "root.db",
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build().also { instance = it }
             }
     }
