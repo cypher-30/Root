@@ -1,6 +1,7 @@
 package com.root.app.teach
 
 import android.app.Application
+import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -68,6 +69,7 @@ class ContentViewModel(
                 library.initialize()
                 error = null
             } catch (e: Exception) {
+                Log.w("ContentViewModel", "Library initialize failed", e)
                 error = "Couldn't load teaching units. Please try again."
             }
             refresh()
@@ -76,9 +78,13 @@ class ContentViewModel(
 
     /** Best-effort remote catalog refresh; initialize()'s cached/installed
      *  packs already render without it, so a network failure here is silent
-     *  rather than surfaced as a hard error. */
+     *  rather than surfaced as a hard error — but it is still logged, so a
+     *  persistently failing refresh (as opposed to ordinary offline use) is
+     *  visible in diagnostics instead of vanishing with no trace. */
     fun refresh() = viewModelScope.launch {
-        try { library.refreshCatalog() } catch (e: Exception) { /* offline is not an error state */ }
+        try { library.refreshCatalog() } catch (e: Exception) {
+            Log.w("ContentViewModel", "Catalog refresh failed; showing cached/installed content", e)
+        }
     }
 
     /** Fetches this unit's installed lesson content (a manifest read), called
@@ -97,20 +103,30 @@ class ContentViewModel(
             // lessons — this only refreshes the unit just opened.
             resumableLessonIds = (resumableLessonIds.filterNot { id -> manifest.lessons.any { it.id == id } }.toSet()) + resumableInUnit
         } catch (e: Exception) {
+            Log.w("ContentViewModel", "loadDetail($unitId) failed", e)
             error = "Couldn't load this unit's lessons. Please try again."
         }
     }
 
     fun download(unitId: String) = viewModelScope.launch {
-        try { library.download(unitId) } catch (e: Exception) { error = "Couldn't start the download. Please try again." }
+        try { library.download(unitId) } catch (e: Exception) {
+            Log.w("ContentViewModel", "download($unitId) failed", e)
+            error = "Couldn't start the download. Please try again."
+        }
     }
 
     fun cancel(unitId: String) = viewModelScope.launch {
-        try { library.cancel(unitId) } catch (e: Exception) { error = "Couldn't cancel the download. Please try again." }
+        try { library.cancel(unitId) } catch (e: Exception) {
+            Log.w("ContentViewModel", "cancel($unitId) failed", e)
+            error = "Couldn't cancel the download. Please try again."
+        }
     }
 
     fun uninstall(unitId: String) = viewModelScope.launch {
-        try { library.uninstall(unitId) } catch (e: Exception) { error = "Couldn't remove this unit. Please try again." }
+        try { library.uninstall(unitId) } catch (e: Exception) {
+            Log.w("ContentViewModel", "uninstall($unitId) failed", e)
+            error = "Couldn't remove this unit. Please try again."
+        }
     }
 
     /** Retry/update are both just re-issuing a download against the pack's

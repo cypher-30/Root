@@ -26,12 +26,24 @@ class PackDownloadWorker(context: Context, parameters: WorkerParameters) : Corou
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: SerializationException) {
+            // Terminal: the manifest itself is malformed, no retry will fix it.
             failed(library, requestId, "This content format is not supported.", error)
         } catch (error: IllegalArgumentException) {
+            // Terminal: manifest fails validation regardless of connectivity/retries.
             failed(library, requestId, error.message ?: "This content is not valid.", error)
         } catch (error: IOException) {
-            failed(library, requestId, error.message ?: "Download failed. Check the connection and storage, then retry.", error)
+            // Transient: network/storage-availability failures are worth WorkManager's
+            // own retry+backoff, up to MAX_AUTO_RETRIES, before surfacing a manual
+            // "Tap Retry" failure — most connectivity blips resolve on their own.
+            if (runAttemptCount < MAX_AUTO_RETRIES) {
+                Log.w("RootContent", "Pack install failed transiently (attempt $runAttemptCount), retrying", error)
+                Result.retry()
+            } else {
+                failed(library, requestId, error.message ?: "Download failed. Check the connection and storage, then retry.", error)
+            }
         } catch (error: android.database.sqlite.SQLiteException) {
+            // Terminal: a Room/storage write failure is not fixed by re-running the
+            // same install without a person addressing the underlying storage issue.
             failed(library, requestId, "Content could not be saved. Check available storage and retry.", error)
         }
     }
@@ -40,5 +52,12 @@ class PackDownloadWorker(context: Context, parameters: WorkerParameters) : Corou
         Log.w("RootContent", "Pack install failed", error)
         library.failJob(requestId, message)
         return Result.failure()
+    }
+
+    private companion object {
+        /** Cap on WorkManager-driven automatic retries for transient IO failures,
+         *  after which the job is marked FAILED with a manual "Tap Retry" affordance
+         *  instead of retrying forever in the background. */
+        const val MAX_AUTO_RETRIES = 3
     }
 }
