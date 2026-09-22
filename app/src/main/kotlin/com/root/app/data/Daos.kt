@@ -74,6 +74,9 @@ interface AttemptDao {
     @Insert
     suspend fun insert(attempt: AttemptEntity)
 
+    @Query("SELECT * FROM attempts WHERE id = :id")
+    suspend fun getById(id: String): AttemptEntity?
+
     /** The due queue for a session: every phrase in an unlocked pack whose latest
      *  attempt is due (or has no attempt yet). See [DUE_PHRASES_QUERY]. */
     @Query(DUE_PHRASES_QUERY)
@@ -82,6 +85,18 @@ interface AttemptDao {
         nowMillis: Long,
         unlockedPackIds: List<String>,
         packId: String? = null,
+    ): List<PhraseEntity>
+
+    /** Same ordering as [dueForLanguage] but genuinely bounded — used to build one
+     *  page of a practice run (and by the widget's single-row preview) instead of
+     *  ever loading a language's entire due list into memory. */
+    @Query("$DUE_PHRASES_QUERY LIMIT :limit")
+    suspend fun dueForLanguagePage(
+        languageId: String,
+        nowMillis: Long,
+        unlockedPackIds: List<String>,
+        packId: String? = null,
+        limit: Int,
     ): List<PhraseEntity>
 
     @Query(DUE_PHRASES_QUERY)
@@ -124,6 +139,13 @@ interface AttemptDao {
 }
 
 // rowid breaks millisecond ties by insertion order, selecting exactly one attempt.
+//
+// Ordering deliberately puts already-scheduled reviews (a real next_due_at) ahead of
+// never-attempted phrases (NULL next_due_at). Coalescing NULL to 0 would rank unseen
+// phrases first every time, starving overdue reviews behind an ever-growing catalog
+// of first exposures — see the plan's "do not starve due reviews behind unseen cards"
+// rule. Due reviews are then ordered most-overdue-first; unseen phrases follow in a
+// stable editorial order.
 internal const val DUE_PHRASES_QUERY = """
     SELECT p.* FROM phrases p
     JOIN packs pk ON pk.id = p.pack_id
@@ -136,8 +158,92 @@ internal const val DUE_PHRASES_QUERY = """
         AND pk.id IN (:unlockedPackIds)
         AND (:packId IS NULL OR pk.id = :packId)
         AND (a.next_due_at IS NULL OR a.next_due_at <= :nowMillis)
-    ORDER BY COALESCE(a.next_due_at, 0), pk.sortOrder, p.id
+    ORDER BY CASE WHEN a.next_due_at IS NULL THEN 1 ELSE 0 END, a.next_due_at, pk.sortOrder, p.id
 """
+
+/**
+ * Backs [com.root.app.practice.PracticeRepository]. All mutation happens inside
+ * that repository's `withTransaction` blocks; this DAO only exposes the raw reads
+ * and single-row writes needed there.
+ */
+@Dao
+interface PracticeDao {
+    @Insert
+    suspend fun insertSession(session: PracticeSessionEntity)
+
+    @Query("UPDATE practice_sessions SET status = :status, ended_at = :endedAt, end_reason = :endReason, next_position = :nextPosition, updated_at = :updatedAt WHERE id = :id")
+    suspend fun updateSession(
+        id: String,
+        status: PracticeSessionStatus,
+        endedAt: Long?,
+        endReason: PracticeEndReason?,
+        nextPosition: Int,
+        updatedAt: Long,
+    )
+
+    @Query("SELECT * FROM practice_sessions WHERE id = :id")
+    suspend fun getSession(id: String): PracticeSessionEntity?
+
+    /** The single open (non-ENDED) run for a language/pack scope, if any — the
+     *  basis for "resume, don't reset" on relaunch/widget-tap. `packId IS :packId`
+     *  correctly matches NULL == NULL for the "any pack" scope, unlike `=`. */
+    @Query(
+        """
+        SELECT * FROM practice_sessions
+        WHERE language_id = :languageId AND status != 'ENDED' AND (pack_id IS :packId)
+        ORDER BY started_at DESC LIMIT 1
+        """
+    )
+    suspend fun getOpenSession(languageId: String, packId: String?): PracticeSessionEntity?
+
+    @Insert
+    suspend fun insertEntries(entries: List<PracticeQueueEntryEntity>)
+
+    @Insert
+    suspend fun insertEntry(entry: PracticeQueueEntryEntity)
+
+    @Query("UPDATE practice_queue_entries SET state = :state WHERE id = :id")
+    suspend fun updateEntryState(id: String, state: QueueEntryState)
+
+    @Query("SELECT * FROM practice_queue_entries WHERE id = :id")
+    suspend fun getEntry(id: String): PracticeQueueEntryEntity?
+
+    @Query(
+        """
+        SELECT * FROM practice_queue_entries
+        WHERE session_id = :sessionId AND state = 'PENDING'
+        ORDER BY position LIMIT 1
+        """
+    )
+    suspend fun nextPending(sessionId: String): PracticeQueueEntryEntity?
+
+    @Query("SELECT COUNT(*) FROM practice_queue_entries WHERE session_id = :sessionId AND state = 'PENDING'")
+    suspend fun pendingCount(sessionId: String): Int
+
+    @Query("SELECT COUNT(*) FROM practice_queue_entries WHERE session_id = :sessionId AND state = 'RATED'")
+    suspend fun ratedCount(sessionId: String): Int
+
+    @Query(
+        """
+        SELECT COUNT(*) FROM practice_queue_entries e
+        JOIN attempts a ON a.id = e.id
+        WHERE e.session_id = :sessionId AND e.state = 'RATED' AND a.confidence = 'GOT_IT'
+        """
+    )
+    suspend fun correctCount(sessionId: String): Int
+
+    @Query("SELECT COUNT(*) FROM practice_queue_entries WHERE session_id = :sessionId AND is_retry = 0 AND phrase_id = :phraseId")
+    suspend fun baseEntryCountForPhrase(sessionId: String, phraseId: String): Int
+
+    @Query("SELECT COUNT(*) FROM practice_queue_entries WHERE session_id = :sessionId AND origin_entry_id = :originEntryId")
+    suspend fun retryCountForOrigin(sessionId: String, originEntryId: String): Int
+
+    @Query("SELECT MAX(position) FROM practice_queue_entries WHERE session_id = :sessionId")
+    suspend fun maxPosition(sessionId: String): Int?
+
+    @Query("SELECT phrase_id FROM practice_queue_entries WHERE session_id = :sessionId")
+    suspend fun phraseIdsInSession(sessionId: String): List<String>
+}
 
 @Dao
 interface ChallengeDao {

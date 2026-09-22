@@ -47,6 +47,12 @@ android {
     sourceSets["main"].kotlin.srcDirs("src/main/kotlin")
 }
 
+ksp {
+    // Exports each schema version to app/schemas/ so androidTest can migration-test
+    // real SQL against a captured prior schema instead of trusting the code alone.
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 dependencies {
     // -- Compose --
     // Stay on the Kotlin-2.0-compatible Compose line; take its patched UI artifacts.

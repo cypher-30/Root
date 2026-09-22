@@ -110,3 +110,77 @@ data class WeeklyChallengeEntity(
     val completed: Boolean = false,
     @ColumnInfo(name = "updated_at") val updatedAt: Long = System.currentTimeMillis(),
 )
+
+/** Status of one durable local practice run (see [PracticeSessionEntity]). ACTIVE
+ *  has at least one PENDING queue entry; PAGE_PAUSED means the current page is
+ *  fully rated/skipped but the run is still open — [com.root.app.practice.PracticeRepository.continueSession]
+ *  can fetch another page; ENDED is durably closed by Stop for now, Close this
+ *  session, or a language/pack scope change, and is never resumed. */
+enum class PracticeSessionStatus { ACTIVE, PAGE_PAUSED, ENDED }
+
+/** Why a practice run ended, kept for its persisted summary. */
+enum class PracticeEndReason { STOPPED, CLOSED, SCOPE_CHANGED }
+
+/** Whether a queued occurrence is still awaiting a rating (PENDING), has been
+ *  rated (RATED — an [AttemptEntity] sharing this row's own id exists), or was
+ *  SKIPPED because its content became inaccessible or missing before it was shown. */
+enum class QueueEntryState { PENDING, RATED, SKIPPED }
+
+/**
+ * One durable local practice run — see [com.root.app.practice.PracticeRepository].
+ * Replaces the previous in-memory `SessionQueue` plus Bundle-based
+ * `SavedStateHandle` restoration: a run now survives process death and reopening
+ * without a 24-hour expiry, and Stop/Close durably end it rather than merely
+ * finishing the Activity. [nextPosition] is a per-session monotonic counter used
+ * to order the base page and append each Missed phrase's one-time tail retry
+ * without ever reusing or colliding on a position.
+ */
+@Entity(tableName = "practice_sessions")
+data class PracticeSessionEntity(
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    @ColumnInfo(name = "language_id") val languageId: String,
+    @ColumnInfo(name = "pack_id") val packId: String?,
+    val status: PracticeSessionStatus,
+    @ColumnInfo(name = "started_at") val startedAt: Long,
+    @ColumnInfo(name = "ended_at") val endedAt: Long? = null,
+    @ColumnInfo(name = "end_reason") val endReason: PracticeEndReason? = null,
+    @ColumnInfo(name = "next_position") val nextPosition: Int = 0,
+    @ColumnInfo(name = "updated_at") val updatedAt: Long = System.currentTimeMillis(),
+)
+
+/**
+ * One occurrence of a phrase within a [PracticeSessionEntity]: either a base-page
+ * item or a single tail-appended Missed retry ([isRetry]/[originEntryId]). Content
+ * is snapshotted ([promptSnapshot], [answerSnapshot], [audioSnapshot],
+ * [phraseRevision]) so a mid-run content edit cannot silently change an active
+ * card. This row's own [id] doubles as the linked [AttemptEntity.id] once rated —
+ * that shared id is what makes rating idempotent (see
+ * [com.root.app.practice.PracticeRepository.rate]): replaying the same entry id
+ * after it is already RATED cannot insert a second attempt or double-advance the run.
+ */
+@Entity(
+    tableName = "practice_queue_entries",
+    foreignKeys = [
+        ForeignKey(
+            entity = PracticeSessionEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["session_id"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index("session_id"), Index("phrase_id")],
+)
+data class PracticeQueueEntryEntity(
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    @ColumnInfo(name = "session_id") val sessionId: String,
+    @ColumnInfo(name = "phrase_id") val phraseId: String,
+    @ColumnInfo(name = "pack_id_snapshot") val packIdSnapshot: String,
+    @ColumnInfo(name = "prompt_snapshot") val promptSnapshot: String,
+    @ColumnInfo(name = "answer_snapshot") val answerSnapshot: String,
+    @ColumnInfo(name = "audio_snapshot") val audioSnapshot: String?,
+    @ColumnInfo(name = "phrase_revision") val phraseRevision: Long,
+    val position: Int,
+    @ColumnInfo(name = "is_retry") val isRetry: Boolean,
+    @ColumnInfo(name = "origin_entry_id") val originEntryId: String?,
+    val state: QueueEntryState,
+)
