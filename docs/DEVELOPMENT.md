@@ -26,8 +26,9 @@ All Kotlin lives under `app/src/main/kotlin/com/root/app/`.
 | `practice/` | `PracticeRepository`: the durable, Room-backed practice session engine (queue paging, rating, resume, stop/close) |
 | `content/` | Serializable catalog/pack contracts, validation, bounded HTTPS transport, immutable pack files, WorkManager installs and availability |
 | `learning/` | Transactional lesson commands, revision-pinned runs, response evaluation and learning evidence separate from recall |
-| `billing/` | RevenueCat configuration guard, shared entitlement cache (`EntitlementStore`), paywall state machine (`PaywallViewModel`) |
+| `billing/` | RevenueCat configuration guard, shared entitlement cache (`EntitlementStore`), paywall state machine (`PaywallViewModel`), and `PurchasesGateway` (a testability seam around the `Purchases.sharedInstance` singleton so the state machine can be exercised with a fake in a Robolectric unit test) |
 | `audio/` | `RootAudioSession`: recording/playback lifecycle, permission handling, file ownership |
+| `archive/` | `ArchiveViewModel`/`ArchiveScreen` ("Your words"): search, edit, and permanently delete personally-contributed phrases; consent for a recorded speaker is required and stored in `PhraseConsentEntity` |
 | `sharing/` | PNG phrase-card rendering (`PhraseCardRenderer`) and FileProvider-backed sharing (`PhraseCardSharing`) |
 | `widget/` | `RootWidget`: Glance home-screen widget showing the next due phrase |
 | `ui/` | Screens (`PracticeScreen`, `PacksScreen`, `PaywallScreen`, `InviteScreen`, `ContributeScreen`, `SessionCompleteScreen`, `DesignStudyScreen`) |
