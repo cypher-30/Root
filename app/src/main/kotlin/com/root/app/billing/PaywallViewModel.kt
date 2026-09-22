@@ -4,15 +4,56 @@ import android.app.Activity
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.revenuecat.purchases.CustomerInfo
+import com.revenuecat.purchases.Offerings
 import com.revenuecat.purchases.Package
 import com.revenuecat.purchases.PurchaseParams
 import com.revenuecat.purchases.Purchases
+import com.revenuecat.purchases.PurchasesError
 import com.revenuecat.purchases.getOfferingsWith
+import com.revenuecat.purchases.models.StoreTransaction
 import com.revenuecat.purchases.purchaseWith
 import com.revenuecat.purchases.restorePurchasesWith
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+
+/** Seam around the [Purchases.sharedInstance] static singleton so [PaywallViewModel]'s
+ *  state machine can be exercised deterministically in a JVM unit test with a fake,
+ *  instead of only against the real store. */
+interface PurchasesGateway {
+    fun getOfferings(onError: (PurchasesError) -> Unit, onSuccess: (Offerings) -> Unit)
+    fun purchase(
+        activity: Activity,
+        selected: Package,
+        onError: (PurchasesError, Boolean) -> Unit,
+        onSuccess: (StoreTransaction?, CustomerInfo) -> Unit,
+    )
+    fun restore(onError: (PurchasesError) -> Unit, onSuccess: (CustomerInfo) -> Unit)
+}
+
+object RevenueCatGateway : PurchasesGateway {
+    override fun getOfferings(onError: (PurchasesError) -> Unit, onSuccess: (Offerings) -> Unit) {
+        Purchases.sharedInstance.getOfferingsWith(onError = onError, onSuccess = onSuccess)
+    }
+
+    override fun purchase(
+        activity: Activity,
+        selected: Package,
+        onError: (PurchasesError, Boolean) -> Unit,
+        onSuccess: (StoreTransaction?, CustomerInfo) -> Unit,
+    ) {
+        Purchases.sharedInstance.purchaseWith(
+            purchaseParams = PurchaseParams.Builder(activity, selected).build(),
+            onError = onError,
+            onSuccess = onSuccess,
+        )
+    }
+
+    override fun restore(onError: (PurchasesError) -> Unit, onSuccess: (CustomerInfo) -> Unit) {
+        Purchases.sharedInstance.restorePurchasesWith(onError = onError, onSuccess = onSuccess)
+    }
+}
 
 /** UI-facing states for [PaywallScreen][com.root.app.ui.PaywallScreen]; a state
  *  machine rather than separate loading/error/data flags so the screen can render
@@ -27,7 +68,13 @@ sealed interface PaywallState {
     data object NotConfigured : PaywallState
 }
 
-class PaywallViewModel(application: Application) : AndroidViewModel(application) {
+class PaywallViewModel @JvmOverloads constructor(
+    application: Application,
+    private val gateway: PurchasesGateway = RevenueCatGateway,
+    // Split out from BillingConfiguration.isReady so tests can drive the full state
+    // machine without a real, configured RevenueCat SDK instance.
+    private val isConfigured: () -> Boolean = { BillingConfiguration.isReady },
+) : AndroidViewModel(application) {
     private val access = EntitlementStore(application)
     private val mutableState = MutableStateFlow<PaywallState>(PaywallState.Loading)
     val state = mutableState.asStateFlow()
@@ -51,13 +98,13 @@ class PaywallViewModel(application: Application) : AndroidViewModel(application)
             mutableState.value = PaywallState.Unlocked
             return
         }
-        if (!BillingConfiguration.isReady) {
+        if (!isConfigured()) {
             mutableState.value = PaywallState.NotConfigured
             return
         }
         mutableState.value = PaywallState.Loading
         access.refresh()
-        Purchases.sharedInstance.getOfferingsWith(
+        gateway.getOfferings(
             onError = {
                 if (!access.isPremium()) {
                     mutableState.value = PaywallState.Error(
@@ -80,7 +127,7 @@ class PaywallViewModel(application: Application) : AndroidViewModel(application)
 
     fun purchase(activity: Activity?, selected: Package) {
         if (busy() || mutableState.value is PaywallState.Loading) return
-        if (!BillingConfiguration.isReady) {
+        if (!isConfigured()) {
             mutableState.value = PaywallState.NotConfigured
             return
         }
@@ -96,8 +143,9 @@ class PaywallViewModel(application: Application) : AndroidViewModel(application)
             return
         }
         mutableState.value = PaywallState.Purchasing(packages, selected.identifier)
-        Purchases.sharedInstance.purchaseWith(
-            purchaseParams = PurchaseParams.Builder(activity, selected).build(),
+        gateway.purchase(
+            activity = activity,
+            selected = selected,
             onError = { _, cancelled ->
                 mutableState.value = if (access.isPremium()) PaywallState.Unlocked
                 else if (cancelled) PaywallState.Ready(packages, "Purchase cancelled. Nothing changed.")
@@ -120,12 +168,12 @@ class PaywallViewModel(application: Application) : AndroidViewModel(application)
 
     fun restore() {
         if (busy() || mutableState.value is PaywallState.Loading) return
-        if (!BillingConfiguration.isReady) {
+        if (!isConfigured()) {
             mutableState.value = PaywallState.NotConfigured
             return
         }
         mutableState.value = PaywallState.Restoring(packages)
-        Purchases.sharedInstance.restorePurchasesWith(
+        gateway.restore(
             onError = {
                 mutableState.value = if (access.isPremium()) PaywallState.Unlocked
                 else PaywallState.Error(
@@ -144,3 +192,4 @@ class PaywallViewModel(application: Application) : AndroidViewModel(application)
     private fun busy() = mutableState.value is PaywallState.Purchasing ||
         mutableState.value is PaywallState.Restoring
 }
+
