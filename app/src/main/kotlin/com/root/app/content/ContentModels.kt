@@ -283,13 +283,15 @@ sealed interface Activity {
      *  While [audioAssetId] is null or the referenced clip is not actually
      *  installed on-device, [LessonRunner] refuses any [comprehension]-answer
      *  submission with `AUDIO_UNAVAILABLE` (it never silently substitutes
-     *  transcript-only evidence for a real comprehension check) — but a plain
-     *  acknowledgement of that honest unavailable state IS accepted as
-     *  `EXPOSURE` evidence, the same treatment as [Reflection]/[DialogueTurn].
-     *  This lets a lesson still require this activity's completion without
-     *  becoming permanently stuck while its audio is missing. [comprehension]
-     *  is the machine-checked task that provides real graded evidence once
-     *  audio exists. */
+     *  transcript-only evidence for a real comprehension check). A plain
+     *  acknowledgement of that honest unavailable state is still accepted as
+     *  an `EXPOSURE` event (so the learner isn't stuck on this single step and
+     *  can Advance past it to explore other activities/lessons), but that
+     *  acknowledgement never counts toward this lesson's required-activity
+     *  completion when this activity is required — the lesson as a whole
+     *  stays incomplete until real playable audio exists and a real
+     *  [comprehension] attempt is submitted and evaluated. [comprehension]
+     *  is the machine-checked task that provides that real graded evidence. */
     @Serializable
     @SerialName("listening")
     data class Listening(

@@ -353,19 +353,24 @@ Behavior guaranteed by the implementation (see `LessonRunnerTest.kt`):
   not the validator, is what actually gates evidence on real audio being
   present; a `development`-status pack is allowed to ship without it, a
   `published` one is not (see `PUBLISHED_LISTENING_MISSING_AUDIO`).
-- **A required-but-unavailable `Listening` activity can still complete the
-  lesson**: while `audioAssetId` is null (or the asset isn't actually
+- **A required-but-unavailable `Listening` activity keeps the lesson
+  incomplete**: while `audioAssetId` is null (or the asset isn't actually
   installed), submitting `ActivityResponse.Acknowledged` for that activity is
-  accepted as `EXPOSURE` evidence (identical treatment to `Reflection`/
-  `DialogueTurn`'s acknowledgement) — this is what actually records an event
-  for the activity. Any real `Choice`/`OrderedTokens` comprehension-answer
+  still accepted and recorded as `EXPOSURE` evidence (identical treatment to
+  `Reflection`/`DialogueTurn`'s acknowledgement) — so the learner is never
+  stuck on this single step and can `Advance` past it to explore other
+  activities/lessons. Any real `Choice`/`OrderedTokens` comprehension-answer
   attempt against unavailable audio is still rejected with
   `AUDIO_UNAVAILABLE` as above; only a plain acknowledgement of the honest
-  "not available" state counts. Without this, a lesson whose sole/required
-  activity is a permanently-unrecorded `Listening` step (e.g. the Shona pilot's
-  `shona-pilot-lesson-listening`) could never be marked complete — this was a
-  real bug, fixed and covered by
-  `LessonRunnerTest.requiredListeningWithNullAudioAcceptsAcknowledgedAsExposureAndCanComplete`.
+  "not available" state is recorded. However, that `EXPOSURE`-only
+  acknowledgement of a required `Listening` activity is **never sufficient
+  for lesson completion** (`LessonRunner.isRequiredActivitySatisfied`) — the
+  lesson stays incomplete until real playable audio exists and a real
+  `Choice`/`OrderedTokens` comprehension attempt is submitted and evaluated.
+  This is a deliberate integrity rule: exposure-only acknowledgement of
+  missing audio must never be usable as a demo/completion loophole, even
+  though it is honestly recorded as evidence. Covered by
+  `LessonRunnerTest.requiredListeningWithNullAudioAcceptsAcknowledgedAsExposureButStaysIncomplete`.
 
 ### Evaluators (`Evaluators.kt`, pure, no Room/Android)
 

@@ -22,6 +22,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -306,7 +307,7 @@ class LessonRunnerTest {
         )
     }
 
-    @Test fun requiredListeningWithNullAudioAcceptsAcknowledgedAsExposureAndCanComplete() = runBlocking {
+    @Test fun requiredListeningWithNullAudioAcceptsAcknowledgedAsExposureButStaysIncomplete() = runBlocking {
         installVersion(2, listeningOnlyManifest())
         val begin = runner.execute(
             LearningCommand.BeginOrResume("cmd-l-begin", packId, 2, "lesson-listening"),
@@ -322,16 +323,22 @@ class LessonRunnerTest {
         assertEquals(RejectionReason.AUDIO_UNAVAILABLE, (rejected as CommandResult.Rejected).reason)
 
         // A plain acknowledgement of the honest unavailable state IS accepted
-        // as EXPOSURE evidence, letting this required activity — and thus the
-        // whole lesson — actually complete instead of being stuck forever.
+        // and recorded as EXPOSURE evidence — the learner isn't stuck on this
+        // single step — but it never counts toward *required* completion for a
+        // Listening activity, so the lesson stays incomplete without real
+        // playable audio and a real comprehension attempt.
         val ack = runner.execute(
             LearningCommand.SubmitResponse("cmd-l-ack", runId, "listen-1", ActivityResponse.Acknowledged),
         )
         assertTrue(ack is CommandResult.Applied)
 
-        val completed = runner.execute(LearningCommand.Advance("cmd-l-adv", runId, "listen-1")) as CommandResult.Applied
-        assertTrue(completed.state.completed)
-        assertEquals(1, completed.state.requiredCompletedCount)
+        val advanced = runner.execute(LearningCommand.Advance("cmd-l-adv", runId, "listen-1"))
+        assertTrue(advanced is CommandResult.Rejected)
+        assertEquals(RejectionReason.STEP_MISMATCH, (advanced as CommandResult.Rejected).reason)
+
+        val stateAfter = runner.execute(LearningCommand.BeginOrResume("cmd-l-resume", packId, 2, "lesson-listening")) as CommandResult.Applied
+        assertFalse(stateAfter.state.completed)
+        assertEquals(0, stateAfter.state.requiredCompletedCount)
     }
 
     private suspend fun installOtherPackVersion(otherPackId: String) {

@@ -255,9 +255,7 @@ class LessonRunner(
         val nextIndex = run.currentStepIndex + 1
         val now = System.currentTimeMillis()
         if (nextIndex >= lesson.activities.size) {
-            val requiredMissing = lesson.requiredActivityIds.any { reqId ->
-                learningDao.latestEventForActivity(run.id, reqId) == null
-            }
+            val requiredMissing = lesson.requiredActivityIds.any { reqId -> !isRequiredActivitySatisfied(run.id, lesson, reqId) }
             if (requiredMissing) {
                 return CommandResult.Rejected(RejectionReason.STEP_MISMATCH, "required steps are not all completed yet")
             }
@@ -302,6 +300,23 @@ class LessonRunner(
     }
 
     private fun LessonRunStatus.isEnded(): Boolean = this == LessonRunStatus.COMPLETED || this == LessonRunStatus.UNAVAILABLE
+
+    /**
+     * Whether [reqId]'s required-activity evidence actually counts toward
+     * completion. A required [Activity.Listening] step whose *only* recorded
+     * evidence is an [LearningEventKind.EXPOSURE] acknowledgement of missing/
+     * unavailable audio does not count: the learner can still Advance past it
+     * and explore other lessons (this is not a per-step gate), but the lesson
+     * as a whole never reaches COMPLETED until real playable audio and a real
+     * comprehension attempt exist. Every other required activity kind (and a
+     * Listening step with real CHECKED/ASSISTED comprehension evidence) counts
+     * as soon as any event is recorded, exactly as before.
+     */
+    private suspend fun isRequiredActivitySatisfied(runId: String, lesson: Lesson, reqId: String): Boolean {
+        val event = learningDao.latestEventForActivity(runId, reqId) ?: return false
+        val activity = lesson.activities.firstOrNull { it.id == reqId }
+        return !(activity is Activity.Listening && event.kind == LearningEventKind.EXPOSURE)
+    }
 
     private enum class Evaluation { CORRECT, INCORRECT, NOT_EVALUABLE, SELF_REPORT, AUDIO_UNAVAILABLE }
 
@@ -357,7 +372,7 @@ class LessonRunner(
         val currentActivity = lesson?.activities?.getOrNull(run.currentStepIndex)
         val requiredTotal = lesson?.requiredActivityIds?.size ?: 0
         val requiredCompleted = lesson?.requiredActivityIds?.count { reqId ->
-            learningDao.latestEventForActivity(run.id, reqId) != null
+            isRequiredActivitySatisfied(run.id, lesson, reqId)
         } ?: 0
         val feedback = currentActivity?.let { learningDao.latestEventForActivity(run.id, it.id) }?.let { event ->
             event.responseJson?.let { json ->
