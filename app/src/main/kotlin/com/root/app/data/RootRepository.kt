@@ -3,6 +3,9 @@ package com.root.app.data
 import android.content.Context
 import androidx.room.withTransaction
 import com.root.app.billing.EntitlementStore
+import com.root.app.practice.PracticeRateResult
+import com.root.app.practice.PracticeRepository
+import com.root.app.practice.PracticeSessionState
 import java.io.File
 import java.util.concurrent.TimeUnit
 
@@ -10,13 +13,44 @@ import java.util.concurrent.TimeUnit
  * Single point of access to Room, [RootPreferences], and [EntitlementStore]. UI code
  * and [com.root.app.RootViewModel] go through this class rather than touching the
  * database or preferences directly, so access rules ([ContentAccess]) and locked-pack
- * text are enforced in one place ([phrases], [phrase], [duePhrases], [recordAttempt]).
+ * text are enforced in one place ([phrases], [phrase], [practice]).
  */
 class RootRepository(context: Context) {
     private val context = context.applicationContext
     val db: AppDatabase = AppDatabase.get(this.context)
     private val preferences = RootPreferences(this.context)
     private val access = EntitlementStore(this.context)
+
+    /** Durable practice-run backend — see [PracticeRepository]. Lazily created since
+     *  it only needs [db] plus fresh entitlement reads, both already available here. */
+    val practice: PracticeRepository by lazy {
+        PracticeRepository(
+            db = db,
+            premium = { access.isPremium() },
+            rewardUnlocked = { ReferralPrefs.hasUnlockedReward(this.context) },
+        )
+    }
+
+    suspend fun beginOrResumePractice(languageId: String, packId: String? = null): PracticeSessionState? =
+        practice.beginOrResume(languageId, packId)
+
+    suspend fun continuePractice(sessionId: String): PracticeSessionState? =
+        practice.continueSession(sessionId)
+
+    suspend fun ratePractice(sessionId: String, entryId: String, outcome: ConfidenceLevel): PracticeRateResult =
+        practice.rate(sessionId, entryId, outcome)
+
+    suspend fun stopPractice(sessionId: String, reason: PracticeEndReason): Boolean =
+        practice.stop(sessionId, reason)
+
+    suspend fun revalidatePractice(sessionId: String): PracticeSessionState? =
+        practice.revalidateCurrent(sessionId)
+
+    suspend fun practiceState(sessionId: String): PracticeSessionState? =
+        practice.state(sessionId)
+
+    suspend fun nextDuePhrase(languageId: String, packId: String? = null): PhraseEntity? =
+        practice.nextDuePhrase(languageId, packId)
 
     suspend fun initialize() {
         SeedData.seedIfEmpty(db)
@@ -60,38 +94,6 @@ class RootRepository(context: Context) {
         val phrase = db.phraseDao().getById(id) ?: return null
         val pack = requireNotNull(db.packDao().getById(phrase.packId)) { "Phrase pack is missing." }
         return phrase.takeIf { canAccess(pack, access.isPremium()) }
-    }
-
-    suspend fun duePhrases(
-        languageId: String,
-        packId: String? = null,
-        premium: Boolean = false,
-    ): List<PhraseEntity> {
-        val unlockedIds = unlockedPackIds(languageId, premium)
-        if (unlockedIds.isEmpty() || (packId != null && packId !in unlockedIds)) return emptyList()
-        return db.attemptDao().dueForLanguage(
-            languageId = languageId,
-            nowMillis = System.currentTimeMillis(),
-            unlockedPackIds = unlockedIds,
-            packId = packId,
-        )
-    }
-
-    suspend fun recordAttempt(phraseId: String, confidence: ConfidenceLevel) {
-        db.withTransaction {
-            val phrase = requireNotNull(db.phraseDao().getById(phraseId)) { "Unknown phrase: $phraseId" }
-            val pack = requireNotNull(db.packDao().getById(phrase.packId)) { "Phrase pack is missing." }
-            check(canAccess(pack, access.isPremium())) { "This pack is locked." }
-            val now = System.currentTimeMillis()
-            db.attemptDao().insert(
-                AttemptEntity(
-                    phraseId = phraseId,
-                    confidence = confidence,
-                    reviewedAt = now,
-                    nextDueAt = Scheduler.nextDueAt(confidence, now),
-                )
-            )
-        }
     }
 
     suspend fun capabilityCount(languageId: String): Int =
@@ -167,11 +169,8 @@ class RootRepository(context: Context) {
         }
     }
 
-    private suspend fun unlockedPackIds(languageId: String, premium: Boolean): List<String> {
-        val language = requireNotNull(db.languageDao().getById(languageId)) { "Unknown language: $languageId" }
-        val reward = ReferralPrefs.hasUnlockedReward(context)
-        return packs(languageId).filter { ContentAccess.canAccess(language, it, premium, reward) }.map { it.id }
-    }
+    private suspend fun unlockedPackIds(languageId: String, premium: Boolean): List<String> =
+        ContentAccess.unlockedPackIds(db, languageId, premium, ReferralPrefs.hasUnlockedReward(context))
 
     private suspend fun canAccess(pack: PackEntity, premium: Boolean): Boolean {
         val language = requireNotNull(db.languageDao().getById(pack.languageId)) { "Pack language is missing." }

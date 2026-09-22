@@ -15,4 +15,18 @@ object ContentAccess {
                 premium ||
                 (!language.isPremium &&
                     (pack.isFree || (rewardUnlocked && pack.id == ReferralPrefs.REWARD_PACK_ID))))
+
+    /** Shared by [RootRepository] and [com.root.app.practice.PracticeRepository] so
+     *  both agree on exactly which packs a learner can currently see. */
+    suspend fun unlockedPackIds(
+        db: AppDatabase,
+        languageId: String,
+        premium: Boolean,
+        rewardUnlocked: Boolean,
+    ): List<String> {
+        val language = db.languageDao().getById(languageId) ?: return emptyList()
+        return db.packDao().getForLanguage(languageId)
+            .filter { canAccess(language, it, premium, rewardUnlocked) }
+            .map { it.id }
+    }
 }
