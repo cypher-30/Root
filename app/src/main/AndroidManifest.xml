@@ -2,13 +2,12 @@
 <!--
      Root's manifest is intentionally small: one launcher Activity, one FileProvider
      (for the sharing feature's temporary image URIs), one home-screen widget
-     receiver. There is no application backend, so there are no other components,
-     services, or cleartext-traffic exceptions to declare.
+     receiver. WorkManager contributes its own durable content-download components
+     through manifest merging. Content uses HTTPS; no cleartext exceptions.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- RevenueCat's Test Store needs no network for purchases themselves, but the SDK's
-         own init/analytics calls do. -->
+    <!-- Optional billing and public content downloads; installed practice is offline. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.VIBRATE" />

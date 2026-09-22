@@ -22,6 +22,12 @@ android {
         // (see README's "Optional Test Store purchases" section) and never committed.
         val revenueCatKey = providers.gradleProperty("ROOT_REVENUECAT_API_KEY").orElse("").get()
         buildConfigField("String", "REVENUECAT_API_KEY", "\"${revenueCatKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+        val contentCatalogUrl = providers.gradleProperty("ROOT_CONTENT_CATALOG_URL").orElse("").get()
+        require(contentCatalogUrl.isEmpty() ||
+            (contentCatalogUrl.startsWith("https://") && contentCatalogUrl.none { it.isWhitespace() || it == '"' || it == '\\' })) {
+            "ROOT_CONTENT_CATALOG_URL must be an HTTPS URL without whitespace."
+        }
+        buildConfigField("String", "CONTENT_CATALOG_URL", "\"$contentCatalogUrl\"")
     }
 
     buildTypes {
@@ -45,12 +51,33 @@ android {
     }
 
     sourceSets["main"].kotlin.srcDirs("src/main/kotlin")
+    sourceSets["test"].resources.srcDir(rootProject.file("content/editorial"))
 }
 
 ksp {
     // Exports each schema version to app/schemas/ so androidTest can migration-test
     // real SQL against a captured prior schema instead of trusting the code alone.
     arg("room.schemaLocation", "$projectDir/schemas")
+}
+
+// Only this public-safe development manifest is bundled, and only in debug.
+// Raw corpora and editorial permission records are never Android asset sources.
+val prepareDevelopmentContent by tasks.registering(Copy::class) {
+    from(rootProject.file("content/editorial/shona-pilot.json"))
+    into(layout.buildDirectory.dir("generated/contentAssets/debug/content"))
+}
+android.sourceSets.getByName("debug").assets.srcDir(layout.buildDirectory.dir("generated/contentAssets/debug").get().asFile)
+// Every task that reads the debug asset source set (asset merging, lint's model/analysis
+// of that source set, etc.) must declare this dependency explicitly, not just the merge
+// task — Gradle's task validation otherwise flags an undeclared implicit dependency.
+// Match lint tasks by prefix rather than an exact list: AGP defines several
+// (lintAnalyzeDebug, lintReportDebug, lintFixDebug, ...) that all read the same source set.
+tasks.matching {
+    it.name == "mergeDebugAssets" ||
+        it.name == "generateDebugLintReportModel" ||
+        (it.name.startsWith("lint") && it.name.contains("Debug"))
+}.configureEach {
+    dependsOn(prepareDevelopmentContent)
 }
 
 dependencies {
@@ -79,12 +106,16 @@ dependencies {
 
     // -- Serialization (Course-Pack-style JSON, per DESIGN.md §7) --
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.1")
+    implementation("androidx.work:work-runtime-ktx:2.10.1")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     // Test Store requires Android SDK 9.9.0 or later.
     implementation("com.revenuecat.purchases:purchases:9.9.0")
 
     // -- Testing --
     testImplementation("junit:junit:4.13.2")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("com.squareup.okhttp3:okhttp-tls:4.12.0")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
     androidTestImplementation(composeBom)
