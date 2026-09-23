@@ -28,13 +28,35 @@ class PackDownloadWorker(context: Context, parameters: WorkerParameters) : Corou
         } catch (error: SerializationException) {
             // Terminal: the manifest itself is malformed, no retry will fix it.
             failed(library, requestId, "This content format is not supported.", error)
+        } catch (error: ContentDownloadException) {
+            // Typed classification takes priority over the generic IOException
+            // handling below (ContentDownloadException is itself an IOException):
+            // a wrong/misconfigured URL, an oversized declared payload, or audio
+            // that fails local decode/duration verification will never be fixed
+            // by re-running the same request, so those fail immediately rather
+            // than silently retrying (and eventually showing a misleading
+            // "check your connection" message) up to three times first.
+            when (error.failure) {
+                DownloadFailure.NOT_CONFIGURED, DownloadFailure.INVALID_URL,
+                DownloadFailure.TOO_LARGE, DownloadFailure.INVALID_AUDIO ->
+                    failed(library, requestId, error.message ?: "This content is not valid.", error)
+                DownloadFailure.NETWORK, DownloadFailure.STORAGE, DownloadFailure.INTEGRITY ->
+                    if (runAttemptCount < MAX_AUTO_RETRIES) {
+                        Log.w("RootContent", "Pack install failed transiently (attempt $runAttemptCount), retrying", error)
+                        Result.retry()
+                    } else {
+                        failed(library, requestId, error.message ?: "Download failed. Check the connection and storage, then retry.", error)
+                    }
+            }
         } catch (error: IllegalArgumentException) {
             // Terminal: manifest fails validation regardless of connectivity/retries.
             failed(library, requestId, error.message ?: "This content is not valid.", error)
         } catch (error: IOException) {
-            // Transient: network/storage-availability failures are worth WorkManager's
-            // own retry+backoff, up to MAX_AUTO_RETRIES, before surfacing a manual
-            // "Tap Retry" failure — most connectivity blips resolve on their own.
+            // Transient: any other network/storage-availability failure (not a
+            // typed ContentDownloadException, e.g. a raw SocketTimeoutException)
+            // is worth WorkManager's own retry+backoff, up to MAX_AUTO_RETRIES,
+            // before surfacing a manual "Tap Retry" failure — most connectivity
+            // blips resolve on their own.
             if (runAttemptCount < MAX_AUTO_RETRIES) {
                 Log.w("RootContent", "Pack install failed transiently (attempt $runAttemptCount), retrying", error)
                 Result.retry()

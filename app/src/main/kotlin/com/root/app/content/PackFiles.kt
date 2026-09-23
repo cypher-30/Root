@@ -55,6 +55,28 @@ internal class PackFiles(private val root: File) {
         return target
     }
 
+    /**
+     * Forcibly replaces an already-promoted (but corrupt) version directory
+     * with [operationId]'s freshly-downloaded-and-verified staged files. Only
+     * called after that staged copy has independently passed [ContentAudio]
+     * verification, so this can never replace intact files with worse ones —
+     * it only repairs a version directory that failed post-promotion
+     * revalidation (see [ContentLibrary.installRemote]), most likely an orphan
+     * left behind by a process death partway through a prior [promote] move.
+     */
+    fun replacePromoted(packId: String, version: Int, operationId: String): File {
+        val staged = stage(packId, operationId)
+        val target = version(packId, version)
+        deleteVersion(packId, version)
+        ensureDirectory(target.parentFile!!)
+        try {
+            Files.move(staged.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE)
+        } catch (error: IOException) {
+            throw ContentDownloadException(DownloadFailure.STORAGE, "Cannot repair pack storage", error)
+        }
+        return target
+    }
+
     fun deleteStage(packId: String, operationId: String) = deleteOwnedTree(stage(packId, operationId))
 
     fun deleteVersion(packId: String, version: Int) = deleteOwnedTree(version(packId, version))

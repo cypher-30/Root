@@ -19,3 +19,9 @@ data class LibraryPack(
     val status: LibraryStatus,
     val error: String?,
 )
+
+/** Best-effort on-disk usage summary — see [ContentLibrary.storageUsage]. */
+data class ContentStorageReport(
+    val installedBytes: Long,
+    val pendingCleanupPackCount: Int,
+)

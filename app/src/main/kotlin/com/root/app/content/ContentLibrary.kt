@@ -45,11 +45,25 @@ class ContentLibrary internal constructor(
     suspend fun initialize() = withContext(Dispatchers.IO) {
         requestMutex.withLock {
         ContentBuildPolicy.apply(db)
+        // A cached catalog that fails to parse or validate (partial write from
+        // a crash mid-AtomicFile-commit is prevented by AtomicFile itself, but
+        // on-disk bit rot / an interrupted OS-level fsync is not) must not
+        // block app startup forever — treat it the same as "no cache yet" and
+        // let the next refreshCatalog() re-fetch a good copy, rather than
+        // crashing every launch on a corrupt local file.
         if (catalogFile.baseFile.exists()) {
-            require(catalogFile.baseFile.length() <= ContentTransport.MAX_CATALOG_BYTES) { "Cached catalog is too large" }
-            catalogState.value = ContentJson.decodeFromString<Catalog>(
-                catalogFile.openRead().use { it.readBytes().toString(Charsets.UTF_8) },
-            ).also(CatalogValidation::requireValid)
+            try {
+                require(catalogFile.baseFile.length() <= ContentTransport.MAX_CATALOG_BYTES) { "Cached catalog is too large" }
+                catalogState.value = ContentJson.decodeFromString<Catalog>(
+                    catalogFile.openRead().use { it.readBytes().toString(Charsets.UTF_8) },
+                ).also(CatalogValidation::requireValid)
+            } catch (corrupt: Exception) {
+                if (corrupt is CancellationException) throw corrupt
+                android.util.Log.w("RootContent", "Discarding an unreadable cached catalog", corrupt)
+                catalogFile.delete()
+                preferences.edit().remove("etag-$catalogIdentity").apply()
+                catalogState.value = null
+            }
         }
         if (BuildConfig.DEBUG) installDevelopmentStarter()
         // If the process died between recording a request and enqueueing WorkManager,
@@ -182,11 +196,68 @@ class ContentLibrary internal constructor(
     suspend fun uninstall(packId: String) = withContext(Dispatchers.IO) {
         cancel(packId)
         retire(packId)
+        if (dao.openPracticeReferences(packId) > 0) {
+            // A still-open (non-ENDED) practice session snapshots a phrase from
+            // this pack — its queue entry stores a file path, not a revision ID
+            // — so deleting this pack's media now would silently break that
+            // playback even though its entries were just marked SKIPPED above.
+            // Defer the deletion durably (see retryPendingContentCleanup())
+            // rather than deleting it anyway or leaking it forever.
+            db.mediaFileFactDao().upsert(MediaFileFactEntity(
+                subject = MediaFileSubject.PACK_VERSION_MEDIA, subjectId = packId,
+                filePath = "pack:$packId", expectedSha256 = null, status = MediaFileStatus.PENDING_CLEANUP,
+            ))
+        } else {
+            deletePackMedia(packId)
+        }
+        RootWidget().updateAll(context)
+    }
+
+    /** Retries every pack-media deletion [uninstall] deferred because an open
+     *  practice session still pinned it at the time — safe to call repeatedly
+     *  (e.g. alongside [RootRepository.retryPendingMediaCleanup] on app
+     *  start); a still-pinned pack is left untouched for the next retry
+     *  rather than forced. Returns how many packs were resolved this call. */
+    suspend fun retryPendingContentCleanup(): Int = withContext(Dispatchers.IO) {
+        var resolved = 0
+        db.mediaFileFactDao().getPendingCleanup()
+            .filter { it.subject == MediaFileSubject.PACK_VERSION_MEDIA }
+            .forEach { fact ->
+                if (dao.openPracticeReferences(fact.subjectId) == 0) {
+                    deletePackMedia(fact.subjectId)
+                    db.mediaFileFactDao().deleteById(fact.id)
+                    resolved++
+                }
+            }
+        resolved
+    }
+
+    private suspend fun deletePackMedia(packId: String) {
         dao.versionsForPack(packId).forEach { revision ->
             files.deleteVersion(packId, revision.version)
             dao.assetsForPackVersion(packId, revision.version).forEach { dao.setAssetLocalUri(it.id, null) }
         }
-        RootWidget().updateAll(context)
+    }
+
+    /** Bytes of managed-content media actually present on disk right now
+     *  (summed straight from [ContentAssetEntity.bytes] for assets whose
+     *  [ContentAssetEntity.localUri] is still non-null — a null URI means its
+     *  file was already reclaimed, see [collectOldMedia]/[deletePackMedia]),
+     *  plus how many packs have a deletion still deferred by
+     *  [retryPendingContentCleanup]. A best-effort figure for a future
+     *  "Manage storage" surface — not itself a correctness guarantee, since a
+     *  file could still be missing/corrupt on disk despite its DB row
+     *  claiming otherwise (see [ContentAudio]/[ContentTransport.hash] for the
+     *  actual integrity checks, which only run at install time). */
+    suspend fun storageUsage(): ContentStorageReport = withContext(Dispatchers.IO) {
+        val installedBytes = dao.listAllInstalled().sumOf { pack ->
+            dao.assetsForPackVersion(pack.packId, pack.currentVersion)
+                .filter { it.localUri != null }
+                .sumOf { it.bytes }
+        }
+        val pendingCleanupPacks = db.mediaFileFactDao().getPendingCleanup()
+            .count { it.subject == MediaFileSubject.PACK_VERSION_MEDIA }
+        ContentStorageReport(installedBytes = installedBytes, pendingCleanupPackCount = pendingCleanupPacks)
     }
 
     suspend fun manifest(packId: String): PackManifest? {
@@ -229,10 +300,24 @@ class ContentLibrary internal constructor(
         verifyMedia(manifest, stage)
         checkCurrentJob(entry.id, requestId)
         updateJob(requestId, PackInstallJobStatus.INSTALLING)
-        val directory = files.promote(entry.id, entry.version, requestId, entry.manifestSha256)
-        // An orphan from a previous attempt may already occupy this immutable version.
-        // Revalidate its files rather than assuming a matching manifest implies intact media.
-        verifyMedia(manifest, directory)
+        val promoted = files.promote(entry.id, entry.version, requestId, entry.manifestSha256)
+        // An orphan from a previous attempt may already occupy this immutable
+        // version. Revalidate its files rather than assuming a matching
+        // manifest implies intact media — and if that orphan turns out to be
+        // corrupt (e.g. a crash mid-move left partially-written files behind),
+        // repair it in place using this attempt's already-downloaded-and-verified
+        // staged files instead of permanently failing every future install of
+        // this version.
+        val directory = try {
+            verifyMedia(manifest, promoted)
+            promoted
+        } catch (corrupt: Exception) {
+            if (corrupt is CancellationException) throw corrupt
+            android.util.Log.w("RootContent", "Repairing a corrupt promoted pack version", corrupt)
+            val repaired = files.replacePromoted(entry.id, entry.version, requestId)
+            verifyMedia(manifest, repaired)
+            repaired
+        }
         currentCoroutineContext().ensureActive()
         activate(manifest, bytes, directory, requestId)
         files.deleteStage(entry.id, requestId)
