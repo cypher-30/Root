@@ -60,7 +60,7 @@ class EntitlementStore(context: Context) {
             val expiration = prefs.getLong("expiration", 0L)
             val active = BillingConfiguration.hasUsableKey &&
                 prefs.getBoolean("premium", false) &&
-                (expiration == 0L || expiration > System.currentTimeMillis())
+                isWithinExpiration(expiration)
             premium.value = active
             return active
         }
@@ -75,11 +75,19 @@ class EntitlementStore(context: Context) {
 
         @Synchronized
         fun update(info: CustomerInfo) {
+            // Two async paths (the update listener and a manual refresh()) can race,
+            // and their responses can land out of order. A stale response landing after
+            // a fresher one must not regress already-applied entitlement state -
+            // requestDate is the store's own ordering signal for exactly this.
+            val incomingRequestDate = info.requestDate.time
+            val lastAppliedRequestDate = prefs.getLong("requestDate", 0L)
+            if (incomingRequestDate < lastAppliedRequestDate) return
             val entitlement = info.entitlements[BillingConfiguration.ENTITLEMENT_ID]
             val active = entitlement?.isActive == true
             prefs.edit()
                 .putBoolean("premium", active)
                 .putLong("expiration", entitlement?.expirationDate?.time ?: 0L)
+                .putLong("requestDate", incomingRequestDate)
                 .apply()
             error.value = null
             premium.value = active
@@ -93,5 +101,18 @@ class EntitlementStore(context: Context) {
             instance ?: synchronized(this) {
                 instance ?: Backing(context).also { instance = it }
             }
+
+        /** Reset in tests only, so each test starts from a clean process-wide state
+         *  instead of leaking [Backing] across test methods within the same JVM. */
+        internal fun resetForTest() {
+            instance = null
+        }
     }
 }
+
+/** A zero expiration means a non-expiring/lifetime entitlement (no expiration date was
+ *  reported); anything else must still be in the future relative to [now]. Extracted as a
+ *  pure function so the expiry rule itself is directly unit-testable, independent of the
+ *  [BillingConfiguration.hasUsableKey] gate that the surrounding cache check also applies. */
+internal fun isWithinExpiration(expiration: Long, now: Long = System.currentTimeMillis()): Boolean =
+    expiration == 0L || expiration > now
