@@ -40,7 +40,8 @@ import com.root.app.ui.theme.RootType
 /**
  * Single-activity host. Owns the Compose content root, dark/light resolution (a
  * manual preference overrides the system setting), status/navigation bar icon
- * contrast, and the widget's "open practice" deep-link signal via [onNewIntent].
+ * contrast, and the widget's "open practice" deep-link signal, handled on both a
+ * cold start (the initial [onCreate] intent) and a warm relaunch ([onNewIntent]).
  * All navigation and screen composition happens in [RootNavigation] below.
  */
 class MainActivity : ComponentActivity() {
@@ -57,6 +58,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // A cold start from the widget's tap delivers the "open practice" extra as
+        // this Activity's *initial* intent - onNewIntent is only called for a warm
+        // relaunch of an already-running task, so it alone silently drops a cold entry.
+        if (intent.getBooleanExtra("root.openPractice", false)) widgetRequest++
         setContent {
             val vm: RootViewModel = viewModel()
             val dark = when (vm.theme) { "light" -> false; "dark" -> true; else -> isSystemInDarkTheme() }
@@ -131,7 +136,8 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
                             // navigating away — the next composition falls through
                             // to the completed branch below, same as running out
                             // of due phrases.
-                            onTeach = { open("invite") }, onStop = { vm.stopSession() }) {
+                            onTeach = { open("invite") }, onStop = { vm.stopSession() },
+                            onMarkPracticed = { vm.markPracticed(it) }) {
                             WeeklyChallengeCard(vm.challenge) { vm.completeChallenge() }
                         }
                     }
