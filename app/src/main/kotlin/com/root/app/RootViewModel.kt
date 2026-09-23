@@ -91,9 +91,12 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
         private set
     var launched by mutableStateOf(saved["launched"] ?: false)
         private set
+    var showOnboarding by mutableStateOf(false)
+        private set
 
     init {
         load()
+        showOnboarding = repository.shouldOfferOnboarding()
         viewModelScope.launch {
             access.premium.collect { active -> premium = active }
         }
@@ -104,6 +107,32 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
             }
         }
     }
+
+    /** Persists that the learner has finished or explicitly skipped
+     *  onboarding (see [RootRepository.recordOnboardingResponse] — both are
+     *  recorded identically) and dismisses it for this and future launches
+     *  until the version is bumped. */
+    fun respondToOnboarding() {
+        repository.recordOnboardingResponse()
+        showOnboarding = false
+    }
+
+    /** A deterministic snapshot of current state for
+     *  [com.root.app.overview.OverviewRecommendations.recommend] — see that
+     *  object for what each field actually gates. [dueCount] is a coarse
+     *  0-or-1 proxy (whether *any* phrase is currently due), not an exact
+     *  count: no repository query yet returns an exact due tally without
+     *  loading the full due list, which recommend() does not need. */
+    suspend fun overviewSnapshot(): com.root.app.overview.OverviewRecommendations.OverviewSnapshot =
+        com.root.app.overview.OverviewRecommendations.OverviewSnapshot(
+            hasActiveLanguage = activeLanguage != null,
+            dueCount = if (current != null) 1 else 0,
+            canPracticeMore = canPracticeMore,
+            hasWeeklyChallenge = challenge != null,
+            weeklyChallengeCompleted = challenge?.completed ?: false,
+            hasOpenContributionDraft = repository.openDrafts().isNotEmpty(),
+            hasInstalledPacks = rows.isNotEmpty(),
+        )
 
     fun finishLaunch() { launched = true; saved["launched"] = true }
     fun clearError() { error = null }
@@ -300,6 +329,13 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
     suspend fun rate(phraseId: String, level: ConfidenceLevel): Boolean =
         viewModelScope.async { persistRating(phraseId, level) }.await()
 
+    /** Self-reported, idempotent "I practiced this out loud" acknowledgement —
+     *  see [RootRepository.markPracticed]. Deliberately does not touch `turn`,
+     *  `correct`, or any recall/scheduling state: this is not a rating. */
+    fun markPracticed(phraseId: String) = viewModelScope.launch {
+        repository.markPracticed(phraseId)
+    }
+
     /** Persists the attempt, advances the queue, and refreshes derived state. Guarded
      *  by [ratingMutex] so a second rating call while one is still in flight (e.g. a
      *  fast double-tap racing the exit animation) is dropped instead of double-counted.
@@ -318,7 +354,9 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
             when (result) {
                 is PracticeRateResult.Committed -> applyState(result.state)
                 is PracticeRateResult.AlreadyCommitted -> applyState(result.state)
+                is PracticeRateResult.Conflicting -> { applyState(result.state); return false }
                 is PracticeRateResult.Unavailable -> { applyState(result.state); return false }
+                is PracticeRateResult.StaleSkipped -> { applyState(result.state); return false }
                 PracticeRateResult.SessionEnded -> return false
             }
             try { capability = repository.capabilityCount(activeLanguage!!.id) }
