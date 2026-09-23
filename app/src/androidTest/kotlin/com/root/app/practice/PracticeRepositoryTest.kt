@@ -156,11 +156,116 @@ class PracticeRepositoryTest {
     }
 
     @Test fun continueSessionFetchesAnotherPageWithoutRequeuingSeenPhrases() = runBlocking {
+        seedPhrase("p1"); seedPhrase("p2")
+        val state = repo.beginOrResume("lang-1", null)!!
+        repo.rate(state.sessionId, state.current!!.entryId, ConfidenceLevel.GOT_IT)
+        // p2 already existed before the run started, so continuing the same run
+        // still surfaces it — only content created/edited *after* startedAt is held
+        // back (see the frozen-membership tests below).
+        val continued = repo.continueSession(state.sessionId)!!
+        assertEquals("p2", continued.current!!.phrase.id)
+    }
+
+    @Test fun newlyAddedPhraseDoesNotJoinAnAlreadyOpenRun() = runBlocking {
         seedPhrase("p1")
         val state = repo.beginOrResume("lang-1", null)!!
         repo.rate(state.sessionId, state.current!!.entryId, ConfidenceLevel.GOT_IT)
+        // Added strictly after the run's own startedAt cutoff.
         seedPhrase("p2")
         val continued = repo.continueSession(state.sessionId)!!
-        assertEquals("p2", continued.current!!.phrase.id)
+        assertNull(continued.current)
+        assertFalse(repo.hasMoreDue(state.sessionId))
+        // ...but it is eligible once this run ends and a fresh one begins.
+        repo.stop(state.sessionId, PracticeEndReason.CLOSED)
+        val second = repo.beginOrResume("lang-1", null)!!
+        assertNotEquals(state.sessionId, second.sessionId)
+        assertEquals("p2", second.current!!.phrase.id)
+    }
+
+    @Test fun editedTextAfterAFrozenCutoffIsExcludedFromASubsequentPageFetchAtThatCutoff() = runBlocking {
+        // A direct DAO-level check of the cutoff itself: seedPhrase("p1") stands in
+        // for another already-queued phrase filling page one, so this asserts what
+        // fillPage/continueSession rely on rather than fighting PAGE_SIZE=200 to
+        // force p2 out of a first page through the full repository flow.
+        seedPhrase("p1")
+        db.languageDao().insertMissing(listOf(LanguageEntity("lang-1", "Test", false)))
+        db.packDao().insertMissing(listOf(PackEntity("pack-1", "lang-1", "Theme", 0, true)))
+        db.phraseDao().insertMissing(listOf(PhraseEntity(id = "p2", packId = "pack-1", prompt = "old", answer = "old", audioAsset = null, updatedAt = 1)))
+        val cutoff = 500L // a frozen run-start instant strictly before p2's edit below.
+        val beforeEdit = db.attemptDao().dueForLanguagePageExcludingSession(
+            sessionId = "no-such-session", languageId = "lang-1", nowMillis = cutoff,
+            unlockedPackIds = listOf("pack-1"), packId = null, limit = 200,
+        )
+        assertTrue(beforeEdit.any { it.id == "p2" })
+        // p2 gets edited (a bumped updated_at) after the frozen cutoff instant.
+        db.phraseDao().upsertAll(listOf(PhraseEntity(id = "p2", packId = "pack-1", prompt = "new", answer = "new", audioAsset = null, updatedAt = cutoff + 1)))
+        val afterEdit = db.attemptDao().dueForLanguagePageExcludingSession(
+            sessionId = "no-such-session", languageId = "lang-1", nowMillis = cutoff,
+            unlockedPackIds = listOf("pack-1"), packId = null, limit = 200,
+        )
+        assertFalse(afterEdit.any { it.id == "p2" })
+    }
+
+    @Test fun ratingWithADifferentOutcomeThanRecordedIsConflictingNotCommitted() = runBlocking {
+        seedPhrase("p1")
+        val state = repo.beginOrResume("lang-1", null)!!
+        val entryId = state.current!!.entryId
+        repo.rate(state.sessionId, entryId, ConfidenceLevel.GOT_IT)
+        val conflict = repo.rate(state.sessionId, entryId, ConfidenceLevel.MISSED)
+        assertTrue(conflict is PracticeRateResult.Conflicting)
+        // The original recorded outcome is untouched.
+        assertEquals(1, db.attemptDao().capabilityCount("lang-1"))
+    }
+
+    @Test fun ratingAnAlreadySkippedEntryIsStaleSkippedNotAlreadyCommitted() = runBlocking {
+        seedPhrase("p1", free = false, languagePremium = true)
+        premium = true
+        val state = repo.beginOrResume("lang-1", null)!!
+        premium = false
+        val skipped = repo.rate(state.sessionId, state.current!!.entryId, ConfidenceLevel.GOT_IT)
+        assertTrue(skipped is PracticeRateResult.Unavailable)
+        val replay = repo.rate(state.sessionId, state.current!!.entryId, ConfidenceLevel.GOT_IT)
+        assertTrue(replay is PracticeRateResult.StaleSkipped)
+    }
+
+    @Test fun sessionStateReportsDistinctSkippedCountAndEndReason() = runBlocking {
+        seedPhrase("p1", packId = "pack-locked", free = false)
+        seedPhrase("p2", packId = "pack-free", free = true)
+        premium = true
+        val state = repo.beginOrResume("lang-1", null)!!
+        premium = false // p1 (pack-locked) becomes inaccessible; p2 (pack-free) remains accessible.
+        val afterSkip = repo.revalidateCurrent(state.sessionId)!!
+        assertEquals(1, afterSkip.skippedCount)
+        assertNull(afterSkip.endReason)
+        val afterRate = repo.rate(state.sessionId, afterSkip.current!!.entryId, ConfidenceLevel.GOT_IT) as PracticeRateResult.Committed
+        assertEquals(1, afterRate.state.skippedCount)
+        assertEquals(1, afterRate.state.correctCount)
+        repo.stop(state.sessionId, PracticeEndReason.CLOSED)
+        val ended = repo.state(state.sessionId)!!
+        assertEquals(PracticeEndReason.CLOSED, ended.endReason)
+    }
+
+    @Test fun reviewedDetailsPagesOnlyNonPendingEntriesOldestFirst() = runBlocking {
+        seedPhrase("p1"); seedPhrase("p2"); seedPhrase("p3")
+        val state = repo.beginOrResume("lang-1", null)!!
+        val first = repo.rate(state.sessionId, state.current!!.entryId, ConfidenceLevel.GOT_IT) as PracticeRateResult.Committed
+        repo.rate(first.state.sessionId, first.state.current!!.entryId, ConfidenceLevel.MISSED)
+        val page = repo.reviewedDetails(state.sessionId, limit = 1, offset = 0)
+        assertEquals(1, page.size)
+        assertEquals("p1", page.first().phraseId)
+        assertEquals(ConfidenceLevel.GOT_IT, page.first().confidence)
+        val secondPage = repo.reviewedDetails(state.sessionId, limit = 1, offset = 1)
+        assertEquals("p2", secondPage.first().phraseId)
+        assertEquals(ConfidenceLevel.MISSED, secondPage.first().confidence)
+    }
+
+    @Test fun earliestEligibleDueAtReflectsTheSchedulersOwnNextDueColumn() = runBlocking {
+        seedPhrase("p1")
+        assertNull(repo.earliestEligibleDueAt("lang-1", null)) // never attempted: not "scheduled ahead".
+        val state = repo.beginOrResume("lang-1", null)!!
+        repo.rate(state.sessionId, state.current!!.entryId, ConfidenceLevel.GOT_IT)
+        val earliest = repo.earliestEligibleDueAt("lang-1", null)
+        assertNotNull(earliest)
+        assertTrue(earliest!! > System.currentTimeMillis())
     }
 }

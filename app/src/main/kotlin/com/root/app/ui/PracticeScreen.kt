@@ -72,6 +72,7 @@ fun PracticeScreen(
     // call sites pass `challenge` as a trailing lambda, which always binds to the
     // *last* parameter — appending onStop after `challenge` would silently break them.
     onStop: () -> Unit = {},
+    onMarkPracticed: ((String) -> Unit)? = null,
     challenge: @Composable () -> Unit = {},
 ) {
     Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
@@ -87,7 +88,7 @@ fun PracticeScreen(
             Text(languageName, style = RootType.meta, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         key(phrase.id, turn) {
-            PracticeCard(phrase, onRate)
+            PracticeCard(phrase, onRate, onMarkPracticed)
         }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -122,7 +123,7 @@ fun PracticeScreen(
  * a rating is committed. [rate] fires the haptic immediately (feedback should feel
  * instant) but leaves the card interactive-locked via `busy` until [onRate] resolves.
  */
-private fun PracticeCard(phrase: PhraseEntity, onRate: suspend (ConfidenceLevel) -> Boolean) {
+private fun PracticeCard(phrase: PhraseEntity, onRate: suspend (ConfidenceLevel) -> Boolean, onMarkPracticed: ((String) -> Unit)? = null) {
     var revealed by rememberSaveable { mutableStateOf(false) }
     var audioExpanded by rememberSaveable { mutableStateOf(false) }
     val reveal = remember { Animatable(if (revealed) 1f else 0f) }
@@ -282,7 +283,7 @@ private fun PracticeCard(phrase: PhraseEntity, onRate: suspend (ConfidenceLevel)
                 Spacer(Modifier.width(8.dp))
                 Text(if (audioExpanded) "Hide voice practice" else "Listen & compare")
             }
-            if (audioExpanded && !busy) AudioPracticeControls(phrase)
+            if (audioExpanded && !busy) AudioPracticeControls(phrase, onMarkPracticed?.let { { it(phrase.id) } })
             Spacer(Modifier.height(20.dp))
         } else {
             Text("Recall, not a test. Only you decide.", Modifier.padding(bottom = 16.dp),
