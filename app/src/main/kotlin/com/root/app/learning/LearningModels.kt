@@ -112,6 +112,12 @@ enum class RejectionReason {
     STEP_MISMATCH,
     INVALID_RESPONSE,
     AUDIO_UNAVAILABLE,
+    /** The run's pack has been retired (uninstalled) since the run was opened,
+     *  or a new/restarted run was requested for a pack that is not currently
+     *  installed. Distinct from [RUN_ENDED]: the run itself may still be
+     *  ACTIVE/PAUSED in storage, but its content is no longer available to
+     *  play, so every further mutation on it is refused. */
+    PACK_UNAVAILABLE,
 }
 
 /** A UI-facing snapshot of one run — never a raw Room entity. */

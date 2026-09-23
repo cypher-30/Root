@@ -200,12 +200,13 @@ class LessonViewModel(
         }
         // A runId this VM held is no longer valid — never keep retrying against
         // it; the next start() call issues a fresh BeginOrResume instead.
-        if (reason == RejectionReason.RUN_NOT_FOUND) runId = null
+        if (reason == RejectionReason.RUN_NOT_FOUND || reason == RejectionReason.PACK_UNAVAILABLE) runId = null
         error = when (reason) {
             RejectionReason.AUDIO_UNAVAILABLE ->
                 "This lesson needs a real speaker recording that isn't available yet. It can't be marked complete without it."
             RejectionReason.INVALID_RESPONSE, RejectionReason.STEP_MISMATCH -> "Please answer this step before continuing."
             RejectionReason.RUN_ENDED, RejectionReason.RUN_NOT_FOUND -> "This lesson run has ended. Please reopen the lesson."
+            RejectionReason.PACK_UNAVAILABLE -> "This content has been removed and is no longer available."
             RejectionReason.COMMAND_CONFLICT,
             RejectionReason.LESSON_NOT_FOUND, RejectionReason.ACTIVITY_MISMATCH -> "Please try that again."
         }

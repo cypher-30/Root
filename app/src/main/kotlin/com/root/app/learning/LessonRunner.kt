@@ -54,6 +54,15 @@ class LessonRunner(
 ) {
     private val learningDao: LearningDao = db.learningDao()
 
+    /** True only when [packId] is *known and explicitly retired* (uninstalled).
+     *  A pack with no [com.root.app.data.InstalledPackEntity] row at all (e.g. a
+     *  pinned install the installer never separately tracked, or a unit-test
+     *  fixture that only seeded [com.root.app.data.PackVersionEntity]) is treated
+     *  as available — this check exists to reject genuinely withdrawn content,
+     *  not to require every caller to maintain a redundant installed-pack row. */
+    private suspend fun isPackRetired(packId: String): Boolean =
+        db.contentDao().getInstalledPack(packId)?.status == com.root.app.data.InstalledPackStatus.RETIRED
+
     suspend fun execute(command: LearningCommand): CommandResult = db.withTransaction {
         val payloadHash = LearningWire.hashCommand(command)
         val existing = learningDao.getCommand(command.commandId)
@@ -132,8 +141,27 @@ class LessonRunner(
     }
 
     private suspend fun handleBeginOrResume(cmd: LearningCommand.BeginOrResume): CommandResult {
+        if (isPackRetired(cmd.packId)) {
+            return CommandResult.Rejected(RejectionReason.PACK_UNAVAILABLE, "pack '${cmd.packId}' is retired/uninstalled")
+        }
         val open = learningDao.getOpenRun(cmd.packId, cmd.lessonId)
-        if (open != null) return CommandResult.Applied(buildState(open))
+        if (open != null) {
+            // A resumed PAUSED run becomes ACTIVE again — it was never actually
+            // ended, just not currently in front of the learner.
+            val resumed = if (open.status == LessonRunStatus.PAUSED) {
+                learningDao.updateRun(
+                    id = open.id,
+                    status = LessonRunStatus.ACTIVE,
+                    currentStepIndex = open.currentStepIndex,
+                    revealedActivityIds = open.revealedActivityIds,
+                    supersededByRunId = open.supersededByRunId,
+                    completedAt = open.completedAt,
+                    updatedAt = System.currentTimeMillis(),
+                )
+                learningDao.getRun(open.id)!!
+            } else open
+            return CommandResult.Applied(buildState(resumed))
+        }
         val lesson = contentSource.loadLesson(cmd.packId, cmd.packVersion, cmd.lessonId)
             ?: return CommandResult.Rejected(RejectionReason.LESSON_NOT_FOUND, "lesson '${cmd.lessonId}' not found in pack ${cmd.packId}@${cmd.packVersion}")
         val run = LessonRunEntity(
@@ -148,6 +176,9 @@ class LessonRunner(
     }
 
     private suspend fun handleRestart(cmd: LearningCommand.Restart): CommandResult {
+        if (isPackRetired(cmd.packId)) {
+            return CommandResult.Rejected(RejectionReason.PACK_UNAVAILABLE, "pack '${cmd.packId}' is retired/uninstalled")
+        }
         val lesson = contentSource.loadLesson(cmd.packId, cmd.packVersion, cmd.lessonId)
             ?: return CommandResult.Rejected(RejectionReason.LESSON_NOT_FOUND, "lesson '${cmd.lessonId}' not found in pack ${cmd.packId}@${cmd.packVersion}")
         val previouslyOpen = learningDao.getOpenRun(cmd.packId, cmd.lessonId)
@@ -178,6 +209,7 @@ class LessonRunner(
     private suspend fun handleSubmitResponse(cmd: LearningCommand.SubmitResponse): CommandResult {
         val run = learningDao.getRun(cmd.runId) ?: return CommandResult.Rejected(RejectionReason.RUN_NOT_FOUND, "no run '${cmd.runId}'")
         if (run.status.isEnded()) return CommandResult.Rejected(RejectionReason.RUN_ENDED, "run already completed or unavailable")
+        if (isPackRetired(run.packId)) return CommandResult.Rejected(RejectionReason.PACK_UNAVAILABLE, "pack '${run.packId}' is retired/uninstalled")
         val lesson = contentSource.loadLesson(run.packId, run.packVersion, run.lessonId)
             ?: return CommandResult.Rejected(RejectionReason.LESSON_NOT_FOUND, "pinned lesson content missing")
         val activity = lesson.activities.getOrNull(run.currentStepIndex)
@@ -220,6 +252,7 @@ class LessonRunner(
     private suspend fun handleRevealSupport(cmd: LearningCommand.RevealSupport): CommandResult {
         val run = learningDao.getRun(cmd.runId) ?: return CommandResult.Rejected(RejectionReason.RUN_NOT_FOUND, "no run '${cmd.runId}'")
         if (run.status.isEnded()) return CommandResult.Rejected(RejectionReason.RUN_ENDED, "run already completed or unavailable")
+        if (isPackRetired(run.packId)) return CommandResult.Rejected(RejectionReason.PACK_UNAVAILABLE, "pack '${run.packId}' is retired/uninstalled")
         val revealed = revealedSet(run.revealedActivityIds)
         if (cmd.activityId !in revealed) {
             learningDao.updateRun(
@@ -238,6 +271,7 @@ class LessonRunner(
     private suspend fun handleAdvance(cmd: LearningCommand.Advance): CommandResult {
         val run = learningDao.getRun(cmd.runId) ?: return CommandResult.Rejected(RejectionReason.RUN_NOT_FOUND, "no run '${cmd.runId}'")
         if (run.status.isEnded()) return CommandResult.Rejected(RejectionReason.RUN_ENDED, "run already completed or unavailable")
+        if (isPackRetired(run.packId)) return CommandResult.Rejected(RejectionReason.PACK_UNAVAILABLE, "pack '${run.packId}' is retired/uninstalled")
         val lesson = contentSource.loadLesson(run.packId, run.packVersion, run.lessonId)
             ?: return CommandResult.Rejected(RejectionReason.LESSON_NOT_FOUND, "pinned lesson content missing")
         val activity = lesson.activities.getOrNull(run.currentStepIndex)

@@ -186,6 +186,52 @@ class LessonRunnerTest {
         // Still pinned to the revision it started with, not the newly published one.
         assertEquals(1, resumed.state.packVersion)
         assertEquals(1, resumed.state.lessonRevision)
+        // A resumed PAUSED run becomes ACTIVE again, not left PAUSED forever.
+        assertEquals("ACTIVE", resumed.state.status)
+    }
+
+    @Test fun retiredPackRejectsNewBeginOrResumeAndRestart() = runBlocking {
+        db.contentDao().insertInstalledPack(
+            com.root.app.data.InstalledPackEntity(packId = packId, currentVersion = 1, status = com.root.app.data.InstalledPackStatus.RETIRED),
+        )
+        val begin = runner.execute(LearningCommand.BeginOrResume("cmd-begin", packId, 1, lessonId))
+        assertTrue(begin is CommandResult.Rejected)
+        assertEquals(RejectionReason.PACK_UNAVAILABLE, (begin as CommandResult.Rejected).reason)
+
+        val restart = runner.execute(LearningCommand.Restart("cmd-restart", packId, 1, lessonId))
+        assertTrue(restart is CommandResult.Rejected)
+        assertEquals(RejectionReason.PACK_UNAVAILABLE, (restart as CommandResult.Rejected).reason)
+    }
+
+    @Test fun retiringAPackMidRunRejectsFurtherMutationsAndResume() = runBlocking {
+        val begin = runner.execute(LearningCommand.BeginOrResume("cmd-begin", packId, 1, lessonId)) as CommandResult.Applied
+        val runId = begin.state.runId
+
+        db.contentDao().insertInstalledPack(
+            com.root.app.data.InstalledPackEntity(packId = packId, currentVersion = 1, status = com.root.app.data.InstalledPackStatus.RETIRED),
+        )
+
+        val submit = runner.execute(LearningCommand.SubmitResponse("cmd-1", runId, "act-1", ActivityResponse.Acknowledged))
+        assertTrue(submit is CommandResult.Rejected)
+        assertEquals(RejectionReason.PACK_UNAVAILABLE, (submit as CommandResult.Rejected).reason)
+
+        val reveal = runner.execute(LearningCommand.RevealSupport("cmd-2", runId, "act-2"))
+        assertTrue(reveal is CommandResult.Rejected)
+        assertEquals(RejectionReason.PACK_UNAVAILABLE, (reveal as CommandResult.Rejected).reason)
+
+        // Resuming (BeginOrResume) an already-open run whose pack is now retired
+        // must also be refused, not silently reopened.
+        val resume = runner.execute(LearningCommand.BeginOrResume("cmd-resume", packId, 1, lessonId))
+        assertTrue(resume is CommandResult.Rejected)
+        assertEquals(RejectionReason.PACK_UNAVAILABLE, (resume as CommandResult.Rejected).reason)
+    }
+
+    @Test fun packWithNoInstalledPackRowIsTreatedAsAvailable() = runBlocking {
+        // No InstalledPackEntity row exists for packId at all (only PackVersionEntity,
+        // as installVersion() sets up) — this must not be mistaken for retired.
+        assertNull(db.contentDao().getInstalledPack(packId))
+        val begin = runner.execute(LearningCommand.BeginOrResume("cmd-begin", packId, 1, lessonId))
+        assertTrue(begin is CommandResult.Applied)
     }
 
     @Test fun restartCreatesNewRunWithoutErasingPreviousEvidence() = runBlocking {

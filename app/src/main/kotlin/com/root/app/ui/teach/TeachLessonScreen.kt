@@ -38,6 +38,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.root.app.audio.AudioClipKind
 import com.root.app.content.Activity
 import com.root.app.content.Choice
 import com.root.app.content.EvaluableTask
@@ -256,12 +257,12 @@ private fun ListeningContent(
                 onClick = { session.playReference(source.assetPath) },
                 modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.small,
-            ) { Text(if (session.playing == "reference") "Stop" else "Play recording") }
+            ) { Text(if (session.playing == AudioClipKind.REFERENCE) "Stop" else "Play recording") }
             is LessonAudioSource.DownloadedFile -> OutlinedButton(
                 onClick = { session.playReference(source.absolutePath) },
                 modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.small,
-            ) { Text(if (session.playing == "reference") "Stop" else "Play recording") }
+            ) { Text(if (session.playing == AudioClipKind.REFERENCE) "Stop" else "Play recording") }
         }
         session.message?.let {
             Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
