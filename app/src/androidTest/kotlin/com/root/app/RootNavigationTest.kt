@@ -4,13 +4,15 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.RuleChain
 
 /** End-to-end navigation checks against the real [MainActivity] (via
  *  [createAndroidComposeRule]): switching to the Shona starter through the language
  *  picker, and that every secondary destination is reachable with the theme switch
  *  applied in place. */
 class RootNavigationTest {
-    @get:Rule val compose = createAndroidComposeRule<MainActivity>()
+    private val compose = createAndroidComposeRule<MainActivity>()
+    @get:Rule val rules: RuleChain = RuleChain.outerRule(ValidationStateRule()).around(compose)
 
     @Test fun shonaStarterCanBeOpenedFromTheLanguagePicker() {
         compose.waitUntil(15_000) {

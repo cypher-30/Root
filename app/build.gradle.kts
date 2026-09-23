@@ -6,6 +6,11 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+val rootTestBuildType = providers.gradleProperty("rootTestBuildType").orElse("debug").get()
+require(rootTestBuildType in setOf("debug", "validation")) {
+    "rootTestBuildType must be debug or validation."
+}
+
 android {
     namespace = "com.root.app"
     compileSdk = 36
@@ -31,10 +36,19 @@ android {
     }
 
     buildTypes {
+        create("validation") {
+            initWith(getByName("debug"))
+            applicationIdSuffix = ".validation"
+            matchingFallbacks += "debug"
+            resValue("string", "app_name", "Root Validation")
+            buildConfigField("String", "REVENUECAT_API_KEY", "\"\"")
+            buildConfigField("String", "CONTENT_CATALOG_URL", "\"\"")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
+        testBuildType = rootTestBuildType
     }
 
     compileOptions {
@@ -72,7 +86,12 @@ val prepareDevelopmentContent by tasks.registering(Copy::class) {
     from(rootProject.file("content/editorial/shona-pilot.json"))
     into(layout.buildDirectory.dir("generated/contentAssets/debug/content"))
 }
+val prepareValidationContent by tasks.registering(Copy::class) {
+    from(rootProject.file("content/editorial/shona-pilot.json"))
+    into(layout.buildDirectory.dir("generated/contentAssets/validation/content"))
+}
 android.sourceSets.getByName("debug").assets.srcDir(layout.buildDirectory.dir("generated/contentAssets/debug").get().asFile)
+android.sourceSets.getByName("validation").assets.srcDir(layout.buildDirectory.dir("generated/contentAssets/validation").get().asFile)
 // Every task that reads the debug asset source set (asset merging, lint's model/analysis
 // of that source set, etc.) must declare this dependency explicitly, not just the merge
 // task — Gradle's task validation otherwise flags an undeclared implicit dependency.
@@ -84,6 +103,13 @@ tasks.matching {
         (it.name.startsWith("lint") && it.name.contains("Debug"))
 }.configureEach {
     dependsOn(prepareDevelopmentContent)
+}
+tasks.matching {
+    it.name == "mergeValidationAssets" ||
+        it.name == "generateValidationLintReportModel" ||
+        (it.name.startsWith("lint") && it.name.contains("Validation"))
+}.configureEach {
+    dependsOn(prepareValidationContent)
 }
 
 dependencies {
@@ -104,6 +130,7 @@ dependencies {
     implementation("androidx.glance:glance-appwidget:1.1.1")
     implementation("androidx.navigation:navigation-compose:2.8.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
+    add("validationImplementation", "androidx.compose.ui:ui-tooling")
 
     // -- Room (local-first persistence, per DESIGN.md §7) --
     implementation("androidx.room:room-runtime:2.7.2")
@@ -128,9 +155,10 @@ dependencies {
     testImplementation("org.robolectric:robolectric:4.14.1")
     testImplementation("androidx.test:core:1.6.1")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
-    androidTestImplementation("androidx.test.ext:junit:1.2.1")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
+    androidTestImplementation("androidx.test.ext:junit:1.3.0")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
     androidTestImplementation(composeBom)
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+    add("validationImplementation", "androidx.compose.ui:ui-test-manifest")
 }
