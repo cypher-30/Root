@@ -22,6 +22,12 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 
+/** Which clip a [RootAudioSession] is currently playing — reference (a
+ *  catalog/contributed speaker recording) or the learner's own take. Kept as
+ *  a typed enum (not a raw string) so a future third clip kind cannot be
+ *  silently confused with an existing one at any call site. */
+internal enum class AudioClipKind { REFERENCE, RECORDING }
+
 /**
  * Main-thread audio owner. A practice session retains its learner clip; a contribution
  * owns its draft until the database save succeeds. No recording leaves app storage.
@@ -43,11 +49,25 @@ internal class RootAudioSession(context: Context, private val phraseId: String? 
 
     var isRecording by mutableStateOf(false)
         private set
-    var playing by mutableStateOf<String?>(null)
+    var playing by mutableStateOf<AudioClipKind?>(null)
         private set
     var hasRecording by mutableStateOf(clip != null)
         private set
     var elapsedSeconds by mutableStateOf(0)
+        private set
+    /** Total duration of the clip currently playing, once its [MediaPlayer]
+     *  finished preparing — null before that (or when nothing is playing). */
+    var durationMs by mutableStateOf<Int?>(null)
+        private set
+    /** Current playback position, refreshed on the same cadence as the
+     *  recording ticker while [playing] is non-null. Only meaningful once
+     *  [durationMs] is non-null (i.e. after the player has prepared). */
+    var positionMs by mutableStateOf(0)
+        private set
+    /** Current playback speed multiplier — one of [SPEED_CHOICES]. Reset to
+     *  1x at the start of every new [play] call so a leftover 1.25x from a
+     *  previous clip never silently carries over to an unrelated one. */
+    var playbackSpeed by mutableStateOf(1f)
         private set
     var message by mutableStateOf<String?>(null)
         private set
@@ -61,6 +81,18 @@ internal class RootAudioSession(context: Context, private val phraseId: String? 
             } else {
                 handler.postDelayed(this, 250)
             }
+        }
+    }
+
+    private val positionTicker = object : Runnable {
+        override fun run() {
+            val current = player ?: return
+            try {
+                positionMs = current.currentPosition
+            } catch (error: IllegalStateException) {
+                return
+            }
+            if (playing != null) handler.postDelayed(this, 200)
         }
     }
 
@@ -185,7 +217,7 @@ internal class RootAudioSession(context: Context, private val phraseId: String? 
             message = "No reference recording yet. This phrase needs a speaker's voice."
             return
         }
-        play("reference", source)
+        play(AudioClipKind.REFERENCE, source)
     }
 
     fun playRecording() {
@@ -195,10 +227,10 @@ internal class RootAudioSession(context: Context, private val phraseId: String? 
             message = "No saved recording is available. Record your voice first."
             return
         }
-        play("recording", file.absolutePath)
+        play(AudioClipKind.RECORDING, file.absolutePath)
     }
 
-    private fun play(kind: String, source: String) {
+    private fun play(kind: AudioClipKind, source: String) {
         if (disposed || saving) return
         if (playing == kind) {
             stopPlayback()
@@ -226,6 +258,9 @@ internal class RootAudioSession(context: Context, private val phraseId: String? 
             val next = MediaPlayer()
             player = next
             playing = kind
+            durationMs = null
+            positionMs = 0
+            playbackSpeed = 1f
             next.setAudioAttributes(attributes)
             val file = File(source)
             if (file.isAbsolute) {
@@ -244,7 +279,9 @@ internal class RootAudioSession(context: Context, private val phraseId: String? 
             next.setOnPreparedListener {
                 if (player === it && !disposed) {
                     try {
+                        durationMs = it.duration.takeIf { ms -> ms > 0 }
                         it.start()
+                        handler.post(positionTicker)
                     } catch (error: RuntimeException) {
                         playbackFailed(kind, error)
                     }
@@ -263,10 +300,49 @@ internal class RootAudioSession(context: Context, private val phraseId: String? 
         }
     }
 
+    /** Jumps the current clip to [ms] (clamped to `[0, durationMs]`). No-op if
+     *  nothing is playing or the player has not finished preparing yet
+     *  (before [durationMs] is known, its position is not yet seekable). */
+    fun seekTo(ms: Int) {
+        val current = player ?: return
+        val total = durationMs ?: return
+        try {
+            val clamped = ms.coerceIn(0, total)
+            current.seekTo(clamped)
+            positionMs = clamped
+        } catch (error: IllegalStateException) {
+            Log.w(TAG, "Could not seek", error)
+        }
+    }
+
+    /** Sets the playback speed to one of [SPEED_CHOICES]; any other value is
+     *  rejected rather than silently clamped, since an unlisted speed is a
+     *  caller bug, not a valid user choice. No-op if nothing is playing. */
+    fun setSpeed(value: Float) {
+        require(value in SPEED_CHOICES) { "Unsupported playback speed: $value" }
+        val current = player ?: return
+        try {
+            val wasPlaying = current.isPlaying
+            current.playbackParams = current.playbackParams.setSpeed(value)
+            playbackSpeed = value
+            // Some OEM decoders pause playback as a side effect of a speed
+            // change; explicitly resume rather than silently leaving it stopped.
+            if (wasPlaying && !current.isPlaying) current.start()
+        } catch (error: IllegalStateException) {
+            Log.w(TAG, "Could not change playback speed", error)
+        } catch (error: IllegalArgumentException) {
+            Log.w(TAG, "Playback speed not supported by this decoder", error)
+            message = "This speed is not supported on this device."
+        }
+    }
+
     fun stopPlayback() {
         val current = player
         player = null
         playing = null
+        durationMs = null
+        positionMs = 0
+        handler.removeCallbacks(positionTicker)
         if (current != null) {
             current.setOnPreparedListener(null)
             current.setOnCompletionListener(null)
@@ -349,10 +425,10 @@ internal class RootAudioSession(context: Context, private val phraseId: String? 
         message = "Microphone unavailable. Check permission and whether another app is recording."
     }
 
-    private fun playbackFailed(kind: String, error: Exception?) {
+    private fun playbackFailed(kind: AudioClipKind, error: Exception?) {
         Log.w(TAG, "Could not play $kind audio", error)
         stopPlayback()
-        message = if (kind == "reference") {
+        message = if (kind == AudioClipKind.REFERENCE) {
             "Reference audio is unavailable. This phrase still needs a playable speaker recording."
         } else {
             "This recording could not be played. Delete it and record again."
@@ -396,5 +472,8 @@ internal class RootAudioSession(context: Context, private val phraseId: String? 
         private const val MIN_MILLIS = 1_000L
         private const val TAG = "RootAudio"
         private var active: RootAudioSession? = null
+
+        /** The only supported reels/playback speeds — see [setSpeed]. */
+        val SPEED_CHOICES = listOf(0.75f, 1f, 1.25f)
     }
 }
