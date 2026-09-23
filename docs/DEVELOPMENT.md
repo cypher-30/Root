@@ -27,7 +27,9 @@ All Kotlin lives under `app/src/main/kotlin/com/root/app/`.
 | `content/` | Serializable catalog/pack contracts, validation, bounded HTTPS transport, immutable pack files, WorkManager installs and availability |
 | `learning/` | Transactional lesson commands, revision-pinned runs, response evaluation and learning evidence separate from recall |
 | `billing/` | RevenueCat configuration guard, shared entitlement cache (`EntitlementStore`), paywall state machine (`PaywallViewModel`), and `PurchasesGateway` (a testability seam around the `Purchases.sharedInstance` singleton so the state machine can be exercised with a fake in a Robolectric unit test) |
-| `audio/` | `RootAudioSession`: recording/playback lifecycle, permission handling, file ownership |
+| `audio/` | `RootAudioSession`: recording/playback lifecycle, permission handling, file ownership; `WaveformDecoder`/`WaveformCache` (bounded, off-main-thread peak-amplitude decoding with a hash+revision-keyed disk cache) |
+| `reels/` | `ReelsPlayer`: pure Kotlin (no Android dependency), single-pass, manifest-ordered playback state machine over a list of clips — never autoplays, never loops, skips missing clips; the real `MediaPlayer`-backed adapter and an actual Reels screen/manifest/credits UI are not yet built on top of it |
+| `overview/` | `OverviewRecommendations` (pure, deterministic recommendation engine — always the same order, every unavailable recommendation carries an explicit reason instead of being silently hidden) and `OnboardingGate` (skip/complete persist identically; re-offered only on a version bump). Wired into `RootRepository`/`RootViewModel`, but no onboarding screen or recommendations-list UI has been built yet |
 | `archive/` | `ArchiveViewModel`/`ArchiveScreen` ("Your words"): search, edit, and permanently delete personally-contributed phrases; consent for a recorded speaker is required and stored in `PhraseConsentEntity` |
 | `sharing/` | PNG phrase-card rendering (`PhraseCardRenderer`) and FileProvider-backed sharing (`PhraseCardSharing`) |
 | `widget/` | `RootWidget`: Glance home-screen widget showing the next due phrase |
@@ -132,10 +134,27 @@ the API key goes in your **user-level** `gradle.properties`, never in source con
 
 ```powershell
 .\gradlew.bat :app:assembleDebug :app:testDebugUnitTest
-$env:ANDROID_SERIAL = "your-device-or-emulator-id"   # always target explicitly
-.\gradlew.bat :app:connectedDebugAndroidTest
+.\tools\android\Invoke-ValidationTests.ps1 -Serial "your-device-or-emulator-id"
 .\gradlew.bat :app:lintDebug
 ```
+
+Device validation uses a separately installed **Root Validation**
+(`com.root.app.validation`), with billing and the remote catalog disabled. It
+does not replace, reset, or uninstall `com.root.app`. The script builds the
+validation APKs, verifies their package/runner identities, and uses explicit
+`adb -s` targeting even when several devices are connected. It refuses to switch
+device profiles and requires foreground user 0. Reports are saved under
+`app\build\reports\validation-device\<serial>\instrumentation-<run>.txt`; runner
+failures are errors even when adb itself returns zero.
+
+Use `-Classes "com.root.app.data.Migration4To5Test,com.root.app.practice.PracticeRepositoryTest"`
+for focused execution, or `-SkipBuild` to reuse already-built APKs. Navigation
+tests reset only validation-owned database/preferences before launching each
+Activity; they deliberately refuse to reset a normal debug installation.
+The standalone build command is
+`.\gradlew.bat -ProotTestBuildType=validation :app:assembleValidation :app:assembleValidationAndroidTest`.
+Normal debug/release builds remain unchanged; development assets also ship in
+validation but never release.
 
 Unit tests (`app/src/test`) cover `Scheduler` and `ContentAccess` in isolation.
 Instrumented tests (`app/src/androidTest`) cover Room persistence/seeding, the

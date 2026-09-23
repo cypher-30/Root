@@ -163,10 +163,15 @@ reward. Market content is still “Coming soon” until curated phrases are supp
 
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest
-# With a running emulator / attached device:
-$env:ANDROID_SERIAL = "emulator-5554" # Choose your intended test device explicitly.
-.\gradlew.bat :app:connectedDebugAndroidTest
+# With a running emulator / attached device; choose its serial explicitly:
+.\tools\android\Invoke-ValidationTests.ps1 -Serial "emulator-5554"
 ```
+
+The device runner installs a separate, keyless **Root Validation** app
+(`com.root.app.validation`), verifies APK/runner identities, and leaves the normal
+Root installation untouched. Its navigation fixtures reset validation-only data.
+Use `-Classes` for targeted instrumentation and `-SkipBuild` only when reusing
+current validation APKs; see the development guide for details and report paths.
 
 Unit coverage includes scheduler rules. Device tests cover the durable practice
 session engine (resume, paging, idempotent rating, one-retry rule, stop/close), the
