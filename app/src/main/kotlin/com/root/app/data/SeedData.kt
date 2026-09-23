@@ -3,10 +3,10 @@ package com.root.app.data
 import androidx.room.withTransaction
 
 /**
- * Dholuo development samples, a source-checked Shona starter pack, and a
- * source-checked Swahili starter pack. None of the three packs has completed
- * native-speaker review. Shona and Swahili spelling/usage provenance is
- * bundled in assets/content_sources.txt.
+ * Dholuo development samples, source-checked Shona/Swahili starter packs, and
+ * a public-domain-sourced Amharic starter set. None of the four languages has
+ * completed native-speaker review yet. Shona, Swahili, and Amharic spelling/
+ * usage provenance is bundled in assets/content_sources.txt.
  * Authentic native-speaker reference audio is unavailable; null audio is intentional,
  * not a placeholder to replace with a manufactured voice.
  */
@@ -105,6 +105,67 @@ object SeedData {
                 prompt = "Thank you (one person)", answer = "Asante", audioAsset = null),
             PhraseEntity(id = "phrase-swahili-greetings-08", packId = swahiliGreetings.id,
                 prompt = "Thank you (more than one person)", answer = "Asanteni", audioAsset = null),
+        ))
+
+        // Reuse a learner-created Amharic language rather than listing it twice.
+        // Content transliterated from the FSI Amharic Basic Course (Foreign
+        // Service Institute, U.S. Department of State, 1964) -- a U.S. federal
+        // government work with no copyright (17 U.S.C. Section 105), so it is
+        // usable regardless of which copy it was read from. See
+        // assets/content_sources.txt for unit/page references.
+        val amharic = languages.getAll().firstOrNull { it.name.equals("Amharic", ignoreCase = true) }
+            ?: LanguageEntity(id = "lang-amharic", name = "Amharic", isPremium = false)
+        val amharicGreetings = PackEntity(
+            id = "pack-amharic-greetings",
+            languageId = amharic.id,
+            theme = "Greetings",
+            sortOrder = 0,
+            isFree = true,
+        )
+        val amharicDirections = PackEntity(
+            id = "pack-amharic-directions",
+            languageId = amharic.id,
+            theme = "Directions",
+            sortOrder = 1,
+            isFree = true,
+        )
+        languages.insertMissing(listOf(amharic))
+        packs.insertMissing(listOf(amharicGreetings, amharicDirections))
+        phrases.insertMissing(listOf(
+            PhraseEntity(id = "phrase-amharic-greetings-01", packId = amharicGreetings.id,
+                prompt = "Hello / Goodbye (general greeting)", answer = "Tena yisTilliñ.", audioAsset = null),
+            PhraseEntity(id = "phrase-amharic-greetings-02", packId = amharicGreetings.id,
+                prompt = "Good morning, how are you?", answer = "Tena yisTilliñ, indemin adderu.", audioAsset = null),
+            PhraseEntity(id = "phrase-amharic-greetings-03", packId = amharicGreetings.id,
+                prompt = "Very well, thank you", answer = "Dehna, igziyabher yimmesgen.", audioAsset = null),
+            PhraseEntity(id = "phrase-amharic-greetings-04", packId = amharicGreetings.id,
+                prompt = "Do you know Amharic?", answer = "Amariñña yawKallu?", audioAsset = null),
+            PhraseEntity(id = "phrase-amharic-greetings-05", packId = amharicGreetings.id,
+                prompt = "Yes, I know", answer = "Awo, awKallehu.", audioAsset = null),
+            PhraseEntity(id = "phrase-amharic-greetings-06", packId = amharicGreetings.id,
+                prompt = "No, I don't know", answer = "Yellem, alawKim.", audioAsset = null),
+            PhraseEntity(id = "phrase-amharic-greetings-07", packId = amharicGreetings.id,
+                prompt = "I know a little", answer = "Tinniš awKallehu.", audioAsset = null),
+            PhraseEntity(id = "phrase-amharic-greetings-08", packId = amharicGreetings.id,
+                prompt = "What did you say?", answer = "Minalu?", audioAsset = null),
+        ))
+        phrases.insertMissing(listOf(
+            PhraseEntity(id = "phrase-amharic-directions-01", packId = amharicDirections.id,
+                prompt = "Please / Excuse me", answer = "Ibákkiwo.", audioAsset = null),
+            PhraseEntity(id = "phrase-amharic-directions-02", packId = amharicDirections.id,
+                prompt = "Where?", answer = "Yet?", audioAsset = null),
+            PhraseEntity(id = "phrase-amharic-directions-03", packId = amharicDirections.id,
+                prompt = "It's in front of you", answer = "Fitlefit new.", audioAsset = null),
+            PhraseEntity(id = "phrase-amharic-directions-04", packId = amharicDirections.id,
+                prompt = "It's far", answer = "RuK new.", audioAsset = null),
+            PhraseEntity(id = "phrase-amharic-directions-05", packId = amharicDirections.id,
+                prompt = "It's on your right", answer = "BesteKeññiwo new.", audioAsset = null),
+            PhraseEntity(id = "phrase-amharic-directions-06", packId = amharicDirections.id,
+                prompt = "It's on your left", answer = "Bestegrawo new.", audioAsset = null),
+            PhraseEntity(id = "phrase-amharic-directions-07", packId = amharicDirections.id,
+                prompt = "Go straight ahead and turn", answer = "Wedefit yihidunná, wedegrá yizuru.", audioAsset = null),
+            PhraseEntity(id = "phrase-amharic-directions-08", packId = amharicDirections.id,
+                prompt = "It's nearby", answer = "Kirb new.", audioAsset = null),
         ))
     }
 }

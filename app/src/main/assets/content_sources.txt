@@ -19,6 +19,28 @@ Dholuo / Greetings
 Three pre-existing, hand-entered development samples.
 Status: unreviewed; no authentic reference recordings bundled.
 
+Amharic / Greetings, Directions
+Sixteen phrases (two packs of eight) transliterated from:
+FSI Amharic Basic Course, Units 1-2 (Basic Sentences)
+Serge Obolensky, Debebow Zelelie, Mulugeta Andualem
+Foreign Service Institute, U.S. Department of State, Washington D.C., 1964
+This is a work of the United States federal government and carries no
+copyright in the U.S. (17 U.S.C. Section 105); it is usable here regardless of
+which copy of the scan it was read from. Romanization is exactly as printed
+in the 1964 source (its own ad-hoc phonemic scheme, e.g. capital K for a
+glottalized/ejective consonant, ñ/š for palatal sounds) -- not Ge'ez script,
+and not IPA. This is a small starter selection from the first two of the
+course's 50 units, not the full course and not a claim to cover every
+register, dialect, or courtesy form.
+
+Status: source-checked against the original 1964 text; native-speaker review
+for this app is pending. No audio, illustrations, or other course materials
+have been imported -- only these transliterated phrase pairs.
+Everything else in the learner's personal Amharic reference collection
+(dictionaries, grammars, the Colloquial Amharic course, scripture translations,
+etc.) is separately copyrighted and has deliberately not been used as a Root
+content source.
+
 Swahili / Greetings
 Eight common greetings and courtesies, checked on 23 September 2026 against:
 Omniglot, "Useful Swahili phrases"
