@@ -3,9 +3,10 @@ package com.root.app.data
 import androidx.room.withTransaction
 
 /**
- * Dholuo development samples and a source-checked Shona starter pack.
- * Neither pack has completed native-speaker review. Shona spelling and usage
- * provenance is bundled in assets/content_sources.txt.
+ * Dholuo development samples, a source-checked Shona starter pack, and a
+ * source-checked Swahili starter pack. None of the three packs has completed
+ * native-speaker review. Shona and Swahili spelling/usage provenance is
+ * bundled in assets/content_sources.txt.
  * Authentic native-speaker reference audio is unavailable; null audio is intentional,
  * not a placeholder to replace with a manufactured voice.
  */
@@ -73,6 +74,37 @@ object SeedData {
                 prompt = "Thank you (one person)", answer = "Waita zvako", audioAsset = null),
             PhraseEntity(id = "phrase-shona-greetings-08", packId = shonaGreetings.id,
                 prompt = "Thank you (more than one person)", answer = "Maita zvenyu", audioAsset = null),
+        ))
+
+        // Reuse a learner-created Swahili language rather than listing it twice.
+        val swahili = languages.getAll().firstOrNull { it.name.equals("Swahili", ignoreCase = true) }
+            ?: LanguageEntity(id = "lang-swahili", name = "Swahili", isPremium = false)
+        val swahiliGreetings = PackEntity(
+            id = "pack-swahili-greetings",
+            languageId = swahili.id,
+            theme = "Greetings",
+            sortOrder = 0,
+            isFree = true,
+        )
+        languages.insertMissing(listOf(swahili))
+        packs.insertMissing(listOf(swahiliGreetings))
+        phrases.insertMissing(listOf(
+            PhraseEntity(id = "phrase-swahili-greetings-01", packId = swahiliGreetings.id,
+                prompt = "Hello (one person)", answer = "Hujambo", audioAsset = null),
+            PhraseEntity(id = "phrase-swahili-greetings-02", packId = swahiliGreetings.id,
+                prompt = "Hello (more than one person)", answer = "Hamjambo", audioAsset = null),
+            PhraseEntity(id = "phrase-swahili-greetings-03", packId = swahiliGreetings.id,
+                prompt = "Welcome", answer = "Karibu", audioAsset = null),
+            PhraseEntity(id = "phrase-swahili-greetings-04", packId = swahiliGreetings.id,
+                prompt = "Good morning", answer = "Habari ya asubuhi", audioAsset = null),
+            PhraseEntity(id = "phrase-swahili-greetings-05", packId = swahiliGreetings.id,
+                prompt = "Good afternoon", answer = "Habari ya mchana", audioAsset = null),
+            PhraseEntity(id = "phrase-swahili-greetings-06", packId = swahiliGreetings.id,
+                prompt = "Good evening", answer = "Habari ya jioni", audioAsset = null),
+            PhraseEntity(id = "phrase-swahili-greetings-07", packId = swahiliGreetings.id,
+                prompt = "Thank you (one person)", answer = "Asante", audioAsset = null),
+            PhraseEntity(id = "phrase-swahili-greetings-08", packId = swahiliGreetings.id,
+                prompt = "Thank you (more than one person)", answer = "Asanteni", audioAsset = null),
         ))
     }
 }

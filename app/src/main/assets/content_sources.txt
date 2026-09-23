@@ -18,3 +18,21 @@ Authentic reference audio still needs to be supplied or recorded with consent.
 Dholuo / Greetings
 Three pre-existing, hand-entered development samples.
 Status: unreviewed; no authentic reference recordings bundled.
+
+Swahili / Greetings
+Eight common greetings and courtesies, checked on 23 September 2026 against:
+Omniglot, "Useful Swahili phrases"
+https://www.omniglot.com/language/phrases/swahili.php
+The source credits corrections/recordings/translations from Ylanne Sorrows,
+Rushomesa Remigius, Dwayne Panzeter, Corona Cermak, and EasySwahili.
+
+Root uses short everyday expressions, with English recall prompts specifying
+one person / more than one person where the source distinguishes sg / pl.
+This is a small starter selection, not an imported course or a claim to cover
+all dialects, registers, or respectful forms of address. Swahili has many
+regional and country-specific varieties (e.g. Kenya, Tanzania, DRC); this
+starter set uses the source's standard/coastal forms only.
+
+Status: source-checked; native-speaker review for this app is pending.
+No source recordings, illustrations, or course materials have been imported.
+Authentic reference audio still needs to be supplied or recorded with consent.

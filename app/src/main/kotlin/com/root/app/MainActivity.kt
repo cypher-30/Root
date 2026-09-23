@@ -329,7 +329,7 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
                 MenuEntry("The design study") { open("study") }
                 Text("No account. Your practice stays on this device.", style = RootType.meta,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("Dholuo phrases are development samples. Shona Greetings is source-checked against Omniglot. Native-speaker review and reference audio are still pending for both.",
+                Text("Dholuo phrases are development samples. Shona and Swahili Greetings are source-checked against Omniglot. Native-speaker review and reference audio are still pending for all three.",
                     Modifier.padding(top = 8.dp), style = RootType.meta, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(24.dp))
             }
