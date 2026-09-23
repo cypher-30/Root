@@ -214,4 +214,147 @@ data class PhraseConsentEntity(
     @PrimaryKey @ColumnInfo(name = "phrase_id") val phraseId: String,
     @ColumnInfo(name = "speaker_label") val speakerLabel: String?,
     @ColumnInfo(name = "consent_given_at") val consentGivenAt: Long = System.currentTimeMillis(),
+    /** Which revision of the consent wording the contributor agreed to (see
+     *  [CURRENT_CONSENT_VERSION]). Bumping the constant does not retroactively
+     *  change what an existing recording's consent means; it only requires a
+     *  fresh acknowledgement next time that wording changes meaningfully. */
+    @ColumnInfo(name = "consent_version", defaultValue = "1") val consentVersion: Int = CURRENT_CONSENT_VERSION,
+    /** Always "local recording only" today — there is no server-side record,
+     *  re-sharing, or separate opt-out flow. Stored explicitly (rather than
+     *  assumed) so a future scope actually has to introduce a new value
+     *  instead of silently reinterpreting an old row. */
+    @ColumnInfo(name = "consent_scope", defaultValue = "LOCAL_RECORDING_ONLY") val consentScope: String = "LOCAL_RECORDING_ONLY",
+) {
+    companion object {
+        const val CURRENT_CONSENT_VERSION = 1
+    }
+}
+
+/**
+ * A private note the learner attached to their own personal phrase (see
+ * [RootRepository.deletePersonalPhrase] and the archive detail view). Never
+ * shown to anyone else, never leaves the device, and is always deleted with
+ * its phrase (`ON DELETE CASCADE`) — a personal-word deletion must not leave
+ * an orphaned note behind. Exactly one note per phrase; upserting overwrites.
+ */
+@Entity(
+    tableName = "personal_notes",
+    foreignKeys = [
+        ForeignKey(
+            entity = PhraseEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["phrase_id"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+)
+data class PersonalNoteEntity(
+    @PrimaryKey @ColumnInfo(name = "phrase_id") val phraseId: String,
+    @ColumnInfo(name = "note_text") val noteText: String,
+    @ColumnInfo(name = "updated_at") val updatedAt: Long = System.currentTimeMillis(),
+)
+
+/**
+ * A learner's self-reported "I practiced this out loud" acknowledgement for a
+ * phrase — entirely separate from the recall scheduler. Keying on `phraseId`
+ * as the primary key (not an autoincrement id) makes repeated taps a natural
+ * upsert onto the same row rather than a growing log, which is what makes
+ * marking practiced idempotent: tapping it five times in a row leaves exactly
+ * one row, same as tapping it once. Writing this row must NEVER create an
+ * [AttemptEntity] or touch a phrase's `next_due_at` — see [RootRepository.markPracticed].
+ */
+@Entity(
+    tableName = "practice_marks",
+    foreignKeys = [
+        ForeignKey(
+            entity = PhraseEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["phrase_id"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+)
+data class PracticeMarkEntity(
+    @PrimaryKey @ColumnInfo(name = "phrase_id") val phraseId: String,
+    @ColumnInfo(name = "marked_at") val markedAt: Long = System.currentTimeMillis(),
+)
+
+
+/** Lifecycle of one [ContributionDraftEntity]'s recorded audio. Mirrors the
+ *  recording flow in [com.root.app.ui.ContributeScreen]/[RootAudioSession]:
+ *  a fresh draft has no audio; [RECORDING] and [RECORDED] track an in-flight
+ *  or completed take; [DISCARDED] means the learner explicitly threw away a
+ *  take and can record again; [COMMITTED] means the draft was promoted into a
+ *  real [PhraseEntity] and its consent/reference audio and must not be reused
+ *  or shown as an editable draft again. */
+enum class ContributionAudioState { NONE, RECORDING, RECORDED, DISCARDED, COMMITTED }
+
+/**
+ * A durable, resumable "add a word" draft. Replaces screen-level
+ * `rememberSaveable` state in [com.root.app.ui.ContributeScreen]: process
+ * death, a phone call, or a low-memory kill mid-recording must not silently
+ * lose typed text or a just-finished take before the learner chooses Save or
+ * Discard. [audioDraftPath] points at a temporary file distinct from any
+ * phrase's permanent reference recording — see [MediaFileFactEntity] for how
+ * promoting that temp file into a permanent one is tracked separately from
+ * activating the DB row that points at it, so a process death between "file
+ * copied" and "phrase row committed" has a restartable recovery path rather
+ * than either losing the take or committing a phrase with no audio.
+ */
+@Entity(tableName = "contribution_drafts")
+data class ContributionDraftEntity(
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    @ColumnInfo(name = "language_id") val languageId: String,
+    @ColumnInfo(name = "pack_id") val packId: String?,
+    @ColumnInfo(name = "prompt_draft") val promptDraft: String,
+    @ColumnInfo(name = "answer_draft") val answerDraft: String,
+    @ColumnInfo(name = "speaker_label_draft") val speakerLabelDraft: String?,
+    @ColumnInfo(name = "audio_draft_path") val audioDraftPath: String?,
+    @ColumnInfo(name = "audio_state") val audioState: ContributionAudioState = ContributionAudioState.NONE,
+    @ColumnInfo(name = "committed_phrase_id") val committedPhraseId: String?,
+    @ColumnInfo(name = "created_at") val createdAt: Long = System.currentTimeMillis(),
+    @ColumnInfo(name = "updated_at") val updatedAt: Long = System.currentTimeMillis(),
+)
+
+/** What is actually true on disk for a piece of learner-owned media, checked
+ *  independently of whatever a DB pointer claims. [PRESENT] means the file
+ *  exists and (when [MediaFileFactEntity.expectedSha256] is set) matches its
+ *  expected hash; [MISSING] means the path does not exist; [CORRUPT] means it
+ *  exists but fails a hash/read check; [PENDING_CLEANUP] means an old file a
+ *  DB pointer no longer references still needs its bytes removed — used so a
+ *  failed delete is reported as "cleanup pending" rather than silently
+ *  claimed as erased (see [RootRepository.deletePersonalPhrase]). */
+enum class MediaFileStatus { PRESENT, MISSING, CORRUPT, PENDING_CLEANUP }
+
+/** What kind of learner-owned media a [MediaFileFactEntity] describes.
+ *  [PACK_VERSION_MEDIA] is the one non-learner-owned case: a whole managed
+ *  content pack version's media directory (subjectId is `"$packId:$version"`)
+ *  whose deletion was deferred because it was still pinned by an open lesson
+ *  run/practice session at uninstall time — see
+ *  [com.root.app.content.ContentLibrary.uninstall]/[retryPendingContentCleanup]. */
+enum class MediaFileSubject { PHRASE_REFERENCE_AUDIO, CONTRIBUTION_DRAFT_AUDIO, LEARNER_TAKE_AUDIO, PACK_VERSION_MEDIA }
+
+/**
+ * Ground truth about one on-disk media file, separate from whichever entity
+ * points at it. This is what lets byte promotion (copying/renaming a file
+ * into place), DB pointer activation (a phrase/draft row referencing it), and
+ * deferred cleanup (removing bytes an old pointer no longer needs) be tracked
+ * as three distinct steps: a process death between any two of them leaves a
+ * row here that a recovery pass can use to finish or roll back safely,
+ * instead of the app silently trusting a DB pointer that may be one step
+ * ahead of or behind the real file.
+ */
+@Entity(
+    tableName = "media_file_facts",
+    indices = [Index("subject", "subject_id")],
+)
+data class MediaFileFactEntity(
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    val subject: MediaFileSubject,
+    @ColumnInfo(name = "subject_id") val subjectId: String,
+    @ColumnInfo(name = "file_path") val filePath: String,
+    @ColumnInfo(name = "expected_sha256") val expectedSha256: String?,
+    val status: MediaFileStatus,
+    @ColumnInfo(name = "checked_at") val checkedAt: Long = System.currentTimeMillis(),
+    @ColumnInfo(name = "updated_at") val updatedAt: Long = System.currentTimeMillis(),
 )

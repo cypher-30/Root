@@ -25,4 +25,23 @@ class RootPreferences(context: Context) {
             require(value in setOf("system", "light", "dark")) { "Unknown theme: $value" }
             preferences.edit().putString("theme", value).apply()
         }
+
+    /** Version of onboarding/overview content the learner has last completed or
+     *  explicitly skipped, or 0 if they have never seen it. Onboarding is always
+     *  optional and skippable (see docs/TEACHING_CONTRACTS.md); this value only
+     *  gates whether it's offered again on next launch, never [activeLanguageId]
+     *  or [theme] — writing it must never touch those two keys. Bumping
+     *  [ONBOARDING_CURRENT_VERSION] re-offers onboarding once to existing
+     *  learners without re-forcing every subsequent launch. */
+    var onboardingCompletedVersion: Int
+        get() = preferences.getInt("onboarding_completed_version", 0)
+        set(value) {
+            require(value >= 0) { "onboarding_completed_version cannot be negative." }
+            preferences.edit().putInt("onboarding_completed_version", value).apply()
+        }
+
+    companion object {
+        /** Bump when onboarding content changes meaningfully enough to re-offer it. */
+        const val ONBOARDING_CURRENT_VERSION = 1
+    }
 }

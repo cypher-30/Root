@@ -228,6 +228,42 @@ indexed metadata — not a table per DTO.
 - **`LessonRunCommandEntity`** (`lesson_run_commands`, PK `command_id`): the
   idempotency ledger — `payloadHash` plus the stored `resultJson`.
 
+### Contracts-model additions (Room v5 → v6)
+
+- **`PhraseConsentEntity`** (`phrase_consents`) gained `consentVersion`
+  (defaults to `PhraseConsentEntity.CURRENT_CONSENT_VERSION`, currently `1`)
+  and `consentScope` (defaults to `"LOCAL_RECORDING_ONLY"`, today's only real
+  value). Existing rows backfill via the column `DEFAULT`, not a fabricated
+  new consent event — see `MIGRATION_5_6`.
+- **`PersonalNoteEntity`** (`personal_notes`, PK `phrase_id`, FK to
+  `phrases.id` `ON DELETE CASCADE`): one private, on-device-only note per
+  personal phrase. Deleting the phrase deletes the note; there is no other
+  way to remove one.
+- **`ContributionDraftEntity`** (`contribution_drafts`): a durable "add a
+  word" draft — prompt/answer/speaker-label text, an `audioDraftPath`
+  distinct from any phrase's permanent reference recording, and
+  `audioState ∈ {NONE, RECORDING, RECORDED, DISCARDED, COMMITTED}`. Replaces
+  screen-level `rememberSaveable` state in `ContributeScreen` so process
+  death mid-draft cannot silently lose typed text or a just-finished take
+  before Save/Discard. `committedPhraseId` links a `COMMITTED` draft to the
+  `PhraseEntity` it became.
+- **`MediaFileFactEntity`** (`media_file_facts`, indexed on
+  `(subject, subject_id)`): ground truth about one on-disk media file,
+  independent of whichever DB row points at it —
+  `status ∈ {PRESENT, MISSING, CORRUPT, PENDING_CLEANUP}`. This is what lets
+  byte promotion (copying a file into place), DB pointer activation (a
+  phrase/draft row referencing it), and deferred cleanup (removing bytes an
+  old pointer no longer needs) be tracked as three distinct, independently
+  recoverable steps rather than one implicit assumption. `PENDING_CLEANUP`
+  is what a failed file delete should report instead of the caller silently
+  claiming the bytes were erased (see `RootRepository.deletePersonalPhrase`,
+  which does not yet write these facts — wiring is tracked as follow-up
+  practice/archive work, not part of this schema package).
+- **`RootPreferences.onboardingCompletedVersion`** (SharedPreferences, not
+  Room): versioned, optional onboarding status. Writing it never touches
+  `activeLanguageId` or `theme`. Onboarding remains skippable and is never
+  forced on existing users or widget launches.
+
 ### `ContentDao` methods added for the pack installer
 
 The installer (`content/ContentLibrary.kt`, not owned here) is the one real
@@ -410,5 +446,5 @@ fully supported.
   in-memory Room database. **Not run** in this environment — no
   emulator/device or `ANDROID_HOME`/`adb` was available; written and reviewed
   but unverified. Run with
-  `.\gradlew.bat :app:connectedDebugAndroidTest --tests "com.root.app.data.Migration3To4Test" --tests "com.root.app.data.ContentPersistenceTest" --tests "com.root.app.learning.LessonRunnerTest"`
+  `.\tools\android\Invoke-ValidationTests.ps1 -Serial "your-device-serial" -Classes "com.root.app.data.Migration3To4Test,com.root.app.data.ContentPersistenceTest,com.root.app.learning.LessonRunnerTest"`
   once a device is attached.

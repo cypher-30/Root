@@ -102,6 +102,70 @@ interface ConsentDao {
     suspend fun getForPhrase(phraseId: String): PhraseConsentEntity?
 }
 
+/** DAO for [PersonalNoteEntity] — private, on-device-only notes attached to a
+ *  learner's own personal phrase. */
+@Dao
+interface PersonalNoteDao {
+    @Upsert
+    suspend fun upsert(note: PersonalNoteEntity)
+
+    @Query("SELECT * FROM personal_notes WHERE phrase_id = :phraseId")
+    suspend fun getForPhrase(phraseId: String): PersonalNoteEntity?
+
+    @Query("DELETE FROM personal_notes WHERE phrase_id = :phraseId")
+    suspend fun deleteForPhrase(phraseId: String)
+}
+
+/** DAO for [PracticeMarkEntity]. `@Upsert` on a `phraseId` primary key is what
+ *  makes repeated marking idempotent — see that entity's doc. */
+@Dao
+interface PracticeMarkDao {
+    @Upsert
+    suspend fun upsert(mark: PracticeMarkEntity)
+
+    @Query("SELECT * FROM practice_marks WHERE phrase_id = :phraseId")
+    suspend fun getForPhrase(phraseId: String): PracticeMarkEntity?
+}
+
+
+/** DAO for [ContributionDraftEntity] — see that entity's doc for why a
+ *  contribution draft is durable rather than screen-level saved state. */
+@Dao
+interface ContributionDraftDao {
+    @Upsert
+    suspend fun upsert(draft: ContributionDraftEntity)
+
+    @Query("SELECT * FROM contribution_drafts WHERE id = :id")
+    suspend fun getById(id: String): ContributionDraftEntity?
+
+    /** Every draft not yet committed or discarded, most recently updated
+     *  first — the set a resumed Contribute screen should offer to continue. */
+    @Query(
+        "SELECT * FROM contribution_drafts WHERE audio_state NOT IN ('COMMITTED', 'DISCARDED') ORDER BY updated_at DESC"
+    )
+    suspend fun getOpenDrafts(): List<ContributionDraftEntity>
+
+    @Query("DELETE FROM contribution_drafts WHERE id = :id")
+    suspend fun deleteById(id: String)
+}
+
+/** DAO for [MediaFileFactEntity] — the recovery ledger for on-disk learner
+ *  media, kept independent of whichever entity's pointer references it. */
+@Dao
+interface MediaFileFactDao {
+    @Upsert
+    suspend fun upsert(fact: MediaFileFactEntity)
+
+    @Query("SELECT * FROM media_file_facts WHERE subject = :subject AND subject_id = :subjectId")
+    suspend fun getFor(subject: MediaFileSubject, subjectId: String): List<MediaFileFactEntity>
+
+    @Query("SELECT * FROM media_file_facts WHERE status = 'PENDING_CLEANUP'")
+    suspend fun getPendingCleanup(): List<MediaFileFactEntity>
+
+    @Query("DELETE FROM media_file_facts WHERE id = :id")
+    suspend fun deleteById(id: String)
+}
+
 @Dao
 interface AttemptDao {
     @Insert
@@ -128,8 +192,17 @@ interface AttemptDao {
      *  already-queued phrase id into memory and inflating the page limit — so a
      *  session's per-page query cost stays bounded by [limit] regardless of how
      *  many phrases the run has already queued over its lifetime. */
+    // The extra `p.updated_at <= :nowMillis` clause is what actually freezes a
+    // practice run's eligible membership at its own startedAt cutoff (the only
+    // caller that passes a frozen past instant here rather than "now"): a phrase
+    // created or edited after the run began — including any new pack content —
+    // has an `updated_at` after that cutoff and is excluded from every page of
+    // this run, joining only a subsequent one. For every other caller (which
+    // passes an actual current timestamp), this clause is a harmless no-op since
+    // no phrase's `updated_at` can be in the future relative to real "now".
     @Query(
         "$DUE_PHRASES_WHERE " +
+            "AND p.updated_at <= :nowMillis " +
             "AND p.id NOT IN (SELECT phrase_id FROM practice_queue_entries WHERE session_id = :sessionId) " +
             "$DUE_PHRASES_ORDER LIMIT :limit",
     )
@@ -188,6 +261,29 @@ interface AttemptDao {
         """
     )
     suspend fun mostRecentlyPracticedTheme(languageId: String, unlockedPackIds: List<String>): String?
+
+    /** The real next moment something in this scope becomes eligible, straight
+     *  from the same scheduler-written `next_due_at` column the due queue itself
+     *  reads — never a guessed/rounded "come back tomorrow" promise. Null means
+     *  nothing scheduled is currently pending future review (everything is
+     *  either already due or has never been attempted). */
+    @Query(
+        """
+        SELECT MIN(a.next_due_at) FROM phrases p
+        JOIN packs pk ON pk.id = p.pack_id
+        JOIN attempts a ON a.rowid = (
+            SELECT latest.rowid FROM attempts latest
+            WHERE latest.phrase_id = p.id
+            ORDER BY latest.reviewed_at DESC, latest.rowid DESC LIMIT 1
+        )
+        WHERE pk.language_id = :languageId
+            AND pk.id IN (:unlockedPackIds)
+            AND (:packId IS NULL OR pk.id = :packId)
+            AND NOT EXISTS (SELECT 1 FROM managed_phrases m WHERE m.phrase_id = p.id AND m.retired = 1)
+            AND a.next_due_at > :nowMillis
+        """
+    )
+    suspend fun earliestEligibleDueAt(languageId: String, nowMillis: Long, unlockedPackIds: List<String>, packId: String? = null): Long?
 }
 
 // rowid breaks millisecond ties by insertion order, selecting exactly one attempt.
@@ -216,6 +312,18 @@ internal const val DUE_PHRASES_ORDER = """
     ORDER BY CASE WHEN a.next_due_at IS NULL THEN 1 ELSE 0 END, a.next_due_at, pk.sortOrder, p.id
 """
 internal const val DUE_PHRASES_QUERY = "$DUE_PHRASES_WHERE $DUE_PHRASES_ORDER"
+
+/** One already-reviewed-or-skipped queue entry, as returned by
+ *  [PracticeDao.reviewedDetails]. [confidence] is null exactly when [state] is
+ *  `SKIPPED` (no attempt was ever recorded for a skipped entry). */
+data class PracticeReviewedDetail(
+    val entryId: String,
+    val phraseId: String,
+    val prompt: String,
+    val answer: String,
+    val state: QueueEntryState,
+    val confidence: ConfidenceLevel?,
+)
 
 /**
  * Backs [com.root.app.practice.PracticeRepository]. All mutation happens inside
@@ -279,6 +387,9 @@ interface PracticeDao {
     @Query("SELECT COUNT(*) FROM practice_queue_entries WHERE session_id = :sessionId AND state = 'RATED'")
     suspend fun ratedCount(sessionId: String): Int
 
+    @Query("SELECT COUNT(*) FROM practice_queue_entries WHERE session_id = :sessionId AND state = 'SKIPPED'")
+    suspend fun skippedCount(sessionId: String): Int
+
     @Query(
         """
         SELECT COUNT(*) FROM practice_queue_entries e
@@ -287,6 +398,22 @@ interface PracticeDao {
         """
     )
     suspend fun correctCount(sessionId: String): Int
+
+    /** Bounded, paged history of everything this run has already reviewed or
+     *  skipped (never PENDING), oldest-first by queue position — backs a
+     *  completion summary's "what did I just do" detail list without ever
+     *  loading a whole run's history into memory at once. */
+    @Query(
+        """
+        SELECT e.id AS entryId, e.phrase_id AS phraseId, e.prompt_snapshot AS prompt,
+               e.answer_snapshot AS answer, e.state AS state, a.confidence AS confidence
+        FROM practice_queue_entries e
+        LEFT JOIN attempts a ON a.id = e.id
+        WHERE e.session_id = :sessionId AND e.state != 'PENDING'
+        ORDER BY e.position LIMIT :limit OFFSET :offset
+        """
+    )
+    suspend fun reviewedDetails(sessionId: String, limit: Int, offset: Int): List<PracticeReviewedDetail>
 
     @Query("SELECT COUNT(*) FROM practice_queue_entries WHERE session_id = :sessionId AND is_retry = 0 AND phrase_id = :phraseId")
     suspend fun baseEntryCountForPhrase(sessionId: String, phraseId: String): Int

@@ -82,10 +82,9 @@ class Migration2To3Test {
         // Opening with the real entity set is itself the strongest assertion here:
         // Room validates the post-migration schema against what AppDatabase's
         // entities expect and throws if any migration's SQL disagrees with them.
-        // AppDatabase is now at version 4, so the full 2->3->4 path must be
-        // registered even though this test only exercises the 2->3 step's data.
+        // Use the production upgrade chain through the current schema.
         val migrated = Room.databaseBuilder(context, AppDatabase::class.java, dbName)
-            .addMigrations(AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4)
+            .addMigrations(*AppDatabase.MIGRATIONS)
             .build()
         try {
             runBlocking {

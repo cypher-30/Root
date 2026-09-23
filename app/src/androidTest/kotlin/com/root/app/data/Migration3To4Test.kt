@@ -63,7 +63,7 @@ class Migration3To4Test {
         } finally { v3.close() }
 
         val migrated = Room.databaseBuilder(context, AppDatabase::class.java, dbName)
-            .addMigrations(AppDatabase.MIGRATION_3_4)
+            .addMigrations(*AppDatabase.MIGRATIONS)
             .build()
         try {
             runBlocking {

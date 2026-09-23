@@ -59,6 +59,24 @@ class Converters {
 
     @TypeConverter
     fun toLearningEventKind(value: String): LearningEventKind = LearningEventKind.valueOf(value)
+
+    @TypeConverter
+    fun fromContributionAudioState(value: ContributionAudioState): String = value.name
+
+    @TypeConverter
+    fun toContributionAudioState(value: String): ContributionAudioState = ContributionAudioState.valueOf(value)
+
+    @TypeConverter
+    fun fromMediaFileStatus(value: MediaFileStatus): String = value.name
+
+    @TypeConverter
+    fun toMediaFileStatus(value: String): MediaFileStatus = MediaFileStatus.valueOf(value)
+
+    @TypeConverter
+    fun fromMediaFileSubject(value: MediaFileSubject): String = value.name
+
+    @TypeConverter
+    fun toMediaFileSubject(value: String): MediaFileSubject = MediaFileSubject.valueOf(value)
 }
 
 /**
@@ -75,8 +93,10 @@ class Converters {
         ManagedPhraseEntity::class, ContentAssetEntity::class,
         LessonRunEntity::class, LearningEventEntity::class, LessonRunCommandEntity::class,
         PhraseConsentEntity::class,
+        PersonalNoteEntity::class, ContributionDraftEntity::class, MediaFileFactEntity::class,
+        PracticeMarkEntity::class,
     ],
-    version = 5,
+    version = 7,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -90,6 +110,10 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun contentDao(): ContentDao
     abstract fun learningDao(): LearningDao
     abstract fun consentDao(): ConsentDao
+    abstract fun personalNoteDao(): PersonalNoteDao
+    abstract fun contributionDraftDao(): ContributionDraftDao
+    abstract fun mediaFileFactDao(): MediaFileFactDao
+    abstract fun practiceMarkDao(): PracticeMarkDao
 
     companion object {
         /**
@@ -377,6 +401,100 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Version 5 -> 6: adds versioned/scoped consent columns to
+         * [PhraseConsentEntity], durable [PersonalNoteEntity] private notes,
+         * durable [ContributionDraftEntity] "add a word" drafts (replacing
+         * screen-level saved state), and the [MediaFileFactEntity] recovery
+         * ledger that separates byte promotion, DB pointer activation, and
+         * deferred cleanup for learner-owned media. Purely additive: every
+         * v5 table, row, and column is untouched, so an existing learner's
+         * languages/packs/phrases/attempts/practice/content/lesson/consent
+         * history survives unchanged. Existing [PhraseConsentEntity] rows get
+         * `consent_version = 1` and `consent_scope = 'LOCAL_RECORDING_ONLY'`
+         * (today's only real values) via column defaults, not a fabricated
+         * new consent event.
+         */
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE phrase_consents ADD COLUMN consent_version INTEGER NOT NULL DEFAULT 1"
+                )
+                db.execSQL(
+                    "ALTER TABLE phrase_consents ADD COLUMN consent_scope TEXT NOT NULL DEFAULT 'LOCAL_RECORDING_ONLY'"
+                )
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS personal_notes (
+                        phrase_id TEXT NOT NULL PRIMARY KEY,
+                        note_text TEXT NOT NULL,
+                        updated_at INTEGER NOT NULL,
+                        FOREIGN KEY(phrase_id) REFERENCES phrases(id) ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS contribution_drafts (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        language_id TEXT NOT NULL,
+                        pack_id TEXT,
+                        prompt_draft TEXT NOT NULL,
+                        answer_draft TEXT NOT NULL,
+                        speaker_label_draft TEXT,
+                        audio_draft_path TEXT,
+                        audio_state TEXT NOT NULL,
+                        committed_phrase_id TEXT,
+                        created_at INTEGER NOT NULL,
+                        updated_at INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS media_file_facts (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        subject TEXT NOT NULL,
+                        subject_id TEXT NOT NULL,
+                        file_path TEXT NOT NULL,
+                        expected_sha256 TEXT,
+                        status TEXT NOT NULL,
+                        checked_at INTEGER NOT NULL,
+                        updated_at INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_media_file_facts_subject_subject_id ON media_file_facts(subject, subject_id)"
+                )
+            }
+        }
+
+        /**
+         * Version 6 -> 7: adds the practice_marks table backing the
+         * idempotent, self-reported "Mark Practiced" acknowledgement. This is
+         * wholly separate from the recall scheduler — it never touches
+         * attempts, phrases, or `next_due_at`.
+         */
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS practice_marks (
+                        phrase_id TEXT NOT NULL PRIMARY KEY,
+                        marked_at INTEGER NOT NULL,
+                        FOREIGN KEY(phrase_id) REFERENCES phrases(id) ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+
         @Volatile private var instance: AppDatabase? = null
 
         fun get(context: Context): AppDatabase =
@@ -386,7 +504,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "root.db",
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(*MIGRATIONS)
                     .build().also { instance = it }
             }
     }
