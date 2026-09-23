@@ -15,7 +15,7 @@
       "minLength": 1,
       "maxLength": 512,
       "pattern": "^assets/audio-[A-Za-z0-9][A-Za-z0-9._-]*$",
-      "description": "Parent transport convention: filename is derived from the asset id (audio-<assetId><ext>), never the original source filename. No '..'/'.' path segments, percent-encoding, query strings, colons, or backslashes are possible under this pattern because every segment must start with an alphanumeric character."
+      "description": "Parent transport convention: filename is content-addressed from the asset bytes' sha256 prefix plus extension (audio-<sha256-prefix><ext>), never the original source filename. No '..'/'.' path segments, percent-encoding, query strings, colons, or backslashes are possible under this pattern because every segment must start with an alphanumeric character."
     },
     "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "bytes": { "type": "integer", "minimum": 1, "maximum": 20971520 },

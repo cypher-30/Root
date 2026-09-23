@@ -2,6 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from content_pipeline.canonical import sha256_hex
 from content_pipeline.pack_builder import (
     build_manifest, build_catalog, catalog_entry_for, AssetInput,
     PackBuildError, manifest_key_for,
@@ -39,13 +40,42 @@ class PackBuilderTests(unittest.TestCase):
             r2 = build_manifest(**self._base_kwargs([asset]))
             self.assertEqual(r1.manifest_sha256, r2.manifest_sha256)
 
-    def test_asset_relative_key_is_derived_from_asset_id_not_source_filename(self):
+    def test_asset_relative_key_is_content_addressed_not_source_filename(self):
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)
             audio = make_asset_file(tmp, "totally-unrelated-source-name.m4a", 1000)
             asset = AssetInput(asset_id="asset1", source_path=audio, mime="audio/mp4")
             result = build_manifest(**self._base_kwargs([asset]))
-            self.assertEqual(result.manifest["assets"][0]["key"], "assets/audio-asset1.m4a")
+            expected_prefix = sha256_hex(audio.read_bytes())[:32]
+            self.assertEqual(result.manifest["assets"][0]["key"], "assets/audio-" + expected_prefix + ".m4a")
+
+    def test_asset_relative_key_depends_on_bytes_not_asset_id(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            audio = make_asset_file(tmp, "same-bytes.m4a", 1000)
+            first = AssetInput(asset_id="asset-one", source_path=audio, mime="audio/mp4")
+            second = AssetInput(asset_id="asset.two", source_path=audio, mime="audio/mp4")
+            first_result = build_manifest(**self._base_kwargs([first]))
+            second_result = build_manifest(**self._base_kwargs([second]))
+            self.assertEqual(
+                first_result.manifest["assets"][0]["key"],
+                second_result.manifest["assets"][0]["key"],
+            )
+
+    def test_asset_relative_key_changes_when_bytes_change(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            first_audio = make_asset_file(tmp, "first.m4a", 1000)
+            second_audio = tmp / "second.m4a"
+            second_audio.write_bytes(b"b" * 1000)
+            first = AssetInput(asset_id="asset1", source_path=first_audio, mime="audio/mp4")
+            second = AssetInput(asset_id="asset1", source_path=second_audio, mime="audio/mp4")
+            first_result = build_manifest(**self._base_kwargs([first]))
+            second_result = build_manifest(**self._base_kwargs([second]))
+            self.assertNotEqual(
+                first_result.manifest["assets"][0]["key"],
+                second_result.manifest["assets"][0]["key"],
+            )
 
     def test_build_manifest_changes_hash_when_content_changes(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -88,11 +118,16 @@ class PackBuilderTests(unittest.TestCase):
     def test_accepts_exactly_256_assets(self):
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)
-            tiny = make_asset_file(tmp, "tiny.m4a", 10)
             assets = [
-                AssetInput(asset_id="asset" + str(i), source_path=tiny, mime="audio/mp4")
+                AssetInput(
+                    asset_id="asset" + str(i),
+                    source_path=(tmp / ("tiny-" + str(i) + ".m4a")),
+                    mime="audio/mp4",
+                )
                 for i in range(MAX_ASSETS_PER_PACK)
             ]
+            for i, asset in enumerate(assets):
+                asset.source_path.write_bytes(f"{i:010d}".encode("ascii"))
             result = build_manifest(**self._base_kwargs(assets))
             self.assertEqual(len(result.manifest["assets"]), MAX_ASSETS_PER_PACK)
 
@@ -261,8 +296,10 @@ class PackBuilderTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)
             big1 = make_asset_file(tmp, "big1.m4a", MAX_ASSET_BYTES)
-            big2 = make_asset_file(tmp, "big2.m4a", MAX_ASSET_BYTES)
-            small = make_asset_file(tmp, "small.m4a", MAX_PACK_TOTAL_BYTES - 2 * MAX_ASSET_BYTES)
+            big2 = tmp / "big2.m4a"
+            big2.write_bytes(b"b" * MAX_ASSET_BYTES)
+            small = tmp / "small.m4a"
+            small.write_bytes(b"c" * (MAX_PACK_TOTAL_BYTES - 2 * MAX_ASSET_BYTES))
             assets = [
                 AssetInput(asset_id="a1", source_path=big1, mime="audio/mp4"),
                 AssetInput(asset_id="a2", source_path=big2, mime="audio/mp4"),
@@ -287,8 +324,5 @@ class PackBuilderTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-
-
 
 

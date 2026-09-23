@@ -32,7 +32,7 @@
   "assets": [
     {
       "id": "asset.sn.greeting.001",
-      "key": "assets/audio-asset.sn.greeting.001.m4a",
+      "key": "assets/audio-cf2d5a53f4a4491f083eccb6ca25403f.m4a",
       "sha256": "cf2d5a53f4a4491f083eccb6ca25403f713d628964c4113ab01e522fdd505723",
       "bytes": 245760,
       "mimeType": "audio/mp4"

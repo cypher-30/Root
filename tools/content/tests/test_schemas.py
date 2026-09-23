@@ -87,7 +87,7 @@ class ManifestSchemaTests(unittest.TestCase):
     def test_manifest_rejects_bad_sha256(self):
         m = self._minimal_manifest()
         m["assets"] = [{
-            "id": "a1", "key": "assets/audio-a1.m4a",
+            "id": "a1", "key": "assets/audio-0123456789abcdef0123456789abcdef.m4a",
             "sha256": "not-hex", "bytes": 100, "mimeType": "audio/mp4",
         }]
         errors = self.catalog.validate("manifest.schema.json", m)
@@ -96,7 +96,7 @@ class ManifestSchemaTests(unittest.TestCase):
     def test_manifest_rejects_asset_over_20mib(self):
         m = self._minimal_manifest()
         m["assets"] = [{
-            "id": "a1", "key": "assets/audio-a1.m4a",
+            "id": "a1", "key": "assets/audio-0123456789abcdef0123456789abcdef.m4a",
             "sha256": "0" * 64, "bytes": 20971521, "mimeType": "audio/mp4",
         }]
         errors = self.catalog.validate("manifest.schema.json", m)
@@ -215,4 +215,3 @@ class LessonActivitySchemaTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

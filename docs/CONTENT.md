@@ -32,6 +32,10 @@ resolve relative to the repo root regardless of current working directory
 | `import <source> --language L [--limit N] [--out-dir DIR] [--release-dir DIR]` | Bounded candidate import (default `--limit 20`). Writes a JSON `ImportReport` (accepted/rejected/quarantined counts, an `inputFingerprint`, and an honest `blockedReason` if the source could not be reached/parsed). Never fabricates rows when blocked. |
 | `validate-registry` | Validates `content/sources/registry.json` against `source-registry.schema.json`. |
 | `validate-fixtures` | Validates every file in `content/fixtures/{valid,invalid}/` against its matching schema, asserting valid fixtures pass and invalid fixtures fail. |
+| `build-pack <pack-dir> [--registry PATH] [--releases-root DIR]` | Builds one immutable pack release locally from `pack.json` + `phrases.json` + `lessons.json` + optional `assets.json` + required `components.json`, runs every existing gate (`check_publication_status_allowed`, registry-driven rights/review + review-revision checks, schema validation, and the manifest-wide audio-publication gate), and writes only local release artifacts under `tools/content/build/releases/<packId>/<version>/`. Never publishes, loads credentials, or makes a network call. |
+| `build-catalog <release-dir> [<release-dir> ...] [--catalog-dir DIR] [--catalog-revision N]` | Builds one local catalog revision from one or more already-built release directories, writing a new immutable `catalog-rNNNNNN.json` + `.sha256` under `tools/content/build/releases/catalog/` (or `--catalog-dir`). No uploads, no credentials, no network. |
+| `retire <pack_id> <version> [--catalog PATH] [--catalog-dir DIR] [--releases-root DIR] [--catalog-revision N]` | Reads a previously built local catalog, replaces that pack's entry with the same built summary but `retired=true`, bumps `catalogRevision`, and writes a new catalog file without mutating the older one. Local-only; never publishes. |
+| `rollback <pack_id> --to-version N [--catalog PATH] [--catalog-dir DIR] [--releases-root DIR] [--catalog-revision N]` | Reads a previously built local catalog, swaps that pack's entry to an older **already-built** version's stored summary (`catalog-entry.json`), bumps `catalogRevision`, and writes a new local catalog file. Rejects versions that were never built. Never publishes. |
 
 `discover`/`import` never imply editorial approval — that is a separate gate
 (see "Rights, review, and publication gates" below).
@@ -160,23 +164,94 @@ derives them automatically rather than trusting caller-supplied values:
   `/`-separated segment to itself match the ID pattern.
 - **`sha256`**: lowercase 64-hex (`^[0-9a-f]{64}$`).
 - **`bytes`**: positive integer (`minimum: 1`).
-- **Asset `key`** is *always* derived by the pack builder as
-  `assets/audio-<assetId><ext>` (e.g. `assets/audio-asset.sn.greeting.001.m4a`)
-  — never the original/source-derived filename, so no source filename or
-  path ever leaks into the shipped pack. Callers only ever supply an
-  `asset_id`; `AssetInput` has no `key` field to override this.
+- **Asset `key`** is *always* derived by the pack builder from the asset
+  bytes' sha256 plus the mime-derived extension:
+  `assets/audio-<sha256[:32]><ext>` (e.g.
+  `assets/audio-8f434346648f6b96df89dda901c5176b.m4a`) — never the
+  original/source-derived filename, so no source filename or path ever leaks
+  into the shipped pack, and identical bytes always resolve to the same
+  immutable object key while changed bytes always move to a new key. Callers
+  only ever supply an `asset_id`; `AssetInput` has no `key` field to
+  override this, and `asset_id` remains the logical manifest identifier used
+  by `audioAssetId` references.
 - **`manifestKey`** (catalog entries) is always
   `root_content/versions/<packId>/<version>/manifest.json`, produced by
   `limits.manifest_key_for(pack_id, version)` — this matches exactly where
   the parent's Kotlin `ContentTransport`/pack-installer stores the
   downloaded, immutable manifest on-device.
 - Downloaded media on the Android side is likewise named
-  `audio-<assetId>` (not the source filename) — this pipeline's asset `key`
-  convention and the parent's on-device filename convention are the same
-  string, by design.
+  `audio-<assetId>` (not the source filename); this is intentionally a
+  separate on-device filename convention from the manifest's immutable
+  storage `key`. The app downloads by `asset.key`/`sha256`, then stores the
+  verified bytes under the logical asset-id filename it already uses for
+  local lookup.
 
 `build_catalog(...)` builds the top-level catalog pointer the same way,
 enforcing `MAX_CATALOG_BYTES` = 2 MiB and `catalog.schema.json` validity.
+
+## Local release orchestration (`cli.py`) -- build only, never publish
+
+The new release commands are intentionally **local-only** orchestration
+around `pack_builder.py`. They exist so a maintainer can assemble immutable
+pack/catalog artifacts on disk *before* any separately approved publish step.
+They never call `publisher.py`, never read `ROOT_SUPABASE_URL` /
+`ROOT_SUPABASE_SERVICE_KEY`, and never make a network request.
+
+### `build-pack <pack-dir>`
+
+`pack-dir` must contain:
+
+- `pack.json` -- `packId`, `version`, `language`, `title`, `objective`,
+  `publication`, `credits`
+- `phrases.json` -- wire `ManagedPhrase[]`
+- `lessons.json` -- wire `Lesson[]`
+- `components.json` -- the source/release/component approvals this pack
+  claims, each with `sourceId`, `releaseId`, `componentKind`,
+  `reviewRevision`
+- optional `assets.json` -- local asset inputs (`id`, `sourcePath`,
+  `mimeType`, optional duration/sample-rate/credits)
+
+`build-pack` loads the registry (`content/sources/registry.json` by default,
+or `--registry PATH`), requires `publication == "published"`, runs the
+existing rights/review gates from `gates.py` against every declared
+component, then calls `pack_builder.build_manifest(...)`. On success it
+writes, under `tools/content/build/releases/<packId>/<version>/` (or
+`--releases-root`):
+
+- `manifest.json` -- canonical immutable manifest bytes
+- `manifest.sha256` -- manifest hash
+- `asset-files.json` -- local build manifest of `assetId`, `sourcePath`,
+  immutable relative `key`, sha256, bytes, mime type
+- `catalog-entry.json` -- the already-built `catalog_entry_for(...)` summary
+  used later by catalog build/retire/rollback
+
+If any gate fails, the command exits non-zero and writes no release
+directory.
+
+### `build-catalog <release-dir> [<release-dir> ...]`
+
+Loads each built release directory's stored `catalog-entry.json`, verifies it
+against that release's `manifest.json` / `manifest.sha256` /
+`asset-files.json`, sorts entries deterministically by `(id, version)`, then
+writes a new immutable catalog build under `tools/content/build/releases/catalog/`
+(or `--catalog-dir`). Revisions default to `max(existing) + 1`; pass
+`--catalog-revision N` to force an exact revision instead. Existing catalog
+revisions are never rewritten in place.
+
+### `retire <pack_id> <version>`
+
+Reads a previously built local catalog (the latest under `--catalog-dir`, or
+an explicit `--catalog PATH`), reloads that pack/version's built
+`catalog-entry.json`, flips only `retired=true`, bumps `catalogRevision`, and
+writes a brand-new catalog file. The old catalog file remains unchanged.
+
+### `rollback <pack_id> --to-version N`
+
+Reads a previously built local catalog, then replaces that pack's current
+entry with the stored `catalog-entry.json` from
+`tools/content/build/releases/<packId>/<N>/`. If that older version was
+never built locally, rollback fails explicitly rather than fabricating a
+summary from partial metadata.
 
 ### CatalogEntry fields (`catalog_entry_for(result, ...)`)
 
@@ -382,7 +457,7 @@ cd tools/content
 python -m unittest discover -s tests -v
 ```
 
-As of this writing: **130 tests, all passing** — covering canonical JSON,
+As of this writing: **147 tests, all passing** — covering canonical JSON,
 all 13 JSON Schemas against 14 valid/invalid fixtures, the source
 registry/gates (including the `listening` activity's null-audio
 publication-status gate), reports/quarantine/idempotency, safe archive
