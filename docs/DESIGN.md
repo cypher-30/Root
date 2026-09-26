@@ -131,6 +131,7 @@ manual check for due words, not an obligation to keep practicing.
 | Got it | Rightward exit | One firmer pulse |
 | Recall roots | Extend only on a new distinct Got it | No additional vibration |
 | Challenge done | Check stroke drawn over 200 ms | No badge/fanfare |
+| Volume slider | Ink-ruler track; thumb swells 1.2× with a faint halo while held (settle spring); 5 % steps | Light clock tick at each quarter mark |
 
 Springs use damping ratio 1 and stiffness 190: there is no bounce or overshoot.
 Release needs directional intent, with displacement or velocity thresholds. Downward
@@ -152,6 +153,93 @@ certification.
 Blur runs only on API 31+, with fade/drift below that. System-disabled animations
 remove the launch wait and rating travel; all controls and outcomes remain usable.
 Haptics respect the system setting and tolerate hardware without a vibrator.
+
+## Sound
+
+Root has its own small sonic identity: soft, felted wooden notes with a trace of
+paper grain, built from D and A with F♯ (A3 to A5; thirds and fifths only). Cues are
+short, fade in and out naturally, sit well below full scale (-12 dBFS peak for the
+startup sound, -11 to -24 dBFS for interaction cues), and carry no sub-bass, so phone speakers
+play them faithfully. Every sound is original. They are synthesized by
+`tools\audio\generate_root_sounds.py` using only the Python standard library and a
+fixed seed; no third-party samples or recordings are used.
+
+**Sound is on by default** (effects and startup sound on, in-app volume 100 %; the
+cues themselves are mastered quiet, so 100 % is still gentle). Sound is two levels
+deep so Profile stays tidy:
+
+- **Profile** is arranged as YOUR PROGRESS, SETTINGS (Language, Sound, Paper & ink),
+  MORE WORDS & SHARING, and ABOUT ROOT; entries carry a chevron. The Sound entry
+  reads "Sound · On · 100%" (or "Sound · Off").
+- **Sound** (route `"sound"`, `SoundSettingsScreen`): a *Sound effects* switch, an
+  ink-ruler volume slider (hairline track with quarter marks, an ink stroke for the
+  level, a seed-like thumb, a serif percentage, Quiet/Full ends; moving it is silent),
+  a separate *Startup sound* switch (unavailable while effects are
+  off), and a **Sound Lab** row.
+- **Sound Lab** (route `"soundLab"`, `SoundLabScreen`), listening only: *Watch the
+  opening with sound* replays the launch drawing in sync with the startup sound,
+  then every cue in use, a cancellable practice demo, the cues not used yet, and
+  the earlier motifs A and B.
+
+Previews play even when effects are off, because you asked for them, but they
+still respect the quiet policy below; the Lab says why a sound stayed quiet.
+
+**The startup sound, "Root growth" (2.95 s), is scored to the launch animation**
+rather than being a separate jingle. Times are from the start of growth (after the
+250 ms seed hold), matching `RootMotion.launchMillis` = 2600 ms, the 350 ms hold and
+`launchEase`:
+
+| Time | Picture | Sound |
+|---|---|---|
+| 0 ms | Trunk starts drawing | Soft ink-on-paper texture begins; its loudness and brightness follow the drawing speed; a wooden tap on A4 |
+| 490, 720, 971, 1342 ms | Each new branch starts | A tap stepping down F♯4, D4, A3, D4, like roots going deeper |
+| ~1740 ms | Drawing lands (progress 0.92), wordmark nearly in | A warm open fifth (D4 + A4, a soft D5) settles |
+| 1740–2950 ms | Easing out, then the hold | The settle rings out and ends as the screen changes |
+
+Accents after the first are led by 30 ms to cover output latency (an estimate, not
+yet measured). The sound plays only when the system animation speed is 1x: at other
+speeds the drawing and the audio would drift apart, so it stays silent, as it does
+with animations off. If the sound isn't loaded in time it is skipped, never played
+late. If the launch animation's timing changes, update `LAUNCH_*` in the generator,
+regenerate, and update `RootSoundCatalogueTest`, which fails when they drift.
+
+| Moment | Cue | Rule |
+|---|---|---|
+| Launch | Root growth (2.95 s), `RootSoundCue.STARTUP_MOTIF` | Only with Startup sound on, on a fresh cold launch as the seed starts to grow, at 1x animation speed. Never on rotation/restore, widget entry, or with reduced motion. Fades if you skip. |
+| Reveal | Reveal (130 ms), a single soft tap | Tapping Reveal only; never repeats |
+| Got it | Got it (400 ms), a rising third | After a *new* Got it rating has been saved. Never for Missed or Close. |
+| Correct lesson answer | Correct answer (480 ms) | After the answer is evaluated as correct for the current activity |
+| Lesson complete | Lesson finished (1 s), a settled chord | Once per lesson run, the first time it is completed |
+
+Deliberately silent: mistakes, Missed/Close, errors, navigation, downloads,
+purchases, recording, sharing, challenges and practice-session completion (for now). A wrong
+answer never makes a sound. Motifs A (1.6 s) and B (1.8 s), earlier startup ideas
+whose notes all landed in the first half-second and so fell out of step with the
+drawing, stay in the Sound Lab only for comparison. The *Neutral settle*, *Saved* and
+*Touch* cues are liked and kept, but exist only in the Sound Lab until a placement
+is chosen.
+
+Suggested placements for the unused cues (not wired yet; pick at most one each and
+add them through `SoundMoments` so they fire only on committed results):
+
+| Cue | Best fit | Alternatives | Avoid |
+|---|---|---|---|
+| Saved (300 ms) | A contributed word is saved to Your words (after the Room write succeeds, not on draft autosave) | "Mark practiced" saved; weekly challenge "I did this" recorded | Draft autosave, every keystroke, failed saves |
+| Neutral settle (260 ms) | A practice session closes ("A little closer."), whatever the score, a calm full stop rather than a reward | Stopping a session early; finishing a Reels pass | Missed/Close ratings or wrong answers (it would read as a "wrong" sound) |
+| Touch (90 ms, the quietest cue) | Selecting a lesson answer option before Check: acknowledges the choice without judging it | The moment a dragged card crosses the rating threshold, paired with its haptic; a recall root growing | Tabs, scrolling, every button; anything right before reference audio |
+
+Quiet policy, checked before every automatic sound:
+- Stay quiet in Do Not Disturb, silent or vibrate ringer mode, during calls or
+  communication audio, when system sound volume is zero, when the device's quiet
+  state can't be read, while other media is
+  playing, and while Root itself is recording or playing a voice (reference
+  playback, recordings and Reels always win; they stop any cue in progress).
+- Play only in the foreground, one sound at a time, at least 250 ms apart. Events
+  older than one second, or delivered while no screen is listening, are dropped
+  rather than replayed later. Nothing queues.
+- Request transient audio focus; if focus is denied or lost, the cue stops.
+- Sounds never replace meaning: every sounded moment already has visible feedback
+  and, where one exists, the same haptic. Haptics are controlled independently.
 
 ## Audio and contribution
 

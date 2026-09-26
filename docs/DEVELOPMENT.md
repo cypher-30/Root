@@ -27,7 +27,7 @@ All Kotlin lives under `app/src/main/kotlin/com/root/app/`.
 | `content/` | Serializable catalog/pack contracts, validation, bounded HTTPS transport, immutable pack files, WorkManager installs and availability |
 | `learning/` | Transactional lesson commands, revision-pinned runs, response evaluation and learning evidence separate from recall |
 | `billing/` | RevenueCat configuration guard, shared entitlement cache (`EntitlementStore`), paywall state machine (`PaywallViewModel`), and `PurchasesGateway` (a testability seam around the `Purchases.sharedInstance` singleton so the state machine can be exercised with a fake in a Robolectric unit test) |
-| `audio/` | `RootAudioSession`: recording/playback lifecycle, permission handling, file ownership; `WaveformDecoder`/`WaveformCache` (bounded, off-main-thread peak-amplitude decoding with a hash+revision-keyed disk cache) |
+| `audio/` | `RootAudioSession`: recording/playback lifecycle, permission handling, file ownership; `WaveformDecoder`/`WaveformCache` (bounded, off-main-thread peak-amplitude decoding with a hash+revision-keyed disk cache). Interaction sounds: `RootSoundCue` catalogue and `RootSoundPolicy` quiet rules (`RootSound.kt`), the pure one-stream `RootSoundEngine`, the SoundPool/audio-focus adapter `RootSoundPlayer`, `SoundMoments` (which domain results earn a cue), and `RootAudioCoordinator`, which gives Root's speech playback/recording priority over cues |
 | `reels/` | `ReelsPlayer`: pure Kotlin (no Android dependency), single-pass, manifest-ordered playback state machine over a list of clips — never autoplays, never loops, skips missing clips; the real `MediaPlayer`-backed adapter and an actual Reels screen/manifest/credits UI are not yet built on top of it |
 | `overview/` | `OverviewRecommendations` (pure, deterministic recommendation engine — always the same order, every unavailable recommendation carries an explicit reason instead of being silently hidden) and `OnboardingGate` (skip/complete persist identically; re-offered only on a version bump). Rendered by `ui/OnboardingScreen.kt` and `ui/RecommendationsScreen.kt` |
 | `archive/` | `ArchiveViewModel`/`ArchiveScreen` ("Your words"): search, edit, and permanently delete personally-contributed phrases; consent for a recorded speaker is required and stored in `PhraseConsentEntity` |
@@ -37,7 +37,7 @@ All Kotlin lives under `app/src/main/kotlin/com/root/app/`.
 | `ui/theme/` | Color scheme, typography, shapes, paper-grain surface |
 | `ui/root/`, `ui/brand/`, `ui/icon/` | Shared root-branch geometry, wordmark, and line-icon set |
 | `ui/launch/`, `ui/motion/` | Launch sequence and shared animation/haptic constants |
-| `ui/audio/` | Compose wrapper around `RootAudioSession` (permission requests, recording UI) |
+| `ui/audio/` | Compose wrapper around `RootAudioSession` (permission requests, recording UI); `RootSounds.kt` (`LocalRootSounds`, lifecycle-aware player, route-scoped `CollectSoundEvents`, `ReserveSpeech`) and `SoundLabScreen.kt` (`SoundSettingsScreen` at route `"sound"`, opened from Profile's "Sound · On · 100%" entry, and `SoundLabScreen` at route `"soundLab"`, opened from its Sound Lab row) |
 
 ## How a practice session actually flows
 
@@ -125,6 +125,28 @@ Use the shared contracts in [TEACHING_CONTRACTS.md](TEACHING_CONTRACTS.md).
   read paths going through `RootRepository`, not directly from ViewModels/UI.
 - **New motion/haptic**: add constants to `RootMotion`/`RootHaptics` rather than
   inlining new easing curves or vibration patterns per screen.
+- **New sound**: add a recipe to `tools\audio\generate_root_sounds.py`, regenerate,
+  add a `RootSoundCue` whose `durationMs` matches the WAV (`RootSoundCatalogueTest`
+  enforces this), and preview it in the Sound Lab before wiring it anywhere. Emit it
+  from a ViewModel only after the domain result is committed, through a
+  `SoundEventGate` key and the ViewModel's replay-0 `soundEvents` flow; never play
+  cues directly from UI state. Keep failures and mistakes silent. To wire an
+  existing Lab-only cue (Saved, Neutral settle, Touch), set its `pilot = true`, add a
+  `SoundMoments` rule plus test, and update the pilot set in `RootSoundPolicyTest`.
+  The startup sound is `RootSoundCue.STARTUP_MOTIF` (currently `ROOT_GROWTH`); switch
+  it there, not in `MainActivity`. See [DESIGN.md](DESIGN.md#sound) for suggested
+  placements.
+- **Launch timing and the startup sound**: `root_growth` is scored to the launch
+  drawing. If you change `RootMotion.launchMillis`/`launchHoldMillis`/`launchEase`,
+  the seed hold (`launchSeedMillis`), or the number of `RootGeometry` branches, update
+  the `LAUNCH_*` constants in the generator, regenerate, and update
+  `RootSoundCatalogueTest` (it fails on drift). `LaunchScreen` calls
+  `onGrowthStart` only when `RootMotion.normalSpeed(context)` (animator scale 1x).
+- **Sound screens and routes**: when reorganizing navigation, keep the `"sound"`
+  route (`SoundSettingsScreen`, whose Sound Lab row opens `"soundLab"`) and the
+  `"soundLab"` route (`SoundLabScreen`), the `CollectSoundEvents(...)` calls in the Practice and
+  lesson routes, `ReserveSpeech(...)` in Reels, and the `LocalRootSounds` provider
+  around the app content in `MainActivity`; without them, sounds silently stop.
 
 ## Local setup
 
@@ -136,6 +158,7 @@ the API key goes in your **user-level** `gradle.properties`, never in source con
 
 ```powershell
 .\gradlew.bat :app:assembleDebug :app:testDebugUnitTest
+python tools\audio\generate_root_sounds.py --check
 .\tools\android\Invoke-ValidationTests.ps1 -Serial "your-device-or-emulator-id"
 .\gradlew.bat :app:lintDebug
 ```
@@ -158,7 +181,10 @@ The standalone build command is
 Normal debug/release builds remain unchanged; development assets also ship in
 validation but never release.
 
-Unit tests (`app/src/test`) cover `Scheduler` and `ContentAccess` in isolation.
+Unit tests (`app/src/test`) cover `Scheduler` and `ContentAccess` in isolation, plus
+the sound layer: quiet policy (`RootSoundPolicyTest`), the one-stream engine
+(`RootSoundEngineTest`), cue/WAV duration agreement (`RootSoundCatalogueTest`),
+which results earn a cue (`SoundMomentsTest`), and sound preferences.
 Instrumented tests (`app/src/androidTest`) cover Room persistence/seeding, the
 `PracticeRepository` session engine (resume, paging, idempotent rating, one-retry
 rule, durable stop/close, access revocation), the `MIGRATION_2_3` schema upgrade,

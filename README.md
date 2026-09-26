@@ -26,6 +26,11 @@ from offline practice.
   comparison, and a home-screen widget.
 - **The design study** in the overflow shows icon sizes, launch keyframes, and motion /
   haptic annotations. “Replay launch” makes the sequence inspectable.
+- Original interaction sounds and a "Root growth" startup sound scored to the
+  launch animation, on by default at 100 % in-app volume and quiet in
+  silent/vibrate, Do Not Disturb, calls and during voice audio. **Profile → Sound**
+  holds the settings; **Sound → Sound Lab** previews every sound and replays the
+  opening with sound. See [Sound](docs/DESIGN.md#sound).
 
 See [the design system and motion specification](docs/DESIGN.md) and
 [the development and onboarding guide](docs/DEVELOPMENT.md).
@@ -164,7 +169,7 @@ reward. Market content is still “Coming soon” until curated phrases are supp
 - Fixed next-review intervals: **Missed: four hours; Close: one day; Got it: four days**.
   Same-session retry is a separate, bounded queue rule.
 - Seeding is idempotent and preserves existing phrase IDs and learner history.
-- Active language, appearance, and sharing reward are device-local preferences.
+- Active language, appearance, sound, and sharing reward are device-local preferences.
 - Microphone permission is requested only for recording. Audio lives in app-internal
   storage; sharing a phrase card does not share your recordings.
 - Downloaded phrase exports include their required credits in the PNG itself.
@@ -177,6 +182,8 @@ reward. Market content is still “Coming soon” until curated phrases are supp
 
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest
+# Interaction sounds must match their deterministic recipes and loudness limits:
+python tools\audio\generate_root_sounds.py --check
 # With a running emulator / attached device; choose its serial explicitly:
 .\tools\android\Invoke-ValidationTests.ps1 -Serial "emulator-5554"
 ```
@@ -206,7 +213,7 @@ app\src\main\kotlin\com\root\app\
   learning\             — durable teaching commands and separate learning evidence
   billing\              — shared premium entitlement state
   sharing\              — phrase-card image generation / sharing
-  audio\                — local playback and recording
+  audio\                — local playback and recording; interaction sounds (on by default) and quiet policy
   widget\               — Glance due-phrase widget
   ui\                   — practice, completion, packs, paywall, invite, contribution
     theme\              — color, serif/grotesque type, tight shapes, paper grain
@@ -217,6 +224,9 @@ app\src\main\kotlin\com\root\app\
 ```
 
 `tools\content\` contains the Python ingestion/build/publish CLI;
+`tools\audio\generate_root_sounds.py` regenerates the original interaction sounds
+in `app\src\main\res\raw\root_sound_*.wav` (run it with no arguments to rewrite them,
+or `--check` to verify them);
 `content\` contains shared schemas, source metadata, fixtures, and editorial inputs.
 
 Source Serif 4 and Inter are bundled under the SIL Open Font License. Their licenses
