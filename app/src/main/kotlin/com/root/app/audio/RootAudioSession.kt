@@ -502,12 +502,15 @@ internal class RootAudioSession(context: Context, private val phraseId: String? 
     private fun claimAudio() {
         active?.interrupt()
         active = this
+        // Stops any interaction sound before a player or microphone is prepared.
+        RootAudioCoordinator.claimSpeech(this)
     }
 
     private fun releaseAudio() {
         focusRequest?.let(audioManager::abandonAudioFocusRequest)
         focusRequest = null
         if (active === this && !isRecording && player == null) active = null
+        if (!isRecording && player == null) RootAudioCoordinator.releaseSpeech(this)
     }
 
     private fun recordingFailed(error: Exception) {

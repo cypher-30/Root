@@ -74,6 +74,32 @@ class RootAudioSessionPlaybackTest {
         onMain { session.dispose() }
     }
 
+    @Test fun speechPlaybackHoldsPriorityOverInteractionSounds() {
+        val context = instrumentation.targetContext
+        val clip = java.io.File(context.filesDir, "speech-priority-test.wav")
+        context.resources.openRawResource(com.root.app.R.raw.root_sound_lesson_settled).use { input ->
+            clip.outputStream().use { input.copyTo(it) }
+        }
+        val session = onMain { RootAudioSession(context) }
+        var effectStops = 0
+        val stopper: () -> Unit = { effectStops++ }
+        onMain { RootAudioCoordinator.registerEffects(stopper) }
+        try {
+            onMain { session.playClip(clip.absolutePath, 1f) {} }
+            assertTrue(waitUntil { session.playing == AudioClipKind.REFERENCE })
+            assertTrue("playback claims speech", onMain { RootAudioCoordinator.speechActive })
+            assertTrue("claiming speech stops interaction sounds first", effectStops >= 1)
+            onMain { session.stopPlayback() }
+            assertTrue("stopping releases speech", !onMain { RootAudioCoordinator.speechActive })
+        } finally {
+            onMain {
+                RootAudioCoordinator.unregisterEffects(stopper)
+                session.dispose()
+            }
+            clip.delete()
+        }
+    }
+
     private fun <T> onMain(block: () -> T): T {
         var result: T? = null
         instrumentation.runOnMainSync { result = block() }
