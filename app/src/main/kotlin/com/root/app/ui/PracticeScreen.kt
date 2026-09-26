@@ -291,7 +291,7 @@ private fun PracticeCard(
                 contentPadding = PaddingValues(vertical = 8.dp)) {
                 Icon(RootIcons.Play, null, Modifier.size(16.dp))
                 Spacer(Modifier.width(8.dp))
-                Text(if (audioExpanded) "Hide voice practice" else "Listen & compare")
+                Text(if (audioExpanded) "Hide audio practice" else "Audio practice")
             }
             if (audioExpanded && !busy) {
                 AudioPracticeControls(

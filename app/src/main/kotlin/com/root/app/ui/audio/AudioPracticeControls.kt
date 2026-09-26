@@ -4,12 +4,20 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -23,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -33,6 +42,7 @@ import com.root.app.audio.AudioClipKind
 import com.root.app.audio.RootAudioSession
 import com.root.app.data.PhraseEntity
 import com.root.app.ui.lastPracticedCaption
+import com.root.app.ui.icon.RootIcons
 import kotlinx.coroutines.launch
 
 /** Internal (module-scoped, so usable from `com.root.app.ui.teach.LessonScreen`
@@ -65,89 +75,141 @@ fun AudioPracticeControls(
     lastPracticedAt: Long? = null,
 ) {
     val session = rememberRootAudioSession(phrase.id)
-    Column(
-        Modifier.fillMaxWidth().padding(vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+    Surface(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        tonalElevation = 1.dp,
     ) {
-        Text("Listen & compare", style = MaterialTheme.typography.titleMedium)
-        if (phrase.audioAsset.isNullOrBlank()) {
-            Text(
-                "No reference voice yet. This phrase needs a real speaker's recording. You can still record your own practice.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        } else {
-            OutlinedButton(
-                onClick = { session.playReference(phrase.audioAsset) },
-                enabled = !session.isRecording,
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.small,
-            ) {
-                Text(if (session.playing == AudioClipKind.REFERENCE) "Stop reference" else "Play reference")
+        Column(
+            Modifier.fillMaxWidth().padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Surface(
+                    shape = MaterialTheme.shapes.small,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.size(40.dp),
+                ) {
+                    Icon(
+                        RootIcons.Play,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(8.dp),
+                    )
+                }
+                Column(Modifier.weight(1f)) {
+                    Text("Audio practice", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
+                    Text(
+                        "Listen to the reference, then record your own take.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                AudioStatePill(session)
             }
-        }
-        VoiceRecordingControls(session)
-        if (session.playing != null) AccessibleAudioTransport(session)
-        if (onMarkPracticed != null) {
-            val scope = rememberCoroutineScope()
-            var marking by remember(phrase.id) { mutableStateOf(false) }
-            var justMarked by remember(phrase.id) { mutableStateOf(false) }
-            var markFailed by remember(phrase.id) { mutableStateOf(false) }
-            OutlinedButton(
-                onClick = {
-                    if (marking) return@OutlinedButton
-                    marking = true
-                    markFailed = false
-                    scope.launch {
-                        try {
-                            val saved = onMarkPracticed()
-                            justMarked = saved
-                            markFailed = !saved
-                        } finally {
-                            marking = false
-                        }
+
+            if (phrase.audioAsset.isNullOrBlank()) {
+                Surface(
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("No reference voice yet", style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            "This phrase needs a real speaker's recording. You can still record your own practice.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
-                },
-                enabled = !marking,
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.small,
-            ) {
-                Text(
-                    when {
-                        marking -> "Saving…"
-                        justMarked -> "Marked practiced"
-                        else -> "Mark practiced"
+                }
+            } else {
+                OutlinedButton(
+                    onClick = { session.playReference(phrase.audioAsset) },
+                    enabled = !session.isRecording,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.small,
+                ) {
+                    Icon(
+                        if (session.playing == AudioClipKind.REFERENCE) RootIcons.Stop else RootIcons.Play,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (session.playing == AudioClipKind.REFERENCE) "Stop reference" else "Play reference")
+                }
+            }
+
+            VoiceRecordingControls(session)
+
+            if (session.playing != null) {
+                AccessibleAudioTransport(session)
+            }
+
+            if (onMarkPracticed != null) {
+                val scope = rememberCoroutineScope()
+                var marking by remember(phrase.id) { mutableStateOf(false) }
+                var justMarked by remember(phrase.id) { mutableStateOf(false) }
+                var markFailed by remember(phrase.id) { mutableStateOf(false) }
+                OutlinedButton(
+                    onClick = {
+                        if (marking) return@OutlinedButton
+                        marking = true
+                        markFailed = false
+                        scope.launch {
+                            try {
+                                val saved = onMarkPracticed()
+                                justMarked = saved
+                                markFailed = !saved
+                            } finally {
+                                marking = false
+                            }
+                        }
                     },
-                )
-            }
-            if (markFailed) {
+                    enabled = !marking,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.small,
+                ) {
+                    Text(
+                        when {
+                            marking -> "Saving…"
+                            justMarked -> "Marked practiced"
+                            else -> "Mark practiced"
+                        },
+                    )
+                }
+                if (markFailed) {
+                    Text(
+                        "That wasn't saved. Please try again.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                    )
+                }
+                lastPracticedAt?.let {
+                    Text(
+                        lastPracticedCaption(it),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 Text(
-                    "That wasn't saved. Please try again.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-                )
-            }
-            lastPracticedAt?.let {
-                Text(
-                    lastPracticedCaption(it),
+                    // Self-reported only: tapping this never rates or reschedules
+                    // recall — it is a separate acknowledgement, not a grade.
+                    "This is just for you — it doesn't rate or reschedule this word.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+
             Text(
-                // Self-reported only: tapping this never rates or reschedules
-                // recall — it is a separate acknowledgement, not a grade.
-                "This is just for you — it doesn't rate or reschedule this word.",
+                "Your practice recording stays on this device, separate from the reference. Compare by listening; Root does not score pronunciation.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Text(
-            "Your practice recording stays on this device, separate from the reference. Compare by listening; Root does not score pronunciation.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }
 
@@ -162,7 +224,27 @@ fun AudioPracticeControls(
 internal fun AccessibleAudioTransport(session: RootAudioSession, modifier: Modifier = Modifier) {
     val duration = session.durationMs ?: return
     if (duration <= 0) return
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+    ) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(
+                    when (session.playing) {
+                        AudioClipKind.RECORDING -> "Your recording"
+                        AudioClipKind.REFERENCE -> "Reference playback"
+                        null -> "Playback"
+                    },
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                Text(
+                    "${session.positionMs / 1_000}s / ${duration / 1_000}s",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         val positionSeconds = session.positionMs / 1_000
         val durationSeconds = duration / 1_000
         androidx.compose.material3.Slider(
@@ -173,17 +255,29 @@ internal fun AccessibleAudioTransport(session: RootAudioSession, modifier: Modif
                 contentDescription = "Playback position: $positionSeconds of $durationSeconds seconds"
             },
         )
-        val speedIndex = RootAudioSession.SPEED_CHOICES.indexOf(session.playbackSpeed).coerceAtLeast(0)
-        OutlinedButton(
-            onClick = {
-                val next = RootAudioSession.SPEED_CHOICES[(speedIndex + 1) % RootAudioSession.SPEED_CHOICES.size]
-                session.setSpeed(next)
-            },
-            shape = MaterialTheme.shapes.small,
-            modifier = Modifier.semantics {
-                contentDescription = "Playback speed ${session.playbackSpeed}x. Tap to change."
-            },
-        ) { Text("Speed: ${session.playbackSpeed}x") }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(
+                    onClick = session::stopPlayback,
+                    modifier = Modifier.weight(1f),
+                    shape = MaterialTheme.shapes.small,
+                ) {
+                    Icon(RootIcons.Stop, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Stop")
+                }
+                val speedIndex = RootAudioSession.SPEED_CHOICES.indexOf(session.playbackSpeed).coerceAtLeast(0)
+                OutlinedButton(
+                    onClick = {
+                        val next = RootAudioSession.SPEED_CHOICES[(speedIndex + 1) % RootAudioSession.SPEED_CHOICES.size]
+                        session.setSpeed(next)
+                    },
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.weight(1f).semantics {
+                        contentDescription = "Playback speed ${session.playbackSpeed}x. Tap to change."
+                    },
+                ) { Text("Speed: ${session.playbackSpeed}x") }
+            }
+        }
     }
 }
 
@@ -208,7 +302,13 @@ internal fun VoiceRecordingControls(
             else session.reportNotForeground()
         }
     }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Your recording", style = MaterialTheme.typography.titleSmall)
         OutlinedButton(
             onClick = {
                 if (session.isRecording) {
@@ -261,5 +361,37 @@ internal fun VoiceRecordingControls(
         if (!session.isRecording) {
             Text("Record 1-30 seconds. Leaving this screen discards an unfinished recording.", style = MaterialTheme.typography.bodySmall)
         }
+    }
+    }
+}
+
+@Composable
+private fun AudioStatePill(session: RootAudioSession) {
+    val label = when {
+        session.isRecording -> "Recording ${session.elapsedSeconds}s"
+        session.playing == AudioClipKind.REFERENCE -> "Playing reference"
+        session.playing == AudioClipKind.RECORDING -> "Playing your voice"
+        else -> "Ready"
+    }
+    val containerColor = when {
+        session.isRecording -> MaterialTheme.colorScheme.errorContainer
+        session.playing != null -> MaterialTheme.colorScheme.secondaryContainer
+        else -> MaterialTheme.colorScheme.surfaceVariant
+    }
+    val contentColor = when {
+        session.isRecording -> MaterialTheme.colorScheme.onErrorContainer
+        session.playing != null -> MaterialTheme.colorScheme.onSecondaryContainer
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Surface(
+        shape = MaterialTheme.shapes.small,
+        color = containerColor,
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelMedium,
+            color = contentColor,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+        )
     }
 }
