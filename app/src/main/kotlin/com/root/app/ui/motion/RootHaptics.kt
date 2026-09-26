@@ -15,6 +15,9 @@ import com.root.app.data.ConfidenceLevel
 object RootHaptics {
     fun reveal(view: View) { view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK) }
 
+    /** A slider passing one of its marked detents (the volume slider's quarters). */
+    fun detent(view: View) { view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK) }
+
     @Suppress("DEPRECATION")
     fun rate(view: View, level: ConfidenceLevel) {
         if (!view.isHapticFeedbackEnabled ||

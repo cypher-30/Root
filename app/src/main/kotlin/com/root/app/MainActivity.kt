@@ -44,6 +44,8 @@ import com.root.app.ui.audio.rememberRootAudioSession
 import com.root.app.ui.audio.CollectSoundEvents
 import com.root.app.ui.audio.LocalRootSounds
 import com.root.app.ui.audio.ReserveSpeech
+import com.root.app.ui.audio.SoundLabScreen
+import com.root.app.ui.audio.SoundSettingsScreen
 import com.root.app.ui.audio.rememberRootSoundPlayer
 import com.root.app.audio.RootSoundCue
 import com.root.app.audio.SoundRequest
@@ -554,6 +556,17 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
                         onBack = { nav.popBackStack() },
                     )
                 }
+            }
+            composable("sound") {
+                SoundSettingsScreen(
+                    settings = vm.soundSettings,
+                    onSettingsChange = vm::changeSoundSettings,
+                    onOpenSoundLab = { open("soundLab") },
+                    onBack = { nav.popBackStack() },
+                )
+            }
+            composable("soundLab") {
+                SoundLabScreen(onBack = { nav.popBackStack() })
             }
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).safeDrawingPadding())
