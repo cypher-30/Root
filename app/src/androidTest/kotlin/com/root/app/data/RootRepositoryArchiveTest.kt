@@ -116,4 +116,54 @@ class RootRepositoryArchiveTest {
         }
         Unit
     }
+
+    @Test fun draftKeepsNewLanguageNameAndClearedFields() = runBlocking {
+        val draft = repository.createDraft(languageId = "", languageName = "A language not added yet")
+        repository.saveDraft(draft.id, "A language not added yet", "meaning", "phrase", "Aunt")
+        repository.saveDraft(draft.id, "A language not added yet", "", "phrase", null)
+
+        val resumed = requireNotNull(RootRepository(context).draft(draft.id))
+        assertEquals("A language not added yet", resumed.languageNameDraft)
+        assertEquals("", resumed.promptDraft)
+        assertEquals("phrase", resumed.answerDraft)
+        assertNull(resumed.speakerLabelDraft)
+        repository.discardDraft(draft.id)
+    }
+
+    @Test fun draftRecordingIsReferencedAndDeletedOnDiscard() = runBlocking {
+        val drafts = java.io.File(context.filesDir, "root_audio/drafts").apply { mkdirs() }
+        val take = java.io.File.createTempFile("voice-test-", ".m4a", drafts).apply { writeBytes(byteArrayOf(1, 2, 3)) }
+        val draft = repository.createDraft(languageId = "", languageName = languageName)
+
+        repository.saveDraftAudio(draft.id, take.absolutePath)
+        val recorded = requireNotNull(repository.draft(draft.id))
+        assertEquals(take.canonicalPath, recorded.audioDraftPath)
+        assertEquals(ContributionAudioState.RECORDED, recorded.audioState)
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking { repository.saveDraftAudio(draft.id, java.io.File(drafts, "missing.m4a").absolutePath) }
+        }
+
+        repository.discardDraft(draft.id)
+        assertTrue(!take.exists())
+    }
+
+    @Test fun orphanCleanupKeepsReferencedAndRecentTakes() = runBlocking {
+        val drafts = java.io.File(context.filesDir, "root_audio/drafts").apply { mkdirs() }
+        val old = System.currentTimeMillis() - 24 * 60 * 60 * 1_000L
+        val orphan = java.io.File.createTempFile("voice-orphan-", ".m4a", drafts).apply { writeBytes(byteArrayOf(1)); setLastModified(old) }
+        val kept = java.io.File.createTempFile("voice-kept-", ".m4a", drafts).apply { writeBytes(byteArrayOf(1)) }
+        val recent = java.io.File.createTempFile("voice-recent-", ".m4a", drafts).apply { writeBytes(byteArrayOf(1)) }
+        val draft = repository.createDraft(languageId = "", languageName = languageName)
+        repository.saveDraftAudio(draft.id, kept.absolutePath)
+        kept.setLastModified(old)
+
+        repository.cleanupOrphanDraftAudio()
+
+        assertTrue(!orphan.exists())
+        assertTrue(kept.exists())
+        assertTrue(recent.exists())
+        repository.discardDraft(draft.id)
+        recent.delete()
+        Unit
+    }
 }

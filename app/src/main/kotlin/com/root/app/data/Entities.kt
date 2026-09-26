@@ -314,6 +314,9 @@ data class ContributionDraftEntity(
     @ColumnInfo(name = "committed_phrase_id") val committedPhraseId: String?,
     @ColumnInfo(name = "created_at") val createdAt: Long = System.currentTimeMillis(),
     @ColumnInfo(name = "updated_at") val updatedAt: Long = System.currentTimeMillis(),
+    /** The language name exactly as typed in the form — may name a language
+     *  that does not exist yet, which is only created when the draft commits. */
+    @ColumnInfo(name = "language_name_draft") val languageNameDraft: String? = null,
 )
 
 /** What is actually true on disk for a piece of learner-owned media, checked

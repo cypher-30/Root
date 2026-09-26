@@ -96,7 +96,7 @@ class Converters {
         PersonalNoteEntity::class, ContributionDraftEntity::class, MediaFileFactEntity::class,
         PracticeMarkEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -493,7 +493,25 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+        /**
+         * Version 7 -> 8: stores a contribution draft's typed language name,
+         * which may name a language that does not exist until the draft is
+         * committed. Purely additive and nullable. The column check keeps
+         * this safe for fixture databases that were created from the live
+         * entity definitions and therefore already have the column.
+         */
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                val hasColumn = db.query("PRAGMA table_info(contribution_drafts)").use { cursor ->
+                    val nameIndex = cursor.getColumnIndex("name")
+                    generateSequence { if (cursor.moveToNext()) cursor.getString(nameIndex) else null }
+                        .any { it == "language_name_draft" }
+                }
+                if (!hasColumn) db.execSQL("ALTER TABLE contribution_drafts ADD COLUMN language_name_draft TEXT")
+            }
+        }
+
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
 
         @Volatile private var instance: AppDatabase? = null
 

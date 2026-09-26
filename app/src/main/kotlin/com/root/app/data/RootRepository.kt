@@ -60,7 +60,11 @@ class RootRepository(context: Context) {
 
     suspend fun initialize() {
         com.root.app.content.ContentBuildPolicy.apply(db)
-        SeedData.seedIfEmpty(db)
+        // Release builds never seed unreviewed starter samples; existing rows are left untouched.
+        if (com.root.app.BuildConfig.SHIP_SAMPLE_CONTENT) SeedData.seedIfEmpty(db)
+        try { cleanupOrphanDraftAudio() } catch (e: Exception) {
+            android.util.Log.w("RootRepository", "Draft audio cleanup deferred", e)
+        }
         val languages = languages()
         if (languages.none { it.id == activeLanguageId() }) {
             preferences.activeLanguageId = languages.firstOrNull { !it.isPremium }?.id
@@ -304,8 +308,8 @@ class RootRepository(context: Context) {
      *  and returns its durable id. The caller persists this id (not the text
      *  itself) so subsequent [saveDraftText]/[saveDraftAudio] calls always
      *  target the same durable row regardless of process recreation. */
-    suspend fun createDraft(languageId: String): ContributionDraftEntity {
-        val draft = ContributionDraftEntity(languageId = languageId, packId = null, promptDraft = "", answerDraft = "", speakerLabelDraft = null, audioDraftPath = null, committedPhraseId = null)
+    suspend fun createDraft(languageId: String, languageName: String? = null): ContributionDraftEntity {
+        val draft = ContributionDraftEntity(languageId = languageId, packId = null, promptDraft = "", answerDraft = "", speakerLabelDraft = null, audioDraftPath = null, committedPhraseId = null, languageNameDraft = languageName)
         db.contributionDraftDao().upsert(draft)
         return draft
     }
@@ -313,12 +317,18 @@ class RootRepository(context: Context) {
     /** Updates a still-open draft's typed text in place. Rejects a draft that
      *  has already been committed or discarded — those are terminal. */
     suspend fun saveDraftText(draftId: String, prompt: String, answer: String, speakerLabel: String?) {
-        val existing = requireNotNull(db.contributionDraftDao().getById(draftId)) { "Unknown draft: $draftId" }
-        require(existing.audioState != ContributionAudioState.COMMITTED && existing.audioState != ContributionAudioState.DISCARDED) {
-            "This draft is no longer open."
-        }
+        val existing = requireOpenDraft(draftId)
+        saveDraft(draftId, existing.languageNameDraft, prompt, answer, speakerLabel)
+    }
+
+    /** Saves every typed field of a still-open draft, including a language
+     *  name that may not exist yet. Blank values are stored as-is, so clearing
+     *  a field is durable rather than resurrecting older text on resume. */
+    suspend fun saveDraft(draftId: String, languageName: String?, prompt: String, answer: String, speakerLabel: String?) {
+        val existing = requireOpenDraft(draftId)
         db.contributionDraftDao().upsert(
             existing.copy(
+                languageNameDraft = languageName,
                 promptDraft = prompt,
                 answerDraft = answer,
                 speakerLabelDraft = speakerLabel,
@@ -327,13 +337,56 @@ class RootRepository(context: Context) {
         )
     }
 
-    /** Explicitly discards a draft — its typed text/audio state is gone, but
-     *  this never touches an already-committed phrase (a committed draft
+    /** Records which completed, app-internal draft recording belongs to this
+     *  open draft ([audioPath] null when the learner deleted it). Only finished
+     *  takes are persisted; an in-progress recording is never referenced. */
+    suspend fun saveDraftAudio(draftId: String, audioPath: String?) {
+        val existing = requireOpenDraft(draftId)
+        val path = audioPath?.let {
+            val file = File(it).canonicalFile
+            require(file.toPath().startsWith(context.filesDir.canonicalFile.toPath()) && file.isFile) {
+                "Draft recording must be an existing app-local file."
+            }
+            file.path
+        }
+        db.contributionDraftDao().upsert(
+            existing.copy(
+                audioDraftPath = path,
+                audioState = if (path == null) ContributionAudioState.NONE else ContributionAudioState.RECORDED,
+                updatedAt = System.currentTimeMillis(),
+            ),
+        )
+    }
+
+    private suspend fun requireOpenDraft(draftId: String): ContributionDraftEntity {
+        val existing = requireNotNull(db.contributionDraftDao().getById(draftId)) { "Unknown draft: $draftId" }
+        require(existing.audioState != ContributionAudioState.COMMITTED && existing.audioState != ContributionAudioState.DISCARDED) {
+            "This draft is no longer open."
+        }
+        return existing
+    }
+
+    /** Deletes stale unfinished-contribution recordings that no open draft
+     *  references (left behind by a process death before the draft recorded
+     *  them). Recent files are kept, since a live screen may still own them. */
+    internal suspend fun cleanupOrphanDraftAudio(now: Long = System.currentTimeMillis()): Int {
+        val directory = File(context.filesDir, "root_audio/drafts")
+        val files = directory.listFiles()?.filter { it.isFile } ?: return 0
+        val referenced = openDrafts().mapNotNull { draft -> draft.audioDraftPath?.let { File(it).canonicalPath } }.toSet()
+        return files.count { file ->
+            now - file.lastModified() > ORPHAN_DRAFT_AUDIO_AGE_MS && file.canonicalPath !in referenced && file.delete()
+        }
+    }
+
+    /** Explicitly discards a draft — its typed text is gone and its draft
+     *  recording (if any) is deleted, with a failed delete tracked for retry.
+     *  This never touches an already-committed phrase (a committed draft
      *  cannot be discarded; discard only a draft that never became a phrase). */
     suspend fun discardDraft(draftId: String) {
         val existing = db.contributionDraftDao().getById(draftId) ?: return
         require(existing.audioState != ContributionAudioState.COMMITTED) { "A committed draft cannot be discarded." }
         db.contributionDraftDao().upsert(existing.copy(audioState = ContributionAudioState.DISCARDED, updatedAt = System.currentTimeMillis()))
+        existing.audioDraftPath?.let { recordDeletionOutcome(MediaFileSubject.CONTRIBUTION_DRAFT_AUDIO, draftId, it) }
     }
 
 
@@ -422,5 +475,9 @@ class RootRepository(context: Context) {
         val language = requireNotNull(db.languageDao().getById(pack.languageId)) { "Pack language is missing." }
         return db.contentDao().getInstalledPack(pack.id)?.status != InstalledPackStatus.RETIRED &&
             ContentAccess.canAccess(language, pack, premium, ReferralPrefs.hasUnlockedReward(context))
+    }
+
+    private companion object {
+        const val ORPHAN_DRAFT_AUDIO_AGE_MS = 6 * 60 * 60 * 1_000L
     }
 }
