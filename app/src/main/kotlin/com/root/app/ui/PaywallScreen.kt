@@ -36,6 +36,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -46,6 +47,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.revenuecat.purchases.Package
 import com.revenuecat.purchases.ProductType
 import com.revenuecat.purchases.models.Period
+import com.root.app.BuildConfig
 import com.root.app.billing.PaywallState
 import com.root.app.billing.PaywallViewModel
 import com.root.app.ui.icon.RootIcons
@@ -142,6 +144,14 @@ private fun PaywallContent(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
+                        PaywallState.NothingToUnlock -> {
+                            Text("Premium packs aren't ready yet.", style = RootType.editorialTitle)
+                            Text(
+                                "Nothing is for sale until reviewed premium phrases are in the app. " +
+                                    "Keep practicing the free collection and your own words.",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                         PaywallState.Unlocked -> {
                             Text("The collection is yours.", style = RootType.editorialTitle)
                             Text("Premium access is active.")
@@ -187,10 +197,7 @@ private fun PaywallContent(
                                 )
                             }
                             Text(
-                                if (plan.product.type == ProductType.SUBS) {
-                                    "Regular subscription price. Renews unless cancelled in your store account. " +
-                                        "The store confirms any introductory offer and final charge."
-                                } else "One-time purchase. Confirm the final charge in the store.",
+                                "One-time purchase, not a subscription. Confirm the final charge in the store.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -231,7 +238,33 @@ private fun PaywallContent(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Restoring purchases brings back premium access for your store account. " +
+                        "It can't bring back your own words, recordings, or practice history, which are kept only on this device.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                PolicyLinks()
                 Spacer(Modifier.height(28.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun PolicyLinks() {
+    val uriHandler = LocalUriHandler.current
+    val links = listOf(
+        "Privacy policy" to BuildConfig.PRIVACY_POLICY_URL,
+        "Terms" to BuildConfig.TERMS_URL,
+        "Support" to BuildConfig.SUPPORT_URL,
+    ).filter { it.second.isNotBlank() }
+    if (links.isEmpty()) return
+    Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        links.forEach { (label, url) ->
+            TextButton(onClick = { runCatching { uriHandler.openUri(url) } }, shape = RoundedCornerShape(4.dp)) {
+                Text(label)
             }
         }
     }

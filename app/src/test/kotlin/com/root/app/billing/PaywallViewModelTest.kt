@@ -43,10 +43,13 @@ import java.util.Date
 class PaywallViewModelTest {
     private val application = ApplicationProvider.getApplicationContext<android.app.Application>()
 
-    private fun fakePackage(id: String): Package {
+    private fun fakePackage(
+        id: String,
+        productType: com.revenuecat.purchases.ProductType = com.revenuecat.purchases.ProductType.INAPP,
+    ): Package {
         val product = object : StoreProduct {
             override val id = "$id-product"
-            override val type = com.revenuecat.purchases.ProductType.SUBS
+            override val type = productType
             override val price = Price("$1.99", 1_990_000L, "USD")
             override val name = id
             override val title = id
@@ -56,7 +59,7 @@ class PaywallViewModelTest {
             override val defaultOption: SubscriptionOption? = null
             override val purchasingData = object : PurchasingData {
                 override val productId = "$id-product"
-                override val productType = com.revenuecat.purchases.ProductType.SUBS
+                override val productType = productType
             }
             override val presentedOfferingIdentifier: String? = null
             override val presentedOfferingContext: PresentedOfferingContext? = null
@@ -64,7 +67,7 @@ class PaywallViewModelTest {
             override fun copyWithOfferingId(offeringId: String) = this
             override fun copyWithPresentedOfferingContext(offeringContext: PresentedOfferingContext?) = this
         }
-        return Package(id, PackageType.MONTHLY, product, "default")
+        return Package(id, PackageType.LIFETIME, product, "default")
     }
 
     private fun fakeOfferings(packages: List<Package>): Offerings {
@@ -84,7 +87,7 @@ class PaywallViewModelTest {
                     Date(),
                     null,
                     Store.PLAY_STORE,
-                    "root-premium-monthly",
+                    "root-premium-lifetime",
                     null,
                     false,
                     Date(),
@@ -155,8 +158,27 @@ class PaywallViewModelTest {
         }
     }
 
-    private fun viewModel(gateway: FakeGateway, configured: Boolean = true) =
-        PaywallViewModel(application, gateway, isConfigured = { configured })
+    private fun viewModel(gateway: FakeGateway, configured: Boolean = true, premiumContent: Boolean = true) =
+        PaywallViewModel(application, gateway, isConfigured = { configured }, premiumContentAvailable = { premiumContent })
+
+    @Test
+    fun nothingIsSoldWithoutPremiumContent() {
+        val gateway = FakeGateway()
+        gateway.offeringsResult = Outcome.Ok(fakeOfferings(listOf(fakePackage("lifetime"))))
+        val vm = viewModel(gateway, premiumContent = false)
+        assertEquals(PaywallState.NothingToUnlock, vm.state.value)
+    }
+
+    @Test
+    fun subscriptionPackagesAreNeverOffered() {
+        val gateway = FakeGateway()
+        gateway.offeringsResult = Outcome.Ok(
+            fakeOfferings(listOf(fakePackage("monthly", com.revenuecat.purchases.ProductType.SUBS), fakePackage("lifetime"))),
+        )
+        val vm = viewModel(gateway)
+        val ready = vm.state.value as PaywallState.Ready
+        assertEquals(listOf("lifetime"), ready.packages.map { it.identifier })
+    }
 
     @Test
     fun notConfiguredWhenEnvironmentIsNotReady() {
@@ -167,10 +189,10 @@ class PaywallViewModelTest {
     @Test
     fun readyWithOfferedPackagesOnSuccessfulLoad() {
         val gateway = FakeGateway()
-        gateway.offeringsResult = Outcome.Ok(fakeOfferings(listOf(fakePackage("monthly"))))
+        gateway.offeringsResult = Outcome.Ok(fakeOfferings(listOf(fakePackage("lifetime"))))
         val vm = viewModel(gateway)
         val ready = vm.state.value as PaywallState.Ready
-        assertEquals(listOf("monthly"), ready.packages.map { it.identifier })
+        assertEquals(listOf("lifetime"), ready.packages.map { it.identifier })
     }
 
     @Test
@@ -192,7 +214,7 @@ class PaywallViewModelTest {
     @Test
     fun purchaseRejectsAPackageThatWasNotOffered() {
         val gateway = FakeGateway()
-        gateway.offeringsResult = Outcome.Ok(fakeOfferings(listOf(fakePackage("monthly"))))
+        gateway.offeringsResult = Outcome.Ok(fakeOfferings(listOf(fakePackage("lifetime"))))
         val vm = viewModel(gateway)
         vm.purchase(robolectricActivity(), fakePackage("stale"))
         assertTrue(vm.state.value is PaywallState.Error)
@@ -202,7 +224,7 @@ class PaywallViewModelTest {
     @Test
     fun cancelledPurchaseReturnsToReadyWithANotice() {
         val gateway = FakeGateway()
-        val offered = fakePackage("monthly")
+        val offered = fakePackage("lifetime")
         gateway.offeringsResult = Outcome.Ok(fakeOfferings(listOf(offered)))
         val vm = viewModel(gateway)
         gateway.purchaseResult = Outcome.Err(PurchasesError(PurchasesErrorCode.PurchaseCancelledError, "cancelled"))
@@ -215,7 +237,7 @@ class PaywallViewModelTest {
     @Test
     fun failedPurchaseSurfacesAnErrorState() {
         val gateway = FakeGateway()
-        val offered = fakePackage("monthly")
+        val offered = fakePackage("lifetime")
         gateway.offeringsResult = Outcome.Ok(fakeOfferings(listOf(offered)))
         val vm = viewModel(gateway)
         gateway.purchaseResult = Outcome.Err(PurchasesError(PurchasesErrorCode.StoreProblemError, "down"))
@@ -227,7 +249,7 @@ class PaywallViewModelTest {
     @Test
     fun failedRestoreSurfacesAnErrorState() {
         val gateway = FakeGateway()
-        gateway.offeringsResult = Outcome.Ok(fakeOfferings(listOf(fakePackage("monthly"))))
+        gateway.offeringsResult = Outcome.Ok(fakeOfferings(listOf(fakePackage("lifetime"))))
         val vm = viewModel(gateway)
         gateway.restoreResult = Outcome.Err(PurchasesError(PurchasesErrorCode.NetworkError, "offline"))
         vm.restore()
@@ -237,7 +259,7 @@ class PaywallViewModelTest {
     @Test
     fun restoreWithNoActivePurchaseReturnsToReadyWithANotice() {
         val gateway = FakeGateway()
-        gateway.offeringsResult = Outcome.Ok(fakeOfferings(listOf(fakePackage("monthly"))))
+        gateway.offeringsResult = Outcome.Ok(fakeOfferings(listOf(fakePackage("lifetime"))))
         val vm = viewModel(gateway)
         gateway.restoreResult = Outcome.Ok(fakeCustomerInfo(active = false))
         vm.restore()
@@ -248,7 +270,7 @@ class PaywallViewModelTest {
     @Test
     fun actionsAreIgnoredWhileAPurchaseIsInFlight() {
         val gateway = FakeGateway()
-        val offered = fakePackage("monthly")
+        val offered = fakePackage("lifetime")
         gateway.offeringsResult = Outcome.Ok(fakeOfferings(listOf(offered)))
         val vm = viewModel(gateway)
         gateway.purchaseResult = null // never resolves -> stays Purchasing

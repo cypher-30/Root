@@ -9,11 +9,15 @@ import com.revenuecat.purchases.Offerings
 import com.revenuecat.purchases.Package
 import com.revenuecat.purchases.PurchaseParams
 import com.revenuecat.purchases.Purchases
+import com.revenuecat.purchases.ProductType
 import com.revenuecat.purchases.PurchasesError
 import com.revenuecat.purchases.getOfferingsWith
 import com.revenuecat.purchases.models.StoreTransaction
 import com.revenuecat.purchases.purchaseWith
 import com.revenuecat.purchases.restorePurchasesWith
+import com.root.app.data.AppDatabase
+import com.root.app.data.ContentAccess
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -66,6 +70,8 @@ sealed interface PaywallState {
     data class Error(val message: String, val packages: List<Package> = emptyList()) : PaywallState
     data object Unlocked : PaywallState
     data object NotConfigured : PaywallState
+    /** No reviewed premium content is installed, so nothing may be sold yet. */
+    data object NothingToUnlock : PaywallState
 }
 
 class PaywallViewModel @JvmOverloads constructor(
@@ -74,6 +80,9 @@ class PaywallViewModel @JvmOverloads constructor(
     // Split out from BillingConfiguration.isReady so tests can drive the full state
     // machine without a real, configured RevenueCat SDK instance.
     private val isConfigured: () -> Boolean = { BillingConfiguration.isReady },
+    private val premiumContentAvailable: suspend () -> Boolean = {
+        ContentAccess.hasPremiumContent(AppDatabase.get(application))
+    },
 ) : AndroidViewModel(application) {
     private val access = EntitlementStore(application)
     private val mutableState = MutableStateFlow<PaywallState>(PaywallState.Loading)
@@ -104,6 +113,23 @@ class PaywallViewModel @JvmOverloads constructor(
         }
         mutableState.value = PaywallState.Loading
         access.refresh()
+        viewModelScope.launch {
+            val sellable = try {
+                premiumContentAvailable()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                false
+            }
+            when {
+                access.isPremium() -> mutableState.value = PaywallState.Unlocked
+                !sellable -> mutableState.value = PaywallState.NothingToUnlock
+                else -> loadOfferings()
+            }
+        }
+    }
+
+    private fun loadOfferings() {
         gateway.getOfferings(
             onError = {
                 if (!access.isPremium()) {
@@ -113,11 +139,13 @@ class PaywallViewModel @JvmOverloads constructor(
                 }
             },
             onSuccess = { offerings ->
+                // This launch sells a one-time unlock only; never surface a subscription.
                 packages = offerings.current?.availablePackages.orEmpty()
+                    .filter { it.product.type != ProductType.SUBS }
                 mutableState.value = when {
                     access.isPremium() -> PaywallState.Unlocked
                     packages.isEmpty() -> PaywallState.Error(
-                        "No plans are available from the store yet. Free practice is still available.",
+                        "The one-time unlock isn't available from the store yet. Free practice is still available.",
                     )
                     else -> PaywallState.Ready(packages)
                 }
