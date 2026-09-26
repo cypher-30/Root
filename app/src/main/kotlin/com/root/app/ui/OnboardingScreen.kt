@@ -1,6 +1,7 @@
 package com.root.app.ui
 
 import android.content.res.Configuration
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -59,8 +60,8 @@ private val onboardingSteps = listOf(
     ),
     OnboardingStep(
         eyebrow = "MAKE IT YOUR OWN",
-        title = "Your language stays on your device.",
-        description = "Explore curated phrase packs, complete structured lessons, or add your own native phrases. Everything stays private on this device.",
+        title = "Your words stay on your device.",
+        description = "Explore phrase packs, complete structured lessons, or add your own phrases. Your practice and the words and voices you add are kept on this device; Root connects to the internet only to download packs or complete a purchase.",
         pathProgress = 1.0f,
         pageType = OnboardingPageType.PRIVACY_OWNERSHIP,
     ),
@@ -79,7 +80,9 @@ fun OnboardingScreen(
     val pagerState = rememberPagerState { onboardingSteps.size }
     val coroutineScope = rememberCoroutineScope()
     val isLastPage = pagerState.currentPage == (onboardingSteps.size - 1)
-
+    BackHandler(enabled = pagerState.currentPage > 0) {
+        coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) }
+    }
     Surface(
         modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,

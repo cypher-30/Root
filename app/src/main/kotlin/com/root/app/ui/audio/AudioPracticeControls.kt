@@ -16,6 +16,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -32,6 +33,7 @@ import com.root.app.audio.AudioClipKind
 import com.root.app.audio.RootAudioSession
 import com.root.app.data.PhraseEntity
 import com.root.app.ui.lastPracticedCaption
+import kotlinx.coroutines.launch
 
 /** Internal (module-scoped, so usable from `com.root.app.ui.teach.LessonScreen`
  *  in this same module) so lesson playback can reuse the same session
@@ -59,7 +61,7 @@ internal fun rememberRootAudioSession(phraseId: String? = null): RootAudioSessio
 @Composable
 fun AudioPracticeControls(
     phrase: PhraseEntity,
-    onMarkPracticed: (() -> Unit)? = null,
+    onMarkPracticed: (suspend () -> Boolean)? = null,
     lastPracticedAt: Long? = null,
 ) {
     val session = rememberRootAudioSession(phrase.id)
@@ -87,24 +89,46 @@ fun AudioPracticeControls(
         VoiceRecordingControls(session)
         if (session.playing != null) AccessibleAudioTransport(session)
         if (onMarkPracticed != null) {
+            val scope = rememberCoroutineScope()
+            var marking by remember(phrase.id) { mutableStateOf(false) }
             var justMarked by remember(phrase.id) { mutableStateOf(false) }
-            var locallyMarkedAt by remember(phrase.id) { mutableStateOf<Long?>(null) }
-            val latestLocalMark = locallyMarkedAt
-            val practicedAt = when {
-                lastPracticedAt == null -> latestLocalMark
-                latestLocalMark == null -> lastPracticedAt
-                else -> maxOf(lastPracticedAt, latestLocalMark)
-            }
+            var markFailed by remember(phrase.id) { mutableStateOf(false) }
             OutlinedButton(
                 onClick = {
-                    locallyMarkedAt = System.currentTimeMillis()
-                    onMarkPracticed()
-                    justMarked = true
+                    if (marking) return@OutlinedButton
+                    marking = true
+                    markFailed = false
+                    scope.launch {
+                        try {
+                            val saved = onMarkPracticed()
+                            justMarked = saved
+                            markFailed = !saved
+                        } finally {
+                            marking = false
+                        }
+                    }
                 },
+                enabled = !marking,
                 modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.small,
-            ) { Text(if (justMarked) "Marked practiced" else "Mark practiced") }
-            practicedAt?.let {
+            ) {
+                Text(
+                    when {
+                        marking -> "Saving…"
+                        justMarked -> "Marked practiced"
+                        else -> "Mark practiced"
+                    },
+                )
+            }
+            if (markFailed) {
+                Text(
+                    "That wasn't saved. Please try again.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                )
+            }
+            lastPracticedAt?.let {
                 Text(
                     lastPracticedCaption(it),
                     style = MaterialTheme.typography.bodySmall,

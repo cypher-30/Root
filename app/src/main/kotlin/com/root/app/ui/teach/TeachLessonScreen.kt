@@ -1,5 +1,9 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.root.app.ui.teach
 
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -207,7 +211,7 @@ private fun SpeakingPromptContent(step: Activity.SpeakingPrompt, onSelfAssessed:
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         VoiceRecordingControls(session)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { practiced = true; onSelfAssessed(true) },
                 enabled = practiced != true, shape = MaterialTheme.shapes.small) { Text("I practiced this") }
             TextButton(onClick = { practiced = false; onSelfAssessed(false) },
@@ -342,14 +346,14 @@ private fun OrderedTokenTaskContent(task: com.root.app.content.OrderedTokenTask,
         Text(task.prompt, style = MaterialTheme.typography.bodyLarge)
         Text("Built: " + order.mapNotNull { byId[it]?.text }.joinToString(" ").ifBlank { "(tap words below in order)" },
             style = MaterialTheme.typography.titleMedium)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             task.tokens.filterNot { it.occurrenceId in order }.forEach { token ->
                 // Tap-to-add tokens (non-drag), so ordering is accessible without a
                 // drag gesture.
                 TextButton(onClick = { order = order + token.occurrenceId }, enabled = !locked) { Text(token.text) }
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(onClick = { order = emptyList() }, enabled = order.isNotEmpty() && !locked) { Text("Clear") }
             Button(
                 onClick = { onTokens(order) },
@@ -408,7 +412,7 @@ private fun LessonCompleteContent(
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Spacer(Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = onRestart, shape = MaterialTheme.shapes.small) { Text("Restart (new attempt)") }
             Button(onClick = onBack, shape = MaterialTheme.shapes.small) { Text("Done") }
         }

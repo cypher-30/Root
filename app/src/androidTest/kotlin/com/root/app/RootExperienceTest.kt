@@ -94,7 +94,7 @@ class RootExperienceTest {
         compose.onNodeWithText("Test your memory, then reveal.").assertExists()
         compose.onNodeWithText("Next").performClick()
         compose.onNodeWithText("MAKE IT YOUR OWN").assertExists()
-        compose.onNodeWithText("Your language stays on your device.").assertExists()
+        compose.onNodeWithText("Your words stay on your device.").assertExists()
         compose.onNodeWithText("Begin practice").performClick()
         assertTrue(responded)
     }

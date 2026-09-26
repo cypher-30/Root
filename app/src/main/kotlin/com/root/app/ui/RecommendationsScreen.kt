@@ -108,7 +108,7 @@ private fun RecommendationItem(
                 Text(
                     text = recommendation.title,
                     style = MaterialTheme.typography.titleMedium,
-                    color = if (isAvailable) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    color = if (isAvailable) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 
                 if (recommendation.availability is Availability.Unavailable) {
@@ -116,14 +116,14 @@ private fun RecommendationItem(
                     Text(
                         text = recommendation.availability.reason,
                         style = RootType.meta,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
             
             if (isAvailable) {
                 Icon(
-                    imageVector = RootIcons.Back, // A placeholder for a forward arrow if we don't have one, or just omit it. Using back and rotating it isn't straightforward without modifier graphicLayer, but we can omit the trailing icon or use something else.
+                    imageVector = RootIcons.Back,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 16.dp).rotate(180f),
@@ -132,7 +132,7 @@ private fun RecommendationItem(
                  Icon(
                     imageVector = RootIcons.Lock,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 16.dp),
                 )
             }

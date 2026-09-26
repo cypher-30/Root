@@ -130,7 +130,7 @@ internal fun InstallStatusRow(
         LibraryStatus.RETIRED -> "No longer available"
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(text, Modifier.weight(1f, fill = false), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         when (pack.status) {
             LibraryStatus.AVAILABLE, LibraryStatus.CANCELLED -> TextButton(onClick = onDownload) { Text("Download") }
             LibraryStatus.FAILED -> TextButton(onClick = onRetry) { Text("Retry") }

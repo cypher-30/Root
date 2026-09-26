@@ -4,6 +4,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -21,7 +25,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -48,7 +57,12 @@ fun ArchiveScreen(
 
     androidx.compose.runtime.LaunchedEffect(languageId) { vm.setLanguage(languageId) }
 
-    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(
+        Modifier.fillMaxSize().safeDrawingPadding().imePadding()
+            .wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = 640.dp).fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         TextButton(onClick = onBack) { Text("Back") }
         Text("Your words", style = RootType.editorialTitle)
         Text("Phrases you've added for $languageName. Editing changes the text only; deleting is permanent.")
@@ -60,7 +74,7 @@ fun ArchiveScreen(
             shape = MaterialTheme.shapes.small,
         )
         vm.error?.let {
-            Text(it, color = MaterialTheme.colorScheme.error)
+            Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
         }
         if (phrases.isEmpty()) {
             Text(
@@ -68,7 +82,7 @@ fun ArchiveScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(phrases, key = { it.id }) { phrase ->
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -78,8 +92,14 @@ fun ArchiveScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.padding(top = 8.dp),
                         ) {
-                            OutlinedButton(onClick = { editing = phrase }) { Text("Edit") }
-                            OutlinedButton(onClick = { confirmingDeleteOf = phrase }) { Text("Delete") }
+                            OutlinedButton(
+                                onClick = { editing = phrase },
+                                modifier = Modifier.semantics { contentDescription = "Edit ${phrase.answer}" },
+                            ) { Text("Edit") }
+                            OutlinedButton(
+                                onClick = { confirmingDeleteOf = phrase },
+                                modifier = Modifier.semantics { contentDescription = "Delete ${phrase.answer}" },
+                            ) { Text("Delete") }
                         }
                     }
                 }

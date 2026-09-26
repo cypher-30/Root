@@ -72,7 +72,7 @@ fun PracticeScreen(
     // call sites pass `challenge` as a trailing lambda, which always binds to the
     // *last* parameter — appending onStop after `challenge` would silently break them.
     onStop: () -> Unit = {},
-    onMarkPracticed: ((String) -> Unit)? = null,
+    onMarkPracticed: (suspend (String) -> Boolean)? = null,
     lastPracticedAt: Long? = null,
     challenge: @Composable () -> Unit = {},
 ) {
@@ -127,7 +127,7 @@ fun PracticeScreen(
 private fun PracticeCard(
     phrase: PhraseEntity,
     onRate: suspend (ConfidenceLevel) -> Boolean,
-    onMarkPracticed: ((String) -> Unit)? = null,
+    onMarkPracticed: (suspend (String) -> Boolean)? = null,
     lastPracticedAt: Long? = null,
 ) {
     var revealed by rememberSaveable { mutableStateOf(false) }
@@ -296,7 +296,7 @@ private fun PracticeCard(
             if (audioExpanded && !busy) {
                 AudioPracticeControls(
                     phrase = phrase,
-                    onMarkPracticed = onMarkPracticed?.let { { it(phrase.id) } },
+                    onMarkPracticed = onMarkPracticed?.let { mark -> suspend { mark(phrase.id) } },
                     lastPracticedAt = lastPracticedAt,
                 )
             }

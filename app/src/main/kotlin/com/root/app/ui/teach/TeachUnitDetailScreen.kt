@@ -1,5 +1,9 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.root.app.ui.teach
 
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -93,7 +97,7 @@ fun TeachUnitDetailScreen(
                     UnitInstallControls(pack, onDownload, onCancel, onUninstall, onRetry, onUpdate)
                     if (onReviewPhrases != null || onPlayReels != null) {
                         Spacer(Modifier.height(12.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (onReviewPhrases != null) {
                                 OutlinedButton(onClick = onReviewPhrases, shape = MaterialTheme.shapes.small) {
                                     Text("Review these phrases")
