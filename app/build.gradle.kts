@@ -33,6 +33,20 @@ android {
             "ROOT_CONTENT_CATALOG_URL must be an HTTPS URL without whitespace."
         }
         buildConfigField("String", "CONTENT_CATALOG_URL", "\"$contentCatalogUrl\"")
+        // Store-listed policy destinations shown on the paywall; HTTPS only.
+        mapOf(
+            "PRIVACY_POLICY_URL" to "ROOT_PRIVACY_POLICY_URL",
+            "TERMS_URL" to "ROOT_TERMS_URL",
+            "SUPPORT_URL" to "ROOT_SUPPORT_URL",
+        ).forEach { (field, property) ->
+            val url = providers.gradleProperty(property).orElse("").get()
+            require(url.isEmpty() || (url.startsWith("https://") && url.none { it.isWhitespace() || it == '"' || it == '\\' })) {
+                "$property must be an HTTPS URL without whitespace."
+            }
+            buildConfigField("String", field, "\"$url\"")
+        }
+        // Unreviewed starter samples are for development and validation only.
+        buildConfigField("boolean", "SHIP_SAMPLE_CONTENT", "true")
     }
 
     buildTypes {
@@ -45,6 +59,12 @@ android {
             buildConfigField("String", "CONTENT_CATALOG_URL", "\"\"")
         }
         release {
+            // Release builds read a separate production key, so a developer's debug
+            // Test Store key can never be packaged into a release artifact.
+            val releaseKey = providers.gradleProperty("ROOT_REVENUECAT_RELEASE_API_KEY").orElse("").get()
+            buildConfigField("String", "REVENUECAT_API_KEY", "\"${releaseKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+            val releaseSamples = providers.gradleProperty("ROOT_RELEASE_SAMPLE_CONTENT").orElse("false").get().toBoolean()
+            buildConfigField("boolean", "SHIP_SAMPLE_CONTENT", releaseSamples.toString())
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
@@ -73,6 +93,33 @@ android {
     sourceSets["main"].kotlin.srcDirs("src/main/kotlin")
     sourceSets["test"].resources.srcDir(rootProject.file("content/editorial"))
 }
+
+// Fails a release build that would ship a Test Store or placeholder key, and (with
+// -ProotPublicRelease=true) one missing the key or policy URLs a paid store launch needs.
+val verifyReleaseConfiguration by tasks.registering {
+    val key = providers.gradleProperty("ROOT_REVENUECAT_RELEASE_API_KEY").orElse("")
+    val publicRelease = providers.gradleProperty("rootPublicRelease").orElse("false")
+    val policyUrls = listOf("ROOT_PRIVACY_POLICY_URL", "ROOT_TERMS_URL", "ROOT_SUPPORT_URL")
+        .associateWith { providers.gradleProperty(it).orElse("") }
+    val samples = providers.gradleProperty("ROOT_RELEASE_SAMPLE_CONTENT").orElse("false")
+    doLast {
+        val value = key.get().trim()
+        val placeholders = listOf("replace", "placeholder", "your_", "example", "changeme", "not_configured", "<", ">")
+        require(!value.startsWith("test_", ignoreCase = true)) {
+            "Release builds must not use a RevenueCat Test Store key."
+        }
+        require(placeholders.none { value.contains(it, ignoreCase = true) }) {
+            "ROOT_REVENUECAT_RELEASE_API_KEY looks like a placeholder."
+        }
+        if (publicRelease.get().toBoolean()) {
+            require(value.isNotEmpty()) { "A public release needs ROOT_REVENUECAT_RELEASE_API_KEY." }
+            val missing = policyUrls.filterValues { it.get().isBlank() }.keys
+            require(missing.isEmpty()) { "A public release needs: ${missing.joinToString()}." }
+            require(!samples.get().toBoolean()) { "A public release must not ship unreviewed sample content." }
+        }
+    }
+}
+tasks.matching { it.name == "preReleaseBuild" }.configureEach { dependsOn(verifyReleaseConfiguration) }
 
 ksp {
     // Exports each schema version to app/schemas/ so androidTest can migration-test
