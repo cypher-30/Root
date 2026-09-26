@@ -40,8 +40,28 @@ class RootPreferences(context: Context) {
             preferences.edit().putInt("onboarding_completed_version", value).apply()
         }
 
+    /** Interaction sounds are on by default; the learner can turn them off in Profile → Sound. */
+    var soundEffectsEnabled: Boolean
+        get() = preferences.getBoolean("sound_effects_enabled", com.root.app.audio.SoundSettings.DEFAULT_EFFECTS_ENABLED)
+        set(value) { preferences.edit().putBoolean("sound_effects_enabled", value).apply() }
+
+    /** The launch motif has its own switch (on by default), and also needs [soundEffectsEnabled]. */
+    var startupSoundEnabled: Boolean
+        get() = preferences.getBoolean("startup_sound_enabled", com.root.app.audio.SoundSettings.DEFAULT_STARTUP_ENABLED)
+        set(value) { preferences.edit().putBoolean("startup_sound_enabled", value).apply() }
+
+    /** Interaction-sound level relative to the device's system sound volume,
+     *  0..1. Never changes Android's own stream volumes. */
+    var soundVolume: Float
+        get() = preferences.getFloat("sound_volume", DEFAULT_SOUND_VOLUME).coerceIn(0f, 1f)
+        set(value) {
+            require(value in 0f..1f) { "Sound volume must be between 0 and 1." }
+            preferences.edit().putFloat("sound_volume", value).apply()
+        }
+
     companion object {
         /** Bump when onboarding content changes meaningfully enough to re-offer it. */
         const val ONBOARDING_CURRENT_VERSION = 1
+        const val DEFAULT_SOUND_VOLUME = com.root.app.audio.SoundSettings.DEFAULT_VOLUME
     }
 }

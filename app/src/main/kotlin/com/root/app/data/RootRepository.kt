@@ -86,6 +86,18 @@ class RootRepository(context: Context) {
         preferences.theme = theme
     }
 
+    fun soundSettings(): com.root.app.audio.SoundSettings = com.root.app.audio.SoundSettings(
+        effectsEnabled = preferences.soundEffectsEnabled,
+        startupEnabled = preferences.startupSoundEnabled,
+        volume = preferences.soundVolume,
+    )
+
+    fun setSoundSettings(settings: com.root.app.audio.SoundSettings) {
+        preferences.soundEffectsEnabled = settings.effectsEnabled
+        preferences.startupSoundEnabled = settings.startupEnabled
+        preferences.soundVolume = settings.volume
+    }
+
     /** Whether the optional onboarding/menu overview should be offered on
      *  this launch — see [com.root.app.overview.OnboardingGate]. */
     fun shouldOfferOnboarding(): Boolean =

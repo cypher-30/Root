@@ -37,4 +37,38 @@ class RootPreferencesTest {
             preferences.onboardingCompletedVersion = -1
         }
     }
+
+    @Test
+    fun `sound settings default to on at full volume`() {
+        assertEquals(true, preferences.soundEffectsEnabled)
+        assertEquals(true, preferences.startupSoundEnabled)
+        assertEquals(RootPreferences.DEFAULT_SOUND_VOLUME, preferences.soundVolume, 0f)
+        assertEquals(1f, RootPreferences.DEFAULT_SOUND_VOLUME, 0f)
+    }
+
+    @Test
+    fun `sound settings persist without disturbing other preferences`() {
+        preferences.activeLanguageId = "shona"
+        preferences.theme = "dark"
+        preferences.onboardingCompletedVersion = 1
+
+        preferences.soundEffectsEnabled = false
+        preferences.startupSoundEnabled = false
+        preferences.soundVolume = 0f
+        preferences.soundVolume = 0.4f
+
+        val reopened = RootPreferences(ApplicationProvider.getApplicationContext())
+        assertEquals(false, reopened.soundEffectsEnabled)
+        assertEquals(false, reopened.startupSoundEnabled)
+        assertEquals(0.4f, reopened.soundVolume, 0f)
+        assertEquals("shona", reopened.activeLanguageId)
+        assertEquals("dark", reopened.theme)
+        assertEquals(1, reopened.onboardingCompletedVersion)
+    }
+
+    @Test
+    fun `sound volume rejects values outside zero to one`() {
+        assertThrows(IllegalArgumentException::class.java) { preferences.soundVolume = -0.01f }
+        assertThrows(IllegalArgumentException::class.java) { preferences.soundVolume = 1.01f }
+    }
 }
