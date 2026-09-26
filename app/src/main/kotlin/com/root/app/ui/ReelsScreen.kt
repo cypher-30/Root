@@ -13,30 +13,40 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.root.app.audio.WaveformCache
-import com.root.app.audio.WaveformDecoder
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.root.app.content.Credits
 import com.root.app.reels.ReelAudioSource
 import com.root.app.reels.ReelClip
+import com.root.app.reels.ReelPlaybackPort
+import com.root.app.reels.ReelPlaybackResult
 import com.root.app.reels.ReelsPlaybackSpeed
 import com.root.app.reels.ReelsPlayer
-import com.root.app.reels.ReelPlaybackPort
 import com.root.app.ui.icon.RootIcons
 import com.root.app.ui.theme.RootTheme
 import com.root.app.ui.theme.RootType
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.io.File
+import kotlinx.coroutines.CancellationException
 import kotlin.math.max
 
+/** What the waveform area can honestly show for the current clip. */
+sealed interface WaveformUi {
+    data object Loading : WaveformUi
+    data object Unavailable : WaveformUi
+    data class Ready(val bins: FloatArray) : WaveformUi
+}
+
 /**
- * Screen presenting a sequence of real-media reel clips with a waveform visualization
- * and short-form playback.
+ * A single-pass reel over a pack's ordered phrase recordings. Nothing plays
+ * until the learner taps Play; Replay starts a fresh pass; leaving or
+ * backgrounding the screen stops playback (the owner's audio session reports
+ * that as an interruption) and nothing resumes on its own.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,54 +54,29 @@ fun ReelsScreen(
     title: String,
     player: ReelsPlayer,
     onBack: () -> Unit,
+    loadWaveform: suspend (ReelClip) -> FloatArray?,
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
-    
-    // Waveform state
-    var currentWaveform by remember { mutableStateOf<FloatArray?>(null) }
-    
-    val currentClip = player.currentClip
-    val playerState = player.state
+    val snapshot by player.snapshot.collectAsStateWithLifecycle()
+    val state = snapshot.state
+    val currentClip = snapshot.currentClip
 
-    // Fetch waveform when clip changes
-    LaunchedEffect(currentClip) {
-        if (currentClip?.source != null) {
-            currentWaveform = null
-            withContext(Dispatchers.IO) {
-                try {
-                    val cache = WaveformCache(context)
-                    // Try to get from cache or decode
-                    val decoded = when (val source = currentClip.source) {
-                        is ReelAudioSource.Bundled -> null // We cannot hash bundled assets easily to use the cache directly. For now, decode from path if we had one.
-                        is ReelAudioSource.DownloadedFile -> {
-                             val sourceFile = File(source.absolutePath)
-                             cache.getOrDecode(currentClip.id, sourceFile)
-                        }
-                        else -> null
-                    }
-                    decoded?.let { currentWaveform = it }
-                } catch (_: Exception) {
-                    // Fail gracefully, no waveform
-                }
-            }
-        } else {
-            currentWaveform = null
+    var waveform by remember { mutableStateOf<WaveformUi>(WaveformUi.Loading) }
+    LaunchedEffect(currentClip?.id) {
+        val clip = currentClip ?: return@LaunchedEffect
+        waveform = WaveformUi.Loading
+        waveform = try {
+            loadWaveform(clip)?.takeIf { it.isNotEmpty() }?.let { WaveformUi.Ready(it) } ?: WaveformUi.Unavailable
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            WaveformUi.Unavailable
         }
     }
 
-    DisposableEffect(Unit) {
-        onDispose {
-            player.stop()
-        }
-    }
+    DisposableEffect(player) { onDispose { player.stop() } }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .safeDrawingPadding(),
-    ) {
-        // Top app bar
+    Column(modifier = modifier.fillMaxSize().safeDrawingPadding()) {
         CenterAlignedTopAppBar(
             title = { Text(title, style = RootType.label) },
             navigationIcon = {
@@ -100,193 +85,191 @@ fun ReelsScreen(
                 }
             },
             colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                containerColor = MaterialTheme.colorScheme.background
-            )
+                containerColor = MaterialTheme.colorScheme.background,
+            ),
         )
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp)
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .widthIn(max = 640.dp)
+                .align(Alignment.CenterHorizontally),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "${player.clipCount} ${if (player.clipCount == 1) "phrase" else "phrases"} · " +
+                    "${player.playableCount} with a recording",
+                style = RootType.meta,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
 
-            // Main playback area
             Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1f),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 280.dp),
                 shape = MaterialTheme.shapes.large,
                 color = MaterialTheme.colorScheme.surfaceContainerLow,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             ) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp)
+                        .semantics { liveRegion = LiveRegionMode.Polite },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
                 ) {
-                    if (playerState is ReelsPlayer.State.NotStarted) {
-                        IconButton(
-                            onClick = { player.start() },
-                            modifier = Modifier.size(72.dp)
-                        ) {
-                            Icon(
-                                RootIcons.Play, 
-                                contentDescription = "Start reel",
-                                modifier = Modifier.size(48.dp),
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    } else if (playerState is ReelsPlayer.State.Finished) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                RootIcons.Check,
-                                contentDescription = null,
-                                modifier = Modifier.size(48.dp).padding(bottom = 16.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text("Reel finished", style = RootType.editorialTitle, color = MaterialTheme.colorScheme.onSurface)
-                            Spacer(modifier = Modifier.height(24.dp))
-                            OutlinedButton(
-                                onClick = { 
-                                    player.stop()
-                                    // Normally you'd re-instantiate or the caller passes a fresh one, but for simple playback we just start again if the player allows it.
-                                    // ReelsPlayer states "reaching the end of the list leaves the player State.Finished rather than looping back". 
-                                    // So we just call stop() and start() might not work if it checks NotStarted.
-                                    // For a true replay we might need caller intervention, but we'll try to just stop for now.
-                                },
-                            ) {
-                                Text("Replay")
+                    when (state) {
+                        ReelsPlayer.State.NotStarted -> {
+                            if (player.playableCount == 0) {
+                                Text("Nothing to play yet.", style = RootType.editorialTitle)
+                                Text(
+                                    "None of these phrases has a speaker's recording on this device, so this reel stays silent rather than using a substitute voice.",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            } else {
+                                Text("Listen once, start to finish.", style = RootType.editorialTitle)
+                                Button(onClick = player::start, shape = MaterialTheme.shapes.small) {
+                                    Icon(RootIcons.Play, contentDescription = null, modifier = Modifier.size(20.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Play reel")
+                                }
                             }
                         }
-                    } else if (currentClip != null) {
-                        Column(
-                            modifier = Modifier.fillMaxSize().padding(24.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            // Clip Label
+                        is ReelsPlayer.State.Playing -> {
                             Text(
-                                text = currentClip.label,
-                                style = RootType.editorialTitle,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 3,
-                                overflow = TextOverflow.Ellipsis
+                                "Phrase ${state.index + 1} of ${player.clipCount}",
+                                style = RootType.label,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-
-                            // Waveform Visualization
-                            Box(modifier = Modifier.fillMaxWidth().height(120.dp).padding(vertical = 16.dp)) {
-                                if (playerState is ReelsPlayer.State.Missing) {
-                                    Text(
-                                        "Audio not available", 
-                                        style = RootType.meta, 
-                                        color = MaterialTheme.colorScheme.error,
-                                        modifier = Modifier.align(Alignment.Center)
-                                    )
-                                } else {
-                                    WaveformView(
-                                        amplitudes = currentWaveform,
-                                        modifier = Modifier.fillMaxSize(),
-                                        barColor = MaterialTheme.colorScheme.primary
-                                    )
-                                }
+                            currentClip?.let { Text(it.label, style = RootType.editorialTitle) }
+                            WaveformArea(waveform, Modifier.fillMaxWidth().height(96.dp))
+                            OutlinedButton(onClick = player::stop, shape = MaterialTheme.shapes.small) {
+                                Icon(RootIcons.Stop, contentDescription = null, modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Stop")
                             }
-                            
-                            // Audio Controls (Speed, Stop)
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceEvenly,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                val nextSpeed = when (player.speed) {
-                                    ReelsPlaybackSpeed.NORMAL -> ReelsPlaybackSpeed.FAST
-                                    ReelsPlaybackSpeed.FAST -> ReelsPlaybackSpeed.SLOW
-                                    ReelsPlaybackSpeed.SLOW -> ReelsPlaybackSpeed.NORMAL
-                                }
-                                
-                                OutlinedButton(onClick = { player.setSpeed(nextSpeed) }) {
-                                    Text("${player.speed.multiplier}x")
-                                }
-                                
-                                IconButton(onClick = { player.stop() }) {
-                                    Icon(RootIcons.Stop, contentDescription = "Stop playback")
-                                }
+                        }
+                        ReelsPlayer.State.Stopped, ReelsPlayer.State.Finished -> {
+                            val finished = state == ReelsPlayer.State.Finished
+                            if (finished) {
+                                Icon(
+                                    RootIcons.Check,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(40.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Text(if (finished) "Reel finished." else "Reel stopped.", style = RootType.editorialTitle)
+                            if (snapshot.failedClipIds.isNotEmpty()) {
+                                val count = snapshot.failedClipIds.size
+                                Text(
+                                    "$count ${if (count == 1) "recording" else "recordings"} couldn't be played on this device.",
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                            }
+                            Button(onClick = player::replay, shape = MaterialTheme.shapes.small) {
+                                Text("Play from the start")
                             }
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            SpeedControl(snapshot.speed, onChange = player::setSpeed)
 
-            // Credits Section
-            if (currentClip?.credits != null) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Text("CREDITS", style = RootType.label, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(currentClip.credits.text, style = RootType.meta, color = MaterialTheme.colorScheme.onSurface)
+            currentClip?.credits?.let { credits ->
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("CREDITS", style = RootType.label, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.semantics { heading() })
+                    Text(credits.text, style = RootType.meta, color = MaterialTheme.colorScheme.onSurface)
                 }
             }
+
+            if (player.missingClips.isNotEmpty()) {
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("NO RECORDING YET", style = RootType.label, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.semantics { heading() })
+                    Text(
+                        "These phrases are skipped until a speaker's recording is available.",
+                        style = RootType.meta,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    player.missingClips.forEach { clip ->
+                        Text(clip.label, style = MaterialTheme.typography.bodyMedium)
+                        clip.credits?.let {
+                            Text(it.text, style = RootType.meta, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(24.dp))
         }
     }
 }
 
 @Composable
-private fun WaveformView(
-    amplitudes: FloatArray?,
-    modifier: Modifier = Modifier,
-    barColor: Color = MaterialTheme.colorScheme.primary,
-) {
-    if ((amplitudes == null) || amplitudes.isEmpty()) {
-        // Placeholder empty state or loading state
-        Box(modifier = modifier, contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp, color = barColor.copy(alpha = 0.5f))
-        }
-        return
+private fun SpeedControl(speed: ReelsPlaybackSpeed, onChange: (ReelsPlaybackSpeed) -> Unit) {
+    val next = when (speed) {
+        ReelsPlaybackSpeed.NORMAL -> ReelsPlaybackSpeed.FAST
+        ReelsPlaybackSpeed.FAST -> ReelsPlaybackSpeed.SLOW
+        ReelsPlaybackSpeed.SLOW -> ReelsPlaybackSpeed.NORMAL
     }
+    OutlinedButton(
+        onClick = { onChange(next) },
+        shape = MaterialTheme.shapes.small,
+        modifier = Modifier.fillMaxWidth().semantics {
+            contentDescription = "Playback speed ${speed.multiplier}x. Tap for ${next.multiplier}x."
+        },
+    ) { Text("Speed: ${speed.multiplier}x") }
+}
 
-    Canvas(modifier = modifier) {
-        val barWidth = 4.dp.toPx()
-        val gapWidth = 2.dp.toPx()
-        val totalBarWidth = barWidth + gapWidth
-        val viewWidth = size.width
-        val viewHeight = size.height
-        
-        // Calculate how many bars we can fit
-        val barsToDraw = (viewWidth / totalBarWidth).toInt().coerceAtMost(amplitudes.size)
-        
-        // We could resample the amplitudes to fit the visual space, but for simplicity
-        // let's just stride through the array if it's too large, or draw all if small.
-        val step = max(1, amplitudes.size / barsToDraw)
-        
-        var xOffset = 0f
-        for (i in 0 until barsToDraw) {
-            val sampleIndex = (i * step).coerceIn(0, amplitudes.lastIndex)
-            val amplitude = amplitudes[sampleIndex]
-            
-            // amplitude is normalized 0f..1f (per WaveformDecoder)
-            // Minimum height so silence is still a visible dot/line
-            val minHeight = 4.dp.toPx()
-            val barHeight = maxOf(minHeight, amplitude * viewHeight)
-            
-            val yOffset = (viewHeight - barHeight) / 2f
-            
-            drawRoundRect(
-                color = barColor,
-                topLeft = Offset(xOffset, yOffset),
-                size = Size(barWidth, barHeight),
-                cornerRadius = CornerRadius(barWidth / 2f, barWidth / 2f)
+@Composable
+private fun WaveformArea(waveform: WaveformUi, modifier: Modifier) {
+    Box(modifier, contentAlignment = Alignment.Center) {
+        when (waveform) {
+            WaveformUi.Loading -> CircularProgressIndicator(
+                modifier = Modifier.size(24.dp).semantics { contentDescription = "Loading waveform" },
+                strokeWidth = 2.dp,
             )
-            
-            xOffset += totalBarWidth
+            WaveformUi.Unavailable -> Text(
+                "Waveform unavailable for this recording.",
+                style = RootType.meta,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            is WaveformUi.Ready -> WaveformView(
+                waveform.bins,
+                Modifier.fillMaxSize().clearAndSetSemantics { },
+                MaterialTheme.colorScheme.primary,
+            )
         }
     }
 }
 
-// Dummy port for preview
+@Composable
+private fun WaveformView(amplitudes: FloatArray, modifier: Modifier, barColor: Color) {
+    Canvas(modifier = modifier) {
+        val barWidth = 4.dp.toPx()
+        val totalBarWidth = barWidth + 2.dp.toPx()
+        val barsToDraw = (size.width / totalBarWidth).toInt().coerceIn(1, amplitudes.size)
+        val step = max(1, amplitudes.size / barsToDraw)
+        val minHeight = 4.dp.toPx()
+        for (i in 0 until barsToDraw) {
+            val amplitude = amplitudes[(i * step).coerceIn(0, amplitudes.lastIndex)]
+            val barHeight = maxOf(minHeight, amplitude * size.height)
+            drawRoundRect(
+                color = barColor,
+                topLeft = Offset(i * totalBarWidth, (size.height - barHeight) / 2f),
+                size = Size(barWidth, barHeight),
+                cornerRadius = CornerRadius(barWidth / 2f, barWidth / 2f),
+            )
+        }
+    }
+}
+
 private class PreviewPlaybackPort : ReelPlaybackPort {
-    override fun play(source: ReelAudioSource, onFinished: () -> Unit) {}
+    override fun play(source: ReelAudioSource, speed: Float, onFinished: (ReelPlaybackResult) -> Unit) {}
     override fun stop() {}
     override fun setSpeed(value: Float) {}
 }
@@ -294,21 +277,16 @@ private class PreviewPlaybackPort : ReelPlaybackPort {
 @Preview(name = "Reels Screen / Light", showBackground = true)
 @Composable
 private fun ReelsScreenLightPreview() {
-    val mockClips = listOf(
-        ReelClip(
-            id = "1",
-            label = "Amosi (Hello, one person)",
-            credits = Credits("Recorded by Jane Doe. Licensed under CC-BY."),
-            source = ReelAudioSource.Bundled("fake.mp3")
-        )
+    val clips = listOf(
+        ReelClip("1", "Amosi (Hello)", Credits("Recorded by a consenting speaker. Licensed under CC-BY."), ReelAudioSource.Bundled("fake.m4a")),
+        ReelClip("2", "Erokamano (Thank you)", null, null),
     )
-    val player = ReelsPlayer(mockClips, PreviewPlaybackPort())
-    
     RootTheme(darkTheme = false) {
         ReelsScreen(
-            title = "Greetings Reel",
-            player = player,
-            onBack = {}
+            title = "Greetings",
+            player = remember { ReelsPlayer(clips, PreviewPlaybackPort()) },
+            onBack = {},
+            loadWaveform = { null },
         )
     }
 }

@@ -1,7 +1,10 @@
 package com.root.app.audio
 
 import android.content.Context
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.InputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.security.MessageDigest
@@ -17,20 +20,33 @@ import java.security.MessageDigest
  * rather than serving a waveform that no longer matches the actual audio.
  */
 internal class WaveformCache(context: Context) {
+    private val appContext = context.applicationContext
     private val root = File(context.filesDir, "waveform_cache")
 
-    suspend fun getOrDecode(cacheKey: String, sourceFile: File, maxBins: Int = WaveformDecoder.MAX_BINS): FloatArray {
-        if (!sourceFile.isFile) return FloatArray(0)
+    suspend fun getOrDecode(cacheKey: String, sourceFile: File, maxBins: Int = WaveformDecoder.MAX_BINS): FloatArray =
+        withContext(Dispatchers.IO) {
+            if (!sourceFile.isFile) return@withContext FloatArray(0)
+            val hash = sourceFile.inputStream().use(::sha256)
+            cached(cacheKey, hash) { WaveformDecoder.decode(sourceFile.absolutePath, maxBins) }
+        }
+
+    /** Same cache contract for an uncompressed bundled APK asset. */
+    suspend fun getOrDecodeAsset(cacheKey: String, assetPath: String, maxBins: Int = WaveformDecoder.MAX_BINS): FloatArray =
+        withContext(Dispatchers.IO) {
+            val hash = appContext.assets.open(assetPath).use(::sha256)
+            cached(cacheKey, hash) { WaveformDecoder.decodeAsset(appContext, assetPath, maxBins) }
+        }
+
+    private suspend fun cached(cacheKey: String, hash: String, decode: suspend () -> FloatArray): FloatArray {
         if (!root.isDirectory) root.mkdirs()
         val safeKey = sanitize(cacheKey)
-        val hash = sha256(sourceFile)
         val entry = File(root, "$safeKey-$hash.bin")
         readBins(entry)?.let { return it }
         // Any other cached file for this same cacheKey is now stale (either a
         // different revision or a hash mismatch) — remove it so the cache
         // directory does not grow unboundedly across pack updates.
         root.listFiles { f -> f.name.startsWith("$safeKey-") }?.forEach { it.delete() }
-        val bins = WaveformDecoder.decode(sourceFile.absolutePath, maxBins)
+        val bins = decode()
         writeBins(entry, bins)
         return bins
     }
@@ -54,15 +70,13 @@ internal class WaveformCache(context: Context) {
 
     private fun sanitize(key: String) = key.map { if (it.isLetterOrDigit() || it == '-' || it == '_') it else '_' }.joinToString("")
 
-    private fun sha256(file: File): String {
+    private fun sha256(input: InputStream): String {
         val digest = MessageDigest.getInstance("SHA-256")
-        file.inputStream().use { input ->
-            val buffer = ByteArray(64 * 1024)
-            while (true) {
-                val read = input.read(buffer)
-                if (read < 0) break
-                digest.update(buffer, 0, read)
-            }
+        val buffer = ByteArray(64 * 1024)
+        while (true) {
+            val read = input.read(buffer)
+            if (read < 0) break
+            digest.update(buffer, 0, read)
         }
         return digest.digest().joinToString("") { "%02x".format(it) }
     }

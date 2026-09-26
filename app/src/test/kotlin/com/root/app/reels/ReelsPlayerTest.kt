@@ -2,6 +2,7 @@ package com.root.app.reels
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** Fake [ReelPlaybackPort] whose [play] only calls back when [finish] is
@@ -9,18 +10,24 @@ import org.junit.Test
  *  dependency, so [ReelsPlayerTest] can assert exact ordering/timing. */
 private class FakePort : ReelPlaybackPort {
     var playing: ReelAudioSource? = null
+    var playCount = 0
     var stopCount = 0
     var lastSpeed = 1f
-    private var pendingFinish: (() -> Unit)? = null
+    var lastPlaySpeed: Float? = null
+    private var pendingFinish: ((ReelPlaybackResult) -> Unit)? = null
+    var staleFinish: ((ReelPlaybackResult) -> Unit)? = null
 
-    override fun play(source: ReelAudioSource, onFinished: () -> Unit) {
+    override fun play(source: ReelAudioSource, speed: Float, onFinished: (ReelPlaybackResult) -> Unit) {
         playing = source
+        playCount++
+        lastPlaySpeed = speed
         pendingFinish = onFinished
     }
 
     override fun stop() {
         stopCount++
         playing = null
+        staleFinish = pendingFinish
         pendingFinish = null
     }
 
@@ -28,11 +35,11 @@ private class FakePort : ReelPlaybackPort {
         lastSpeed = value
     }
 
-    fun finish() {
+    fun finish(result: ReelPlaybackResult = ReelPlaybackResult.COMPLETED) {
         val callback = pendingFinish
         pendingFinish = null
         playing = null
-        callback?.invoke()
+        callback?.invoke(result)
     }
 }
 
@@ -57,6 +64,7 @@ class ReelsPlayerTest {
 
         // A finished reel never restarts or loops on its own.
         assertNull(port.playing)
+        assertEquals(3, port.playCount)
     }
 
     @Test fun neverPlaysBeforeStartIsExplicitlyCalled() {
@@ -66,11 +74,12 @@ class ReelsPlayerTest {
         assertNull(port.playing)
     }
 
-    @Test fun missingClipIsShownButSkippedWithoutCrashing() {
+    @Test fun missingClipIsListedAndSkippedWithoutCrashing() {
         val port = FakePort()
         val player = ReelsPlayer(listOf(clip("a", hasSource = false), clip("b")), port)
+        assertEquals(listOf("a"), player.missingClips.map { it.id })
+        assertEquals(1, player.playableCount)
         player.start()
-        // The missing clip is visited (so its credit is seen) but nothing plays for it.
         assertEquals(ReelsPlayer.State.Playing(1), player.state)
         assertEquals(ReelAudioSource.Bundled("b.mp3"), port.playing)
     }
@@ -96,14 +105,14 @@ class ReelsPlayerTest {
         val port = FakePort()
         val player = ReelsPlayer(listOf(clip("a"), clip("b")), port)
         player.start()
-        assertEquals(ReelsPlayer.State.Playing(0), player.state)
         player.stop()
         assertEquals(ReelsPlayer.State.Stopped, player.state)
         assertEquals(1, port.stopCount)
 
         // A late completion callback racing the Stop tap must not resurrect playback.
-        port.finish()
+        port.staleFinish?.invoke(ReelPlaybackResult.COMPLETED)
         assertEquals(ReelsPlayer.State.Stopped, player.state)
+        assertEquals(1, port.playCount)
     }
 
     @Test fun setSpeedAppliesImmediatelyAndPersistsAcrossClips() {
@@ -112,9 +121,84 @@ class ReelsPlayerTest {
         player.setSpeed(ReelsPlaybackSpeed.FAST)
         assertEquals(1.25f, port.lastSpeed)
         player.start()
-        assertEquals(1.25f, port.lastSpeed)
+        assertEquals(1.25f, port.lastPlaySpeed)
         port.finish()
-        // The chosen speed carries over to the next clip without re-selecting it.
-        assertEquals(1.25f, port.lastSpeed)
+        // The chosen speed is requested again for the next clip without re-selecting it.
+        assertEquals(1.25f, port.lastPlaySpeed)
+        assertEquals(ReelsPlaybackSpeed.FAST, player.snapshot.value.speed)
+    }
+
+    @Test fun replayStartsAFreshSinglePassAfterFinishing() {
+        val port = FakePort()
+        val player = ReelsPlayer(listOf(clip("a"), clip("b")), port)
+        player.start()
+        port.finish()
+        port.finish()
+        assertEquals(ReelsPlayer.State.Finished, player.state)
+
+        player.replay()
+        assertEquals(ReelsPlayer.State.Playing(0), player.state)
+        port.finish()
+        port.finish()
+        assertEquals(ReelsPlayer.State.Finished, player.state)
+        assertEquals(4, port.playCount)
+    }
+
+    @Test fun replayAfterStopIgnoresTheStoppedPassLateCallback() {
+        val port = FakePort()
+        val player = ReelsPlayer(listOf(clip("a"), clip("b")), port)
+        player.start()
+        player.stop()
+        val stale = port.staleFinish
+        player.replay()
+        assertEquals(ReelsPlayer.State.Playing(0), player.state)
+        // The earlier pass's callback for the same index must not advance the new pass.
+        stale?.invoke(ReelPlaybackResult.COMPLETED)
+        assertEquals(ReelsPlayer.State.Playing(0), player.state)
+    }
+
+    @Test fun replayIsIgnoredBeforeFirstStartAndWhilePlaying() {
+        val port = FakePort()
+        val player = ReelsPlayer(listOf(clip("a")), port)
+        player.replay()
+        assertEquals(ReelsPlayer.State.NotStarted, player.state)
+        player.start()
+        player.replay()
+        assertEquals(1, port.playCount)
+    }
+
+    @Test fun interruptionStopsTheReelWithoutAdvancingOrResuming() {
+        val port = FakePort()
+        val player = ReelsPlayer(listOf(clip("a"), clip("b")), port)
+        player.start()
+        port.finish(ReelPlaybackResult.INTERRUPTED)
+        assertEquals(ReelsPlayer.State.Stopped, player.state)
+        assertEquals(1, port.playCount)
+    }
+
+    @Test fun failedClipIsRecordedAndTheReelAdvances() {
+        val port = FakePort()
+        val player = ReelsPlayer(listOf(clip("a"), clip("b")), port)
+        player.start()
+        port.finish(ReelPlaybackResult.FAILED)
+        assertEquals(ReelsPlayer.State.Playing(1), player.state)
+        assertTrue("a" in player.snapshot.value.failedClipIds)
+        port.finish()
+        assertEquals(ReelsPlayer.State.Finished, player.state)
+        // A replay clears the previous pass's failures.
+        player.replay()
+        assertTrue(player.snapshot.value.failedClipIds.isEmpty())
+    }
+
+    @Test fun snapshotExposesTheCurrentClip() {
+        val port = FakePort()
+        val player = ReelsPlayer(listOf(clip("a"), clip("b")), port)
+        assertNull(player.snapshot.value.currentClip)
+        player.start()
+        assertEquals("a", player.snapshot.value.currentClip?.id)
+        port.finish()
+        assertEquals("b", player.snapshot.value.currentClip?.id)
+        port.finish()
+        assertNull(player.snapshot.value.currentClip)
     }
 }

@@ -1,5 +1,6 @@
 package com.root.app.audio
 
+import android.content.Context
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
@@ -23,12 +24,22 @@ import kotlin.math.min
 internal object WaveformDecoder {
     const val MAX_BINS = 512
 
-    suspend fun decode(path: String, maxBins: Int = MAX_BINS): FloatArray = withContext(Dispatchers.Default) {
+    suspend fun decode(path: String, maxBins: Int = MAX_BINS): FloatArray =
+        decodeWith(maxBins) { it.setDataSource(path) }
+
+    /** Decodes an uncompressed bundled APK asset (the same form
+     *  [com.root.app.audio.RootAudioSession] plays via `openFd`). */
+    suspend fun decodeAsset(context: Context, assetPath: String, maxBins: Int = MAX_BINS): FloatArray =
+        decodeWith(maxBins) { extractor ->
+            context.assets.openFd(assetPath).use { extractor.setDataSource(it.fileDescriptor, it.startOffset, it.length) }
+        }
+
+    private suspend fun decodeWith(maxBins: Int, setSource: (MediaExtractor) -> Unit): FloatArray = withContext(Dispatchers.Default) {
         require(maxBins in 1..MAX_BINS) { "maxBins must be in 1..$MAX_BINS" }
         val extractor = MediaExtractor()
         var codec: MediaCodec? = null
         try {
-            extractor.setDataSource(path)
+            setSource(extractor)
             val trackIndex = (0 until extractor.trackCount).firstOrNull {
                 extractor.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true
             } ?: return@withContext FloatArray(0)
