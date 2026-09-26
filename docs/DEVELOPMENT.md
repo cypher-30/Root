@@ -29,7 +29,7 @@ All Kotlin lives under `app/src/main/kotlin/com/root/app/`.
 | `billing/` | RevenueCat configuration guard, shared entitlement cache (`EntitlementStore`), paywall state machine (`PaywallViewModel`), and `PurchasesGateway` (a testability seam around the `Purchases.sharedInstance` singleton so the state machine can be exercised with a fake in a Robolectric unit test) |
 | `audio/` | `RootAudioSession`: recording/playback lifecycle, permission handling, file ownership; `WaveformDecoder`/`WaveformCache` (bounded, off-main-thread peak-amplitude decoding with a hash+revision-keyed disk cache) |
 | `reels/` | `ReelsPlayer`: pure Kotlin (no Android dependency), single-pass, manifest-ordered playback state machine over a list of clips — never autoplays, never loops, skips missing clips; the real `MediaPlayer`-backed adapter and an actual Reels screen/manifest/credits UI are not yet built on top of it |
-| `overview/` | `OverviewRecommendations` (pure, deterministic recommendation engine — always the same order, every unavailable recommendation carries an explicit reason instead of being silently hidden) and `OnboardingGate` (skip/complete persist identically; re-offered only on a version bump). Wired into `RootRepository`/`RootViewModel`, but no onboarding screen or recommendations-list UI has been built yet |
+| `overview/` | `OverviewRecommendations` (pure, deterministic recommendation engine — always the same order, every unavailable recommendation carries an explicit reason instead of being silently hidden) and `OnboardingGate` (skip/complete persist identically; re-offered only on a version bump). Rendered by `ui/OnboardingScreen.kt` and `ui/RecommendationsScreen.kt` |
 | `archive/` | `ArchiveViewModel`/`ArchiveScreen` ("Your words"): search, edit, and permanently delete personally-contributed phrases; consent for a recorded speaker is required and stored in `PhraseConsentEntity` |
 | `sharing/` | PNG phrase-card rendering (`PhraseCardRenderer`) and FileProvider-backed sharing (`PhraseCardSharing`) |
 | `widget/` | `RootWidget`: Glance home-screen widget showing the next due phrase |
@@ -91,9 +91,11 @@ All Kotlin lives under `app/src/main/kotlin/com/root/app/`.
   and old data survived — Room throws on any schema mismatch, so a clean reopen is
   the main correctness signal.
 
-The database is now version 4. The v3-to-v4 migration adds content versions,
+The database is now version 8. The v3-to-v4 migration adds content versions,
 installed pointers/jobs, managed-phrase mappings, media references, and lesson
-runs/events/command receipts. Existing phrase IDs and attempts are not replaced.
+runs/events/command receipts. Later migrations add recording consent (v5);
+consent scope, personal notes, contribution drafts, and media-file facts (v6);
+practice marks (v7); and a draft's typed language name (v8, `Migration7To8Test`). Existing phrase IDs and attempts are not replaced.
 Migration fixtures for older databases must use legacy-only DAOs, not new queries
 that reference tables absent from their historical schema.
 

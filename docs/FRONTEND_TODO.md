@@ -1,134 +1,114 @@
-# Frontend TODO — everything backend has ready but no UI uses yet
+# Frontend status and remaining launch gates
 
-**Read this if you're picking up frontend work on Root.** The backend (data layer,
-ViewModels, business logic) for every item below is implemented, unit/instrumented
-tested, and verified on both an emulator and a real Samsung tablet. Nothing here
-needs new backend work first — it needs screens/composables wired to APIs that
-already exist and already work. Each section names the exact function/class to
-call and the test file that proves it behaves correctly.
-
----
-
-## 1. Onboarding screen (new — currently doesn't exist at all)
-- **Call**: `RootViewModel.showOnboarding: Boolean` (true when it should be shown —
-  already computed at ViewModel init from `RootRepository.shouldOfferOnboarding()`).
-- **On finish or on "Skip"**: call `RootViewModel.respondToOnboarding()` — skipping
-  and completing are recorded identically on purpose (a skip is a respected choice,
-  never re-nagged), so you don't need two different persistence calls.
-- **Logic already covers**: re-offering onboarding again only if
-  `RootPreferences.ONBOARDING_CURRENT_VERSION` is bumped in a future release (e.g.
-  onboarding content changes materially) — you don't need to build that, just bump
-  the constant if that day comes.
-- **Reference**: `app/src/main/kotlin/com/root/app/overview/OnboardingGate.kt`,
-  tests in `OnboardingGateTest.kt`.
-- **What you design**: the actual screen(s)/copy/illustrations. Nothing about
-  content or number of steps is decided — that's product/design's call.
-
-## 2. Recommendations / "what to do next" list (new — currently doesn't exist)
-- **Call**: `RootViewModel.overviewSnapshot()` (suspend) returns an
-  `OverviewRecommendations.OverviewSnapshot`. Pass it to
-  `OverviewRecommendations.recommend(snapshot)` to get a fixed-order
-  `List<Recommendation>`.
-- Each `Recommendation` is either `Available` (render it, make it tappable) or
-  `Unavailable(reason: String)` — **the reason must be shown or the recommendation
-  must be visibly disabled with that reason as a tooltip/caption. Never silently
-  hide an unavailable recommendation** — that's a deliberate honesty requirement
-  from the backend design, not a suggestion.
-- Six kinds, always in the same order: `PRACTICE_DUE`, `CONTINUE_PRACTICING`,
-  `WEEKLY_CHALLENGE`, `RESUME_DRAFT`, `ADD_A_WORD`, `EXPLORE_PACKS`.
-- **Known limitation to design around**: `dueCount` in the snapshot is currently
-  only 0-or-1 (a proxy for "is anything due", not an exact count) — there's no
-  exact due-count query yet. If you need a real number for copy like "12 words
-  due", flag it back to backend — that's a small, well-scoped addition.
-- **Reference**: `app/src/main/kotlin/com/root/app/overview/OverviewRecommendations.kt`,
-  tests in `OverviewRecommendationsTest.kt`.
-
-## 3. Reels — real-media waveform + short-form clip playback (new — biggest gap)
-This is the largest not-yet-built piece. Backend has three fully tested, working
-pieces; there is currently **no screen at all** using them:
-- `WaveformDecoder.decode(...)` — turns any audio file into ≤512 bounded, normalized
-  amplitude bins, off the main thread. Use this to draw an actual waveform view.
-- `WaveformCache` — disk-caches decoded waveforms keyed by content hash + a caller
-  revision key, so you don't redecode on every screen visit.
-- `ReelsPlayer` — a pure Kotlin (no Android dependency) state machine that takes a
-  manifest-ordered `List<ReelClip>` and plays them back single-pass (never loops,
-  never autoplays until you call `start()`, skips missing clips without crashing,
-  supports 0.75x/1x/1.25x speed). You provide a small adapter implementing
-  `ReelPlaybackPort` that wraps a real `MediaPlayer` — `ReelsPlayer` itself is
-  already fully tested (7 JVM tests) so you only need to test your thin adapter.
-- **Also ready and reusable in ANY audio screen right now**:
-  `AccessibleAudioTransport` composable in
-  `app/src/main/kotlin/com/root/app/ui/audio/AudioPracticeControls.kt` — a seek
-  slider + cycling speed button with proper screen-reader labels. It already shows
-  automatically whenever something is playing in the practice screen; you can reuse
-  it directly in a Reels screen instead of building a new transport control.
-- **What's genuinely undecided (needs your/product's input, not backend's)**:
-  the actual Reels screen layout, how a manifest of reel clips is defined/fetched
-  (natural source: each `PackManifest.phrases[].audioAssetId`/`.credits` is already
-  ordered and has credit info — this is the ready-made data source), and a credits
-  UI for showing who recorded each clip.
-- **Reference**: `app/src/main/kotlin/com/root/app/audio/WaveformDecoder.kt`,
-  `WaveformCache.kt`, `app/src/main/kotlin/com/root/app/reels/ReelsPlayer.kt` +
-  `ReelsPlayerTest.kt`, `app/src/androidTest/.../WaveformDecoderTest.kt`.
-
-## 4. "Mark Practiced" — backend ready, partially wired, one piece unused
-- `AudioPracticeControls` already has a "Mark practiced" button wired end-to-end
-  (`PracticeScreen` → `MainActivity` → `RootViewModel.markPracticed(phraseId)`).
-  This part works today — nothing to do.
-- **Unused**: `RootRepository.lastPracticedMarkAt(phraseId)` exists (returns when a
-  phrase was last marked practiced) but no screen shows it. If product wants a
-  "last practiced 3 days ago" caption anywhere, this is ready to call.
-
-## 5. Contribution drafts (autosave + resume) — backend ready, zero UI callers
-This is a real, confirmed gap found during this session's audit: the backend
-(`RootRepository.createDraft()`/`saveDraftText()`/`openDrafts()`/`discardDraft()`)
-is fully implemented and tested, but **`ContributeScreen` never calls any of it** —
-it still uses plain `rememberSaveable` state that's lost if the app is killed.
-- To fix: `ContributeScreen` needs to (a) create a draft on first keystroke (or on
-  entering the screen) via `createDraft(languageId)`, (b) autosave field changes via
-  `saveDraftText(draftId, prompt, answer, speakerLabel)` (e.g. debounced), and (c)
-  accept an optional `draftId` parameter so a "Resume draft" recommendation (see
-  §2) can actually open an in-progress draft instead of a blank form.
-- **Design decisions needed from you/product**: how often to autosave, whether
-  there's a visible "draft saved" indicator, what happens to `Discard` in the UI.
-- **Reference**: `app/src/main/kotlin/com/root/app/data/RootRepository.kt` (search
-  `Draft`), `app/src/main/kotlin/com/root/app/ui/ContributeScreen.kt`.
-
-## 6. Paywall / billing — screen exists, works, but needs a real sandbox test
-- `PaywallScreen`/`PaywallViewModel` already work end-to-end against RevenueCat,
-  including a real state machine for Loading/Ready/Purchasing/Restoring/Error/
-  Unlocked/NotConfigured, and a just-fixed bug where a stale/delayed network
-  response could regress premium state (now ordering-safe).
-- **A `test_...` RevenueCat API key is already configured** in this machine's
-  Gradle properties (not committed to source), so a real Test Store
-  purchase/cancel/restore run is technically possible right now — deliberately
-  **deferred until the frontend is otherwise done**, per your instruction, so you
-  can see purchase UI end-to-end in one pass rather than testing it against a
-  half-built screen.
-- **Nothing to build here** unless product wants a different paywall design —
-  the current one is functional, just not yet exercised against a real purchase.
-
-## 7. Widget — works, one bug just fixed
-- The home-screen widget (`RootWidget`) already shows the next due phrase and
-  deep-links into practice on tap. A real bug (tapping the widget when the app
-  wasn't running did nothing) was found and fixed this session. No frontend
-  action needed unless you want to redesign the widget's look.
+**Read this if you're picking up frontend work on Root.** Every screen listed
+below exists and is wired in `MainActivity`. This file records what each one
+guarantees, where its tests live, and what still blocks a public paid launch.
+The launch gates at the end are not engineering tasks; do not mark them done
+from code alone.
 
 ---
 
-## Summary table
+## Screens and their guarantees
 
-| Feature | Backend | Frontend/UI |
-|---|---|---|
-| Onboarding | ✅ done, tested | ✅ `OnboardingScreen` created and wired |
-| Recommendations list | ✅ done, tested | ✅ `RecommendationsScreen` built and wired in `MainActivity` |
-| Reels (waveform + playback) | ✅ done, tested | ✅ `ReelsScreen` and `WaveformView` built |
-| Mark Practiced | ✅ done, tested, UI wired | ✅ `lastPracticedMarkAt` integrated |
-| Draft autosave/resume | ✅ done, tested | ✅ Wired into `ContributeScreen` |
-| Paywall/billing | ✅ done, tested | ✅ screen exists — needs a real sandbox test pass once frontend is done |
-| Widget | ✅ done, tested + 1 bug fixed | ✅ nothing needed |
+### Onboarding (`ui/OnboardingScreen.kt`)
+- Shown when `RootViewModel.showOnboarding` is true. Skip and finish both call
+  `respondToOnboarding()` and are recorded identically (`overview/OnboardingGate.kt`).
+- System Back moves to the previous step. While onboarding is showing, the app
+  underneath is hidden from screen readers.
+- Privacy copy: practice, your own words, and your recordings are kept on this
+  device. Root goes online only to download packs or complete a purchase.
+- Tests: `RootExperienceTest` (steps and skip), `OnboardingGateTest`.
 
-Once your teammate builds screens for items 1–5 above, come back and we'll run the
-real RevenueCat sandbox purchase/restore test (item 6) and, separately, a real
-content-publication pass (needs rights-cleared audio + your explicit go-ahead) —
-those are the only two things genuinely waiting on non-engineering steps.
+### Recommendations (`ui/RecommendationsScreen.kt`)
+- Six kinds, always in the same order. Each item is either available or shown
+  disabled with its reason. Items are never hidden silently.
+- Refreshes when the app resumes and whenever a contribution draft is saved,
+  committed, or discarded.
+- `dueCount` is still only 0 or 1 (a flag meaning "something is due"). Add a real
+  count query before writing copy like "12 words due".
+
+### Reels (`ui/ReelsScreen.kt`, `reels/ReelsPlayer.kt`, `reels/AudioSessionReelPort.kt`)
+- Nothing plays until the learner taps **Play reel**. Clips play once, in manifest
+  order, and never loop. **Stop** is always available. **Play from the start**
+  replays after the reel finishes or is stopped.
+- The selected speed (0.75×, 1×, 1.25×) carries across clips. Backgrounding or
+  leaving the screen stops playback, and it never resumes on its own.
+- A missing or unplayable clip is skipped and counted on screen; playback never
+  gets stuck. Credits are listed for every clip.
+- Waveforms decode off the main thread and are cached per installed pack version.
+- Tests: `ReelsPlayerTest` (13 JVM tests: order, no autoplay, missing/failed
+  clips, stop/stale callbacks, speed, replay, interruption).
+
+### Add a word / contribution drafts (`ui/ContributeScreen.kt`, `ui/ContributeViewModel.kt`)
+- Draft data is kept in Room (schema v8, `contribution_drafts.language_name_draft`).
+  It includes typed text, a new language's name, and the latest **finished**
+  recording. It survives leaving the screen, configuration changes, and process
+  death. A recording that is still in progress is never saved.
+- Saving is ordered and debounced (500 ms). The form shows *Saving draft…*,
+  *Draft saved on this device.*, or an error. It never claims a save that hasn't
+  happened. Back waits for the last save to finish; if that save fails, the
+  learner is asked before anything is lost.
+- **Discard draft** asks for confirmation first. It then deletes the draft's text
+  and recording. If a file can't be deleted, it is recorded so cleanup can retry.
+- Permission to keep a recording must be confirmed again on every save.
+- If a commit fails, the recording goes back to where the draft expects it, and
+  the learner can try again.
+- At startup, unreferenced draft recordings older than 6 hours are removed.
+- Tests: `Migration7To8Test`, `RootRepositoryArchiveTest` (resume after
+  recreation, new-language name, cleared fields, audio reference and delete on
+  discard, orphan cleanup).
+
+### Practice, Mark practiced (`ui/PracticeScreen.kt`, `ui/audio/AudioPracticeControls.kt`)
+- **Mark practiced** saves the mark first and only then updates the screen. If the
+  save fails, the learner sees an error and can retry. The "last practiced" time
+  comes from the database.
+
+### Teaching (`ui/teach/*`, `teach/ContentViewModel.kt`)
+- A unit's detail screen shows loading, missing, or failed (with **Try again**).
+  It no longer shows an endless "Opening lesson…" message or silently jumps back.
+- Rows of buttons and word tokens wrap onto new lines on narrow screens and at
+  large font sizes.
+
+### Your words archive (`archive/ArchiveScreen.kt`)
+- Kept clear of system bars and the keyboard. Each Edit and Delete button's
+  accessible label names its phrase. Deleting asks for confirmation.
+
+### Paywall (`ui/PaywallScreen.kt`, `billing/PaywallViewModel.kt`)
+- Sells a **one-time unlock only**. Subscription packages from the store are
+  filtered out.
+- If no reviewed premium phrases are installed (`ContentAccess.hasPremiumContent`),
+  the paywall shows *Premium packs aren't ready yet.* and offers nothing for sale.
+  Restore purchases still works.
+- The screen explains that restoring purchases brings back premium access only.
+  It cannot bring back your own words, recordings, or practice history.
+- Privacy, Terms, and Support links appear when `ROOT_PRIVACY_POLICY_URL`,
+  `ROOT_TERMS_URL`, and `ROOT_SUPPORT_URL` are set (HTTPS only).
+- Tests: `PaywallViewModelTest` (includes no-content and subscription filtering).
+
+### Widget (`widget/RootWidget.kt`)
+- Shows the next due phrase and opens practice when tapped.
+
+---
+
+## Release build behavior
+
+- Release builds do **not** seed the unreviewed Dholuo, Shona, Swahili, and
+  Amharic starter samples (`BuildConfig.SHIP_SAMPLE_CONTENT`). If those rows
+  already exist on a device, they are not deleted. Debug and validation builds
+  still seed them.
+- Release reads `ROOT_REVENUECAT_RELEASE_API_KEY`, never the debug
+  `ROOT_REVENUECAT_API_KEY`. `verifyReleaseConfiguration` runs before every
+  release build. It rejects Test Store (`test_`) and placeholder keys. With
+  `-ProotPublicRelease=true`, it also fails when the key or any policy URL is
+  missing, or when sample content is enabled.
+
+---
+
+## Launch gates (blocked on owner decisions and authorization)
+
+| Gate | What's needed |
+|---|---|
+| Content approval | Exact free/premium launch inventory, native-speaker sign-off, rights-cleared text and genuine reference audio, credits. Without this, release has no starter content and premium stays unsellable. |
+| Store purchases | RevenueCat/Play configuration for a one-time non-consumable mapped to entitlement `premium`. First a Test Store purchase/cancel/restore pass, then a Play internal-track license-tester pass. No real-money purchase without separate approval. |
+| Free content hosting | Authorized catalog hosting (`ROOT_CONTENT_CATALOG_URL`) and verified download/update/failure/rollback, or downloads presented as unavailable. |
+| Distribution | App identity, signing/Play App Signing, privacy/terms/support URLs, Data Safety, content rating, listing, rollout plan. Version is still `0.1.0` (code 1). |

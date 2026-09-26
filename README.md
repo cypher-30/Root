@@ -32,8 +32,13 @@ See [the design system and motion specification](docs/DESIGN.md) and
 
 ## Run
 
-Requirements: Android Studio or Android SDK 36, JDK 17, and an Android device/emulator
-running API 26+. The Gradle wrapper is included.
+Requirements: Android Studio or Android SDK 36, a JDK 17+ to launch the Gradle
+wrapper, and an Android device/emulator running API 26+. The Gradle daemon itself is
+pinned to JDK 25 in `gradle/gradle-daemon-jvm.properties` and is provisioned
+automatically if missing; app bytecode still targets Java 17.
+
+Current production readiness and remaining launch gates:
+[`docs/FRONTEND_TODO.md`](docs/FRONTEND_TODO.md).
 
 ```powershell
 .\gradlew.bat :app:assembleDebug
@@ -59,7 +64,16 @@ The old SDK pin could not support RevenueCat Test Store. Root now uses **9.9.0**
    ```
 
 3. Build a debug APK. The paywall uses the configured product's localized price,
-   purchase result, and entitlement. Restore is available.
+   purchase result, and entitlement. Restore is available. The launch product is a
+   one-time unlock; subscription packages are not shown. The paywall offers nothing
+   for sale until reviewed premium phrases are installed.
+
+Release builds read a separate `ROOT_REVENUECAT_RELEASE_API_KEY`, so a debug Test
+Store key is never packaged. `verifyReleaseConfiguration` runs before every release
+build and rejects Test Store or placeholder keys. For a store build, add
+`-ProotPublicRelease=true`. It then also requires the release key,
+`ROOT_PRIVACY_POLICY_URL`, `ROOT_TERMS_URL`, and `ROOT_SUPPORT_URL` (HTTPS), and
+refuses unreviewed sample content (`ROOT_RELEASE_SAMPLE_CONTENT` must stay false).
 
 Never put secret API keys in the source tree. Never distribute a release using a
 Test Store key. Without a configured SDK, the paywall remains a labeled content
