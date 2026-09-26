@@ -41,6 +41,10 @@ import com.root.app.teach.LessonViewModel
 import com.root.app.teach.UnitDetailState
 import com.root.app.ui.*
 import com.root.app.ui.audio.rememberRootAudioSession
+import com.root.app.ui.audio.CollectSoundEvents
+import com.root.app.ui.audio.LocalRootSounds
+import com.root.app.ui.audio.ReserveSpeech
+import com.root.app.ui.audio.rememberRootSoundPlayer
 import com.root.app.ui.icon.RootIcons
 import com.root.app.ui.launch.LaunchScreen
 import com.root.app.ui.teach.TeachCatalogScreen
@@ -86,6 +90,7 @@ class MainActivity : ComponentActivity() {
         if (intent.getBooleanExtra("root.openPractice", false)) widgetRequest++
         setContent {
             val vm: RootViewModel = viewModel()
+            val sounds = rememberRootSoundPlayer { vm.soundSettings }
             val dark = when (vm.theme) { "light" -> false; "dark" -> true; else -> isSystemInDarkTheme() }
             SideEffect {
                 WindowCompat.getInsetsController(window, window.decorView).apply {
@@ -93,6 +98,7 @@ class MainActivity : ComponentActivity() {
                     isAppearanceLightNavigationBars = !dark
                 }
             }
+            CompositionLocalProvider(LocalRootSounds provides sounds) {
             RootTheme(darkTheme = dark) {
                 Surface(Modifier.fillMaxSize()) {
                     if (!vm.launched) LaunchScreen(vm::finishLaunch)
@@ -108,6 +114,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+            }
             }
         }
     }
@@ -198,6 +205,7 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
     Box(Modifier.fillMaxSize()) {
         NavHost(navController = nav, startDestination = "home") {
             composable("home") {
+                CollectSoundEvents(vm.soundEvents)
                 when {
                     vm.loading -> Column(Modifier.fillMaxSize().safeDrawingPadding().padding(32.dp),
                         verticalArrangement = Arrangement.Center) {
@@ -450,6 +458,8 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
                                 }
                             }
                             val player = remember(clips, reelSession) { ReelsPlayer(clips, AudioSessionReelPort(reelSession)) }
+                            val reelSnapshot by player.snapshot.collectAsState()
+                            ReserveSpeech(reelSnapshot.state is ReelsPlayer.State.Playing)
                             val waveforms = remember(context) { WaveformCache(context) }
                             key(manifest.id, manifest.version) {
                                 ReelsScreen(
@@ -511,6 +521,7 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
                         ),
                     )
                     LaunchedEffect(lessonId) { lessonVm.start(unitId, packVersion, lessonId, lesson) }
+                    CollectSoundEvents(lessonVm.soundEvents)
                     // Leaving this destination (back press, or navigating away)
                     // pauses the run — it is never silently reset or force-completed.
                     DisposableEffect(lessonId) { onDispose { lessonVm.pause() } }

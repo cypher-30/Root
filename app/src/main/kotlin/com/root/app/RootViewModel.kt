@@ -23,6 +23,15 @@ import kotlinx.coroutines.CancellationException
 import android.util.Log
 import kotlinx.coroutines.sync.Mutex
 import com.root.app.ui.motion.RootMotion
+import com.root.app.audio.RootSoundEvent
+import com.root.app.audio.SoundEventGate
+import com.root.app.audio.SoundMoments
+import com.root.app.audio.SoundSettings
+import android.os.SystemClock
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 
 /**
  * Backs [com.root.app.MainActivity]'s navigation host. Owns everything the UI needs
@@ -90,6 +99,18 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
         private set
     var theme by mutableStateOf(repository.getTheme())
         private set
+    var soundSettings by mutableStateOf(repository.soundSettings())
+        private set
+    private val soundGate = SoundEventGate()
+    private val mutableSoundEvents = MutableSharedFlow<RootSoundEvent>(
+        extraBufferCapacity = 4, onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    /** Automatic cue requests; not replayed to late collectors. */
+    val soundEvents: SharedFlow<RootSoundEvent> = mutableSoundEvents.asSharedFlow()
+    /** Saved so a rotation during launch never replays the startup motif. */
+    var startupSoundHandled: Boolean
+        get() = saved["startupSoundHandled"] ?: false
+        set(value) { saved["startupSoundHandled"] = value }
     var launched by mutableStateOf(saved["launched"] ?: false)
         private set
     var showOnboarding by mutableStateOf(false)
@@ -163,6 +184,11 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
         theme = value
         repository.setTheme(value)
         viewModelScope.launch { updateWidget() }
+    }
+
+    fun changeSoundSettings(value: SoundSettings) {
+        soundSettings = value
+        repository.setSoundSettings(value)
     }
 
     fun load() = viewModelScope.launch {
@@ -380,6 +406,12 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
             val entryId = currentEntryId ?: return false
             if (current?.id != phraseId) return false
             val result = repository.ratePractice(sid, entryId, level)
+            // Only a fresh Got it commit sounds; replays and failures stay silent.
+            SoundMoments.recall(result, level)?.let { cue ->
+                if (soundGate.firstTime("recall:$sid:$entryId")) {
+                    mutableSoundEvents.tryEmit(RootSoundEvent(cue, SystemClock.elapsedRealtime()))
+                }
+            }
             // Save first; presentation may be disposed by rotation or navigation.
             if (RootMotion.enabled()) delay(if (level == ConfidenceLevel.MISSED) 1500 else 1000)
             when (result) {

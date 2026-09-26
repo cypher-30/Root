@@ -22,6 +22,15 @@ import com.root.app.learning.LessonRunState
 import com.root.app.learning.LessonRunner
 import com.root.app.learning.RejectionReason
 import java.util.UUID
+import android.os.SystemClock
+import com.root.app.audio.RootSoundCue
+import com.root.app.audio.RootSoundEvent
+import com.root.app.audio.SoundEventGate
+import com.root.app.audio.SoundMoments
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 
 /**
@@ -55,6 +64,16 @@ class LessonViewModel(
     var error by mutableStateOf<String?>(null)
         private set
 
+    private val soundGate = SoundEventGate()
+    private val mutableSoundEvents = MutableSharedFlow<RootSoundEvent>(
+        extraBufferCapacity = 4, onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    /** Automatic cue requests; not replayed to late collectors. */
+    val soundEvents: SharedFlow<RootSoundEvent> = mutableSoundEvents.asSharedFlow()
+
+    private fun emitSound(cue: RootSoundCue) {
+        mutableSoundEvents.tryEmit(RootSoundEvent(cue, SystemClock.elapsedRealtime()))
+    }
     /** The runner's own durable feedback for the *current* activity (response +
      *  correctness, if machine-checkable), or null if unanswered — sourced
      *  directly from [LessonRunState.currentActivityFeedback], never
@@ -132,7 +151,12 @@ class LessonViewModel(
         val id = runId ?: return
         viewModelScope.launch {
             try {
-                applyResult(runner.execute(LearningCommand.SubmitResponse(newCommandId(), id, activityId, response)))
+                val result = runner.execute(LearningCommand.SubmitResponse(newCommandId(), id, activityId, response))
+                applyResult(result)
+                SoundMoments.answer(result, activityId)?.let { cue ->
+                    val runKey = (result as CommandResult.Applied).state.runId
+                    if (soundGate.firstTime("answer:$runKey:$activityId")) emitSound(cue)
+                }
             } catch (e: Exception) {
                 error = "That response wasn't saved. Please try again."
             }
@@ -176,7 +200,12 @@ class LessonViewModel(
                 }
             }
             if (!ok) return@launch
-            applyResult(runner.execute(LearningCommand.Advance(newCommandId(), id, activity.id)))
+            val wasCompleted = run?.completed == true
+            val result = runner.execute(LearningCommand.Advance(newCommandId(), id, activity.id))
+            applyResult(result)
+            SoundMoments.lessonCompleted(result, wasCompleted)?.let { cue ->
+                if (soundGate.firstTime("lesson:${(result as CommandResult.Applied).state.runId}")) emitSound(cue)
+            }
         } catch (e: Exception) {
             error = "Couldn't continue the lesson. Please try again."
         }

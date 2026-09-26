@@ -33,6 +33,9 @@ import androidx.compose.ui.unit.dp
 import com.root.app.data.ConfidenceLevel
 import com.root.app.data.PhraseEntity
 import com.root.app.ui.audio.AudioPracticeControls
+import com.root.app.ui.audio.LocalRootSounds
+import com.root.app.audio.RootSoundCue
+import com.root.app.audio.SoundRequest
 import com.root.app.ui.brand.RootMark
 import com.root.app.ui.icon.RootIcons
 import com.root.app.ui.motion.RootHaptics
@@ -141,6 +144,15 @@ private fun PracticeCard(
     var returning by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val view = LocalView.current
+    val sounds = LocalRootSounds.current
+    // The only reveal entry point: an explicit hidden-to-revealed action. A
+    // restored or recomposed card that is already revealed makes no sound.
+    fun revealWord() {
+        if (revealed) return
+        RootHaptics.reveal(view)
+        sounds?.play(RootSoundCue.REVEAL, SoundRequest.AUTOMATIC)
+        revealed = true
+    }
     val density = LocalDensity.current
     val threshold = with(density) { 80.dp.toPx() }
     val travel = with(density) { 650.dp.toPx() }
@@ -270,7 +282,7 @@ private fun PracticeCard(
                                 style = RootType.meta, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Spacer(Modifier.height(24.dp))
-                        OutlinedButton(onClick = { RootHaptics.reveal(view); revealed = true },
+                        OutlinedButton(onClick = { revealWord() },
                             shape = MaterialTheme.shapes.small) { Text("Reveal the word") }
                     }
                 }
