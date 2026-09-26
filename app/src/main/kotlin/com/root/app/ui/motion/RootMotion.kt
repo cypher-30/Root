@@ -1,6 +1,8 @@
 package com.root.app.ui.motion
 
 import android.animation.ValueAnimator
+import android.content.Context
+import android.provider.Settings
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -19,5 +21,9 @@ object RootMotion {
     const val launchMillis = 2600
     const val launchHoldMillis = 350L
     fun enabled(): Boolean = ValueAnimator.areAnimatorsEnabled()
+    /** True when animations run at their authored speed (animator duration scale 1x),
+     *  which anything timed against them in wall-clock time, like the startup sound, needs. */
+    fun normalSpeed(context: Context): Boolean =
+        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 1f
     fun settle() = spring<Float>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 190f)
 }

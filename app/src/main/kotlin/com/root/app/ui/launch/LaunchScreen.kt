@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -34,11 +35,15 @@ import kotlinx.coroutines.delay
  * snapping progress to 1 rather than fading — motion is reduced, not required.
  */
 @Composable
-fun LaunchScreen(onComplete: () -> Unit) {
+fun LaunchScreen(onComplete: () -> Unit, onGrowthStart: () -> Unit = {}) {
     val progress = remember { Animatable(0f) }
+    val context = LocalContext.current
     LaunchedEffect(Unit) {
         if (RootMotion.enabled()) {
             delay(RootMotion.launchSeedMillis)
+            // The startup sound is scored to this growth at normal speed; with a changed
+            // animation scale (or reduced motion) it would fall out of sync, so it stays silent.
+            if (RootMotion.normalSpeed(context)) onGrowthStart()
             progress.animateTo(1f, tween(RootMotion.launchMillis, easing = RootMotion.launchEase))
             delay(RootMotion.launchHoldMillis)
         } else progress.snapTo(1f)

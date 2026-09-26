@@ -45,6 +45,8 @@ import com.root.app.ui.audio.CollectSoundEvents
 import com.root.app.ui.audio.LocalRootSounds
 import com.root.app.ui.audio.ReserveSpeech
 import com.root.app.ui.audio.rememberRootSoundPlayer
+import com.root.app.audio.RootSoundCue
+import com.root.app.audio.SoundRequest
 import com.root.app.ui.icon.RootIcons
 import com.root.app.ui.launch.LaunchScreen
 import com.root.app.ui.teach.TeachCatalogScreen
@@ -88,6 +90,9 @@ class MainActivity : ComponentActivity() {
         // this Activity's *initial* intent - onNewIntent is only called for a warm
         // relaunch of an already-running task, so it alone silently drops a cold entry.
         if (intent.getBooleanExtra("root.openPractice", false)) widgetRequest++
+        // The optional startup motif belongs to a fresh, normal launch only:
+        // never after recreation/restoration or a widget shortcut into practice.
+        val startupSoundEligible = savedInstanceState == null && !intent.getBooleanExtra("root.openPractice", false)
         setContent {
             val vm: RootViewModel = viewModel()
             val sounds = rememberRootSoundPlayer { vm.soundSettings }
@@ -101,7 +106,16 @@ class MainActivity : ComponentActivity() {
             CompositionLocalProvider(LocalRootSounds provides sounds) {
             RootTheme(darkTheme = dark) {
                 Surface(Modifier.fillMaxSize()) {
-                    if (!vm.launched) LaunchScreen(vm::finishLaunch)
+                    if (!vm.launched) {
+                        // Skipping (or leaving) the introduction fades the motif out.
+                        DisposableEffect(Unit) { onDispose { sounds.stopIf(RootSoundCue.STARTUP_MOTIF, fade = true) } }
+                        LaunchScreen(vm::finishLaunch, onGrowthStart = {
+                            if (startupSoundEligible && !vm.startupSoundHandled) {
+                                vm.startupSoundHandled = true
+                                sounds.play(RootSoundCue.STARTUP_MOTIF, SoundRequest.STARTUP)
+                            }
+                        })
+                    }
                     else {
                         Box(Modifier.fillMaxSize()) {
                             // While onboarding covers the app, screen readers must not reach the screen beneath it.
@@ -334,7 +348,7 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
                 DesignStudyScreen({ nav.popBackStack() }, { nav.navigate("launch-study") })
             }
             composable("launch-study") {
-                LaunchScreen { nav.popBackStack("study", false) }
+                LaunchScreen(onComplete = { nav.popBackStack("study", false) })
             }
             composable("learn") {
                 TeachCatalogScreen(
