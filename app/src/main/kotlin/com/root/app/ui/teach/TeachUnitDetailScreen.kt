@@ -57,6 +57,8 @@ fun TeachUnitDetailScreen(
     // recall phrases are actually installed, never presented as available
     // before there is anything to review.
     onReviewPhrases: (() -> Unit)? = null,
+    // Provide a callback to launch the reel playback if audio is available
+    onPlayReels: (() -> Unit)? = null,
 ) {
     Scaffold { padding ->
         Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
@@ -89,10 +91,19 @@ fun TeachUnitDetailScreen(
                     }
                     Spacer(Modifier.height(12.dp))
                     UnitInstallControls(pack, onDownload, onCancel, onUninstall, onRetry, onUpdate)
-                    if (onReviewPhrases != null) {
+                    if (onReviewPhrases != null || onPlayReels != null) {
                         Spacer(Modifier.height(12.dp))
-                        OutlinedButton(onClick = onReviewPhrases, shape = MaterialTheme.shapes.small) {
-                            Text("Review these phrases")
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (onReviewPhrases != null) {
+                                OutlinedButton(onClick = onReviewPhrases, shape = MaterialTheme.shapes.small) {
+                                    Text("Review these phrases")
+                                }
+                            }
+                            if (onPlayReels != null) {
+                                OutlinedButton(onClick = onPlayReels, shape = MaterialTheme.shapes.small) {
+                                    Text("Play reel")
+                                }
+                            }
                         }
                     }
                     Spacer(Modifier.height(20.dp))

@@ -31,6 +31,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.root.app.audio.AudioClipKind
 import com.root.app.audio.RootAudioSession
 import com.root.app.data.PhraseEntity
+import com.root.app.ui.lastPracticedCaption
 
 /** Internal (module-scoped, so usable from `com.root.app.ui.teach.LessonScreen`
  *  in this same module) so lesson playback can reuse the same session
@@ -56,7 +57,11 @@ internal fun rememberRootAudioSession(phraseId: String? = null): RootAudioSessio
 }
 
 @Composable
-fun AudioPracticeControls(phrase: PhraseEntity, onMarkPracticed: (() -> Unit)? = null) {
+fun AudioPracticeControls(
+    phrase: PhraseEntity,
+    onMarkPracticed: (() -> Unit)? = null,
+    lastPracticedAt: Long? = null,
+) {
     val session = rememberRootAudioSession(phrase.id)
     Column(
         Modifier.fillMaxWidth().padding(vertical = 12.dp),
@@ -83,11 +88,29 @@ fun AudioPracticeControls(phrase: PhraseEntity, onMarkPracticed: (() -> Unit)? =
         if (session.playing != null) AccessibleAudioTransport(session)
         if (onMarkPracticed != null) {
             var justMarked by remember(phrase.id) { mutableStateOf(false) }
+            var locallyMarkedAt by remember(phrase.id) { mutableStateOf<Long?>(null) }
+            val latestLocalMark = locallyMarkedAt
+            val practicedAt = when {
+                lastPracticedAt == null -> latestLocalMark
+                latestLocalMark == null -> lastPracticedAt
+                else -> maxOf(lastPracticedAt, latestLocalMark)
+            }
             OutlinedButton(
-                onClick = { onMarkPracticed(); justMarked = true },
+                onClick = {
+                    locallyMarkedAt = System.currentTimeMillis()
+                    onMarkPracticed()
+                    justMarked = true
+                },
                 modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.small,
             ) { Text(if (justMarked) "Marked practiced" else "Mark practiced") }
+            practicedAt?.let {
+                Text(
+                    lastPracticedCaption(it),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             Text(
                 // Self-reported only: tapping this never rates or reschedules
                 // recall — it is a separate acknowledgement, not a grade.

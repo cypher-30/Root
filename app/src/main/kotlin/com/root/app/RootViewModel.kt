@@ -10,6 +10,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.root.app.billing.EntitlementStore
 import com.root.app.data.*
+import com.root.app.overview.OverviewRecommendations
 import com.root.app.practice.PracticeRateResult
 import com.root.app.practice.PracticeSessionState
 import com.root.app.ui.PackRow
@@ -93,6 +94,10 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
         private set
     var showOnboarding by mutableStateOf(false)
         private set
+    var contributionDraftVersion by mutableIntStateOf(0)
+        private set
+    var practiceMarkVersion by mutableIntStateOf(0)
+        private set
 
     init {
         load()
@@ -117,22 +122,55 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
         showOnboarding = false
     }
 
+    /** Re-opens the onboarding walkthrough overlay. */
+    fun showOnboardingWalkthrough() {
+        showOnboarding = true
+    }
+
     /** A deterministic snapshot of current state for
      *  [com.root.app.overview.OverviewRecommendations.recommend] — see that
      *  object for what each field actually gates. [dueCount] is a coarse
      *  0-or-1 proxy (whether *any* phrase is currently due), not an exact
      *  count: no repository query yet returns an exact due tally without
      *  loading the full due list, which recommend() does not need. */
-    suspend fun overviewSnapshot(): com.root.app.overview.OverviewRecommendations.OverviewSnapshot =
-        com.root.app.overview.OverviewRecommendations.OverviewSnapshot(
+    suspend fun overviewSnapshot(): OverviewRecommendations.OverviewSnapshot {
+        val dueCount = activeLanguage
+            ?.let { language -> if (repository.practice.nextDuePhrase(language.id, packId = null) != null) 1 else 0 }
+            ?: 0
+        return OverviewRecommendations.OverviewSnapshot(
             hasActiveLanguage = activeLanguage != null,
-            dueCount = if (current != null) 1 else 0,
+            dueCount = dueCount,
             canPracticeMore = canPracticeMore,
             hasWeeklyChallenge = challenge != null,
             weeklyChallengeCompleted = challenge?.completed ?: false,
             hasOpenContributionDraft = repository.openDrafts().isNotEmpty(),
             hasInstalledPacks = rows.isNotEmpty(),
         )
+    }
+
+    suspend fun latestOpenContributionDraft(): ContributionDraftEntity? = repository.openDrafts().firstOrNull()
+
+    suspend fun contributionDraft(draftId: String): ContributionDraftEntity? = repository.draft(draftId)
+
+    suspend fun lastPracticedMarkAt(phraseId: String): Long? = repository.lastPracticedMarkAt(phraseId)
+
+    suspend fun createContributionDraft(languageId: String): ContributionDraftEntity =
+        repository.createDraft(languageId).also { contributionDraftVersion++ }
+
+    suspend fun saveContributionDraftText(
+        draftId: String,
+        prompt: String,
+        answer: String,
+        speakerLabel: String?,
+    ) {
+        repository.saveDraftText(draftId, prompt, answer, speakerLabel)
+        contributionDraftVersion++
+    }
+
+    suspend fun discardContributionDraft(draftId: String) {
+        repository.discardDraft(draftId)
+        contributionDraftVersion++
+    }
 
     fun finishLaunch() { launched = true; saved["launched"] = true }
     fun clearError() { error = null }
@@ -334,6 +372,7 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
      *  `correct`, or any recall/scheduling state: this is not a rating. */
     fun markPracticed(phraseId: String) = viewModelScope.launch {
         repository.markPracticed(phraseId)
+        practiceMarkVersion++
     }
 
     /** Persists the attempt, advances the queue, and refreshes derived state. Guarded
@@ -385,8 +424,10 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
         audio: String?,
         speakerLabel: String? = null,
         consentConfirmed: Boolean = false,
+        draftId: String? = null,
     ) {
-        repository.contribute(language, prompt, answer, audio, speakerLabel, consentConfirmed)
+        repository.contribute(language, prompt, answer, audio, speakerLabel, consentConfirmed, draftId)
+        contributionDraftVersion++
         // The reference now belongs to the saved phrase, even if refreshing UI fails.
         try {
             languages = repository.languages()
@@ -401,6 +442,22 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
             Log.w("Root", "Phrase saved, but presentation could not refresh", e)
             error = "Your phrase is saved. Reopen Root to see it."
         }
+    }
+
+    suspend fun ensureDraft(languageId: String): String {
+        val draft = repository.createDraft(languageId)
+        contributionDraftVersion++
+        return draft.id
+    }
+
+    suspend fun autosaveDraft(draftId: String, prompt: String, answer: String, speakerLabel: String?) {
+        repository.saveDraftText(draftId, prompt, answer, speakerLabel)
+        contributionDraftVersion++
+    }
+
+    suspend fun discardDraft(draftId: String) {
+        repository.discardDraft(draftId)
+        contributionDraftVersion++
     }
 
     private suspend fun updateWidget() {

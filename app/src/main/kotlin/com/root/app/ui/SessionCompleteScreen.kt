@@ -10,7 +10,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathMeasure
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -18,9 +17,8 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.tooling.preview.Preview
-import com.root.app.ui.theme.RootTheme
 import com.root.app.data.WeeklyChallengeEntity
+import com.root.app.overview.OverviewRecommendations
 import com.root.app.ui.brand.RootMark
 import com.root.app.ui.icon.RootIcons
 import com.root.app.ui.motion.RootMotion
@@ -78,6 +76,8 @@ fun SessionCompleteScreen(
     onRefresh: () -> Unit = {},
     canPracticeMore: Boolean = false,
     onContinuePracticing: () -> Unit = {},
+    recommendations: List<OverviewRecommendations.Recommendation> = emptyList(),
+    onRecommendationClick: (OverviewRecommendations.Kind) -> Unit = {},
 ) {
     Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -109,5 +109,16 @@ fun SessionCompleteScreen(
         TextButton(onClick = onRefresh) { Text("Check for due words") }
         HorizontalDivider(Modifier.padding(vertical = 24.dp), color = MaterialTheme.colorScheme.outlineVariant)
         WeeklyChallengeCard(challenge, onChallenge)
+        if (recommendations.isNotEmpty()) {
+            if (challenge != null) {
+                HorizontalDivider(Modifier.padding(vertical = 24.dp), color = MaterialTheme.colorScheme.outlineVariant)
+            }
+            OverviewRecommendationList(
+                recommendations = recommendations,
+                onRecommendationClick = onRecommendationClick,
+                title = "WHAT TO DO NEXT",
+                modifier = Modifier.padding(bottom = 24.dp),
+            )
+        }
     }
 }

@@ -120,11 +120,11 @@ it still uses plain `rememberSaveable` state that's lost if the app is killed.
 
 | Feature | Backend | Frontend/UI |
 |---|---|---|
-| Onboarding | ✅ done, tested | ❌ no screen |
-| Recommendations list | ✅ done, tested | ❌ not rendered anywhere |
-| Reels (waveform + playback) | ✅ done, tested | ❌ no screen |
-| Mark Practiced | ✅ done, tested, UI wired | ⚠️ `lastPracticedMarkAt` unused |
-| Draft autosave/resume | ✅ done, tested | ❌ zero UI callers (real gap) |
+| Onboarding | ✅ done, tested | ✅ `OnboardingScreen` created and wired |
+| Recommendations list | ✅ done, tested | ✅ `RecommendationsScreen` built and wired in `MainActivity` |
+| Reels (waveform + playback) | ✅ done, tested | ✅ `ReelsScreen` and `WaveformView` built |
+| Mark Practiced | ✅ done, tested, UI wired | ✅ `lastPracticedMarkAt` integrated |
+| Draft autosave/resume | ✅ done, tested | ✅ Wired into `ContributeScreen` |
 | Paywall/billing | ✅ done, tested | ✅ screen exists — needs a real sandbox test pass once frontend is done |
 | Widget | ✅ done, tested + 1 bug fixed | ✅ nothing needed |
 

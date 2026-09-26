@@ -14,8 +14,35 @@ class RootNavigationTest {
     private val compose = createAndroidComposeRule<MainActivity>()
     @get:Rule val rules: RuleChain = RuleChain.outerRule(ValidationStateRule()).around(compose)
 
+    private fun dismissOnboardingIfShown() {
+        if (compose.onAllNodesWithText("Skip").fetchSemanticsNodes().isNotEmpty()) {
+            compose.onNodeWithText("Skip").performClick()
+        }
+    }
+
+    @Test fun onboardingCanBeCompletedAndReopened() {
+        compose.waitUntil(15_000) {
+            compose.onAllNodesWithText("WELCOME TO ROOT").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText("WELCOME TO ROOT").assertExists()
+        compose.onNodeWithText("Next").performClick()
+        compose.onNodeWithText("HOW PRACTICE WORKS").assertExists()
+        compose.onNodeWithText("Next").performClick()
+        compose.onNodeWithText("MAKE IT YOUR OWN").assertExists()
+        compose.onNodeWithText("Begin practice").performClick()
+
+        compose.waitUntil(15_000) {
+            compose.onAllNodesWithContentDescription("More options").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithContentDescription("More options").performScrollTo().performClick()
+        compose.onNodeWithText("How Root works").performScrollTo().performClick()
+        compose.onNodeWithText("WELCOME TO ROOT").assertExists()
+        compose.onNodeWithText("Skip").performClick()
+    }
+
     @Test fun shonaStarterCanBeOpenedFromTheLanguagePicker() {
         compose.waitUntil(15_000) {
+            dismissOnboardingIfShown()
             compose.onAllNodesWithContentDescription("More options").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithContentDescription("More options").performScrollTo().performClick()
@@ -36,6 +63,7 @@ class RootNavigationTest {
 
     @Test fun secondaryScreensAreConnectedAndThemeSwitchesInPlace() {
         compose.waitUntil(15_000) {
+            dismissOnboardingIfShown()
             compose.onAllNodesWithContentDescription("More options").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithContentDescription("More options").performScrollTo().performClick()

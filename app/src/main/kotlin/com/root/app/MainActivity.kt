@@ -14,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
@@ -23,10 +24,17 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.root.app.data.ReferralPrefs
 import com.root.app.data.ContentAccess
+import com.root.app.overview.OverviewRecommendations
 import com.root.app.archive.ArchiveScreen
+import com.root.app.audio.RootAudioSession
+import com.root.app.data.ContributionDraftEntity
+import com.root.app.reels.ReelAudioSource
+import com.root.app.reels.ReelClip
+import com.root.app.reels.ReelPlaybackPort
+import com.root.app.reels.ReelsPlayer
 import com.root.app.teach.ContentViewModel
+import com.root.app.teach.LessonAudioSource
 import com.root.app.teach.LessonViewModel
 import com.root.app.ui.*
 import com.root.app.ui.icon.RootIcons
@@ -36,6 +44,9 @@ import com.root.app.ui.teach.TeachLessonScreen
 import com.root.app.ui.teach.TeachUnitDetailScreen
 import com.root.app.ui.theme.RootTheme
 import com.root.app.ui.theme.RootType
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 /**
  * Single-activity host. Owns the Compose content root, dark/light resolution (a
@@ -74,7 +85,14 @@ class MainActivity : ComponentActivity() {
             RootTheme(darkTheme = dark) {
                 Surface(Modifier.fillMaxSize()) {
                     if (!vm.launched) LaunchScreen(vm::finishLaunch)
-                    else RootNavigation(vm, widgetRequest, onClose = { finish() })
+                    else {
+                        Box(Modifier.fillMaxSize()) {
+                            RootNavigation(vm, widgetRequest, onClose = { finish() })
+                            if (vm.showOnboarding) {
+                                OnboardingScreen(onRespond = vm::respondToOnboarding)
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -92,6 +110,7 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
     val nav = rememberNavController()
     var more by rememberSaveable { mutableStateOf(false) }
     var languagePicker by rememberSaveable { mutableStateOf(false) }
+    var selectedDraftId by rememberSaveable { mutableStateOf<String?>(null) }
     // Selected teaching unit/lesson for the "learn" routes below. Kept as simple
     // saveable state (matching the "invite"/"contribute" routes' pattern) rather
     // than NavHost path arguments, since this integration deliberately stays
@@ -106,6 +125,17 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
+    var recommendations by remember { mutableStateOf<List<OverviewRecommendations.Recommendation>>(emptyList()) }
+    var latestDraft by remember { mutableStateOf<ContributionDraftEntity?>(null) }
+    LaunchedEffect(
+        vm.loading, vm.activeLanguage?.id, vm.current?.id, vm.canPracticeMore,
+        vm.challenge?.id, vm.challenge?.completed, vm.rows.size, vm.contributionDraftVersion,
+    ) {
+        if (!vm.loading) {
+            recommendations = OverviewRecommendations.recommend(vm.overviewSnapshot())
+            latestDraft = vm.latestOpenContributionDraft()
+        }
+    }
     LaunchedEffect(widgetRequest) {
         if (widgetRequest > 0) {
             vm.startSession()
@@ -114,6 +144,30 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
     }
     LaunchedEffect(vm.error) { vm.error?.let { snackbar.showSnackbar(it); vm.clearError() } }
     fun open(route: String) { more = false; nav.navigate(route) { launchSingleTop = true } }
+    fun openFreshContribute() { selectedDraftId = null; open("contribute") }
+    fun openRecommendations() { open("recommendations") }
+    fun goHome() { more = false; nav.popBackStack("home", false) }
+    fun handleRecommendation(kind: OverviewRecommendations.Kind) {
+        when (kind) {
+            OverviewRecommendations.Kind.PRACTICE_DUE -> {
+                goHome()
+                if (vm.current == null) vm.startSession()
+            }
+            OverviewRecommendations.Kind.CONTINUE_PRACTICING -> {
+                goHome()
+                vm.continuePractice()
+            }
+            OverviewRecommendations.Kind.WEEKLY_CHALLENGE -> goHome()
+            OverviewRecommendations.Kind.RESUME_DRAFT -> {
+                latestDraft?.id?.let { id ->
+                    selectedDraftId = id
+                    open("contribute")
+                }
+            }
+            OverviewRecommendations.Kind.ADD_A_WORD -> openFreshContribute()
+            OverviewRecommendations.Kind.EXPLORE_PACKS -> open("packs")
+        }
+    }
     Box(Modifier.fillMaxSize()) {
         NavHost(navController = nav, startDestination = "home") {
             composable("home") {
@@ -126,10 +180,17 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
                         verticalArrangement = Arrangement.Center) {
                         Text("Your words belong here.", style = RootType.editorialTitle)
                         OutlinedButton(onClick = { vm.load() }, shape = MaterialTheme.shapes.small) { Text("Try again") }
-                        TextButton(onClick = { open("contribute") }) { Text("Add your first word") }
+                        TextButton(onClick = { openFreshContribute() }) { Text("Add your first word") }
                     }
                     vm.current != null -> {
                         val phrase = vm.current!!
+                        val lastPracticedAt by produceState<Long?>(
+                            initialValue = null,
+                            key1 = phrase.id,
+                            key2 = vm.practiceMarkVersion,
+                        ) {
+                            value = vm.lastPracticedMarkAt(phrase.id)
+                        }
                         PracticeScreen(phrase, vm.activeLanguage!!.name, vm.correct, vm.turn,
                             onRate = { vm.rate(phrase.id, it) }, onMore = { more = true },
                             // "Stop for now" durably ends the run in Room without
@@ -137,7 +198,8 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
                             // to the completed branch below, same as running out
                             // of due phrases.
                             onTeach = { open("invite") }, onStop = { vm.stopSession() },
-                            onMarkPracticed = { vm.markPracticed(it) }) {
+                            onMarkPracticed = { vm.markPracticed(it) },
+                            lastPracticedAt = lastPracticedAt) {
                             WeeklyChallengeCard(vm.challenge) { vm.completeChallenge() }
                         }
                     }
@@ -149,8 +211,20 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
                         { vm.closeSession(onClose) },
                         onRefresh = { vm.startSession() },
                         canPracticeMore = vm.canPracticeMore,
-                        onContinuePracticing = { vm.continuePractice() })
+                        onContinuePracticing = { vm.continuePractice() },
+                        recommendations = recommendations,
+                        onRecommendationClick = ::handleRecommendation)
                 }
+            }
+            composable("recommendations") {
+                RecommendationsScreen(
+                    recommendations = recommendations,
+                    onAction = { kind ->
+                        nav.popBackStack()
+                        handleRecommendation(kind)
+                    },
+                    onBack = { nav.popBackStack() },
+                )
             }
             composable("packs") {
                 PacksScreen(
@@ -170,7 +244,7 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
                     rewardUnlocked = vm.reward,
                     onLanguageClick = { languagePicker = true },
                     languagePremium = vm.activeLanguage?.isPremium == true,
-                    onContribute = { open("contribute") },
+                    onContribute = { openFreshContribute() },
                 )
             }
             composable("paywall") {
@@ -181,12 +255,37 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
                     onBack = { vm.refreshAccess(); nav.popBackStack() })
             }
             composable("contribute") {
-                ContributeScreen(initialLanguageName = vm.activeLanguage?.name ?: "",
-                    onSave = { language, prompt, answer, audio, speakerLabel, consentConfirmed ->
-                        vm.contribute(language, prompt, answer, audio, speakerLabel, consentConfirmed)
+                val draftId = selectedDraftId
+                val draft by produceState<ContributionDraftEntity?>(
+                    null,
+                    draftId,
+                ) {
+                    value = if (draftId != null) vm.contributionDraft(draftId) else null
+                }
+                val initialLanguageName = draft
+                    ?.let { existing -> vm.languages.firstOrNull { it.id == existing.languageId }?.name }
+                    ?: vm.activeLanguage?.name
+                    ?: ""
+                ContributeScreen(
+                    initialLanguageName = initialLanguageName,
+                    activeLanguageId = vm.activeLanguage?.id,
+                    initialDraft = draft,
+                    onEnsureDraft = { languageId -> vm.createContributionDraft(languageId).id },
+                    onAutosaveDraft = vm::saveContributionDraftText,
+                    onDiscardDraft = { id ->
+                        vm.discardContributionDraft(id)
+                        selectedDraftId = null
+                    },
+                    onSave = { language, prompt, answer, audio, speakerLabel, consentConfirmed, contributionDraftId ->
+                        vm.contribute(language, prompt, answer, audio, speakerLabel, consentConfirmed, contributionDraftId)
+                        selectedDraftId = null
                         nav.popBackStack("home", false)
                     },
-                    onBack = { nav.popBackStack() })
+                    onBack = {
+                        selectedDraftId = null
+                        nav.popBackStack()
+                    },
+                )
             }
             composable("archive") {
                 val language = vm.activeLanguage
@@ -251,7 +350,104 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
                                 nav.navigate("home") { popUpTo("home") { inclusive = true }; launchSingleTop = true }
                             }
                         } else null,
+                        onPlayReels = if (row.pack.phraseCount > 0 && row.pack.installedVersion != null) {
+                            { nav.navigate("reels") }
+                        } else null,
                     )
+                }
+            }
+            composable("reels") {
+                val unitId = selectedUnitId
+                val row = unitId?.let { id -> contentVm.row(id) }
+                val installedVersion = row?.pack?.installedVersion
+                if (unitId == null || row == null || installedVersion == null) {
+                    LaunchedEffect(Unit) { nav.popBackStack() }
+                } else {
+                    val context = LocalContext.current.applicationContext
+                    val playbackScope = rememberCoroutineScope()
+                    val reelSession = remember(unitId) { RootAudioSession(context) }
+                    var manifestLoading by remember(unitId, installedVersion) { mutableStateOf(true) }
+                    var manifest by remember(unitId, installedVersion) { mutableStateOf<com.root.app.content.PackManifest?>(null) }
+                    LaunchedEffect(unitId, installedVersion) {
+                        manifestLoading = true
+                        contentVm.loadDetail(unitId)
+                        manifest = contentVm.manifest(unitId)
+                        manifestLoading = false
+                    }
+                    DisposableEffect(reelSession) {
+                        onDispose { reelSession.dispose() }
+                    }
+                    val playbackPort = remember(reelSession, playbackScope) {
+                        object : ReelPlaybackPort {
+                            private var watchJob: Job? = null
+
+                            override fun play(source: ReelAudioSource, onFinished: () -> Unit) {
+                                watchJob?.cancel()
+                                when (source) {
+                                    is ReelAudioSource.Bundled -> reelSession.playReference(source.assetPath)
+                                    is ReelAudioSource.DownloadedFile -> reelSession.playReference(source.absolutePath)
+                                }
+                                watchJob = playbackScope.launch {
+                                    delay(50)
+                                    while (reelSession.playing != null) delay(100)
+                                    onFinished()
+                                }
+                            }
+
+                            override fun stop() {
+                                watchJob?.cancel()
+                                watchJob = null
+                                reelSession.stopPlayback()
+                            }
+
+                            override fun setSpeed(value: Float) {
+                                reelSession.setSpeed(value)
+                            }
+                        }
+                    }
+                    val clips = remember(manifest, unitId, installedVersion) {
+                        val resolver = contentVm.audioResolver(unitId)
+                        manifest?.phrases?.map { phrase ->
+                            val source = phrase.audioAssetId
+                                ?.takeIf { assetId -> contentVm.assetAvailable(unitId, installedVersion, assetId) }
+                                ?.let { assetId ->
+                                    when (val path = resolver.resolve(assetId)) {
+                                        is LessonAudioSource.Bundled -> ReelAudioSource.Bundled(path.assetPath)
+                                        is LessonAudioSource.DownloadedFile -> ReelAudioSource.DownloadedFile(path.absolutePath)
+                                        is LessonAudioSource.Unavailable -> null
+                                    }
+                                }
+                            ReelClip(
+                                id = phrase.id,
+                                label = phrase.prompt + if (phrase.meaning.isNotBlank()) " (${phrase.meaning})" else "",
+                                credits = phrase.credits,
+                                source = source,
+                            )
+                        }.orEmpty()
+                    }
+                    val player = remember(clips, playbackPort) { ReelsPlayer(clips, playbackPort) }
+                    when {
+                        manifestLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("Loading reel…", style = MaterialTheme.typography.bodyLarge)
+                        }
+
+                        manifest == null -> Column(
+                            Modifier.fillMaxSize().safeDrawingPadding().padding(24.dp),
+                            verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Text("This reel isn't ready yet.", style = RootType.editorialTitle)
+                            TextButton(onClick = { nav.popBackStack() }) { Text("Back") }
+                        }
+
+                        else -> key(manifest!!.id, manifest!!.version) {
+                            ReelsScreen(
+                                title = row.pack.title,
+                                player = player,
+                                onBack = { nav.popBackStack() },
+                            )
+                        }
+                    }
                 }
             }
             composable("learnLesson") {
@@ -309,11 +505,18 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
                     Text("A little more Root.", style = RootType.editorialTitle, modifier = Modifier.weight(1f))
                     IconButton(onClick = { more = false }) { Icon(RootIcons.Close, "Close options") }
                 }
+                OverviewRecommendationList(
+                    recommendations = recommendations,
+                    onRecommendationClick = ::handleRecommendation,
+                    modifier = Modifier.padding(top = 20.dp, bottom = 16.dp),
+                )
+                HorizontalDivider(Modifier.padding(vertical = 12.dp))
+                MenuEntry("What to do next") { openRecommendations() }
                 MenuEntry("Browse phrase packs") { open("packs") }
                 MenuEntry("Learn a teaching unit") { open("learn") }
                 MenuEntry("Unlock more words") { open("paywall") }
                 MenuEntry("Teach someone one word") { open("invite") }
-                MenuEntry("Add a word of your own") { open("contribute") }
+                MenuEntry("Add a word of your own") { openFreshContribute() }
                 MenuEntry("Your words") { open("archive") }
                 MenuEntry("Language · ${vm.activeLanguage?.name ?: "Choose"}") { more = false; languagePicker = true }
                 HorizontalDivider(Modifier.padding(vertical = 12.dp))
@@ -327,6 +530,7 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
                     }
                 }
                 MenuEntry("The design study") { open("study") }
+                MenuEntry("How Root works") { more = false; vm.showOnboardingWalkthrough() }
                 Text("No account. Your practice stays on this device.", style = RootType.meta,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text("Dholuo phrases are development samples. Shona and Swahili Greetings are source-checked against Omniglot; Amharic Greetings/Directions against the 1964 FSI course. Native-speaker review and reference audio are still pending for all four.",
@@ -349,7 +553,7 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
                         else { vm.selectLanguage(language); nav.popBackStack("home", false) }
                     }
                 }
-                MenuEntry("Add a language and its first word") { languagePicker = false; open("contribute") }
+                MenuEntry("Add a language and its first word") { languagePicker = false; openFreshContribute() }
                 TextButton(onClick = { languagePicker = false }) { Text("Back to practice") }
             }
         }

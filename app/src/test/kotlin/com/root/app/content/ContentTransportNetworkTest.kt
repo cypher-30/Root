@@ -12,6 +12,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.net.InetAddress
 import java.security.MessageDigest
 
 class ContentTransportNetworkTest {
@@ -26,8 +27,11 @@ class ContentTransportNetworkTest {
         val clientTls = HandshakeCertificates.Builder().addTrustedCertificate(certificate.certificate).build()
         server = MockWebServer()
         server.useHttps(serverTls.sslSocketFactory(), false)
-        server.start()
-        val client = OkHttpClient.Builder().sslSocketFactory(clientTls.sslSocketFactory(), clientTls.trustManager).build()
+        server.start(InetAddress.getByName("localhost"), 0)
+        val client = OkHttpClient.Builder()
+            .sslSocketFactory(clientTls.sslSocketFactory(), clientTls.trustManager)
+            .hostnameVerifier { _, _ -> true }
+            .build()
         transport = ContentTransport(server.url("/root/catalog.json").toString(), client)
     }
 

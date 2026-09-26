@@ -73,6 +73,7 @@ fun PracticeScreen(
     // *last* parameter — appending onStop after `challenge` would silently break them.
     onStop: () -> Unit = {},
     onMarkPracticed: ((String) -> Unit)? = null,
+    lastPracticedAt: Long? = null,
     challenge: @Composable () -> Unit = {},
 ) {
     Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
@@ -88,7 +89,7 @@ fun PracticeScreen(
             Text(languageName, style = RootType.meta, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         key(phrase.id, turn) {
-            PracticeCard(phrase, onRate, onMarkPracticed)
+            PracticeCard(phrase, onRate, onMarkPracticed, lastPracticedAt)
         }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -123,7 +124,12 @@ fun PracticeScreen(
  * a rating is committed. [rate] fires the haptic immediately (feedback should feel
  * instant) but leaves the card interactive-locked via `busy` until [onRate] resolves.
  */
-private fun PracticeCard(phrase: PhraseEntity, onRate: suspend (ConfidenceLevel) -> Boolean, onMarkPracticed: ((String) -> Unit)? = null) {
+private fun PracticeCard(
+    phrase: PhraseEntity,
+    onRate: suspend (ConfidenceLevel) -> Boolean,
+    onMarkPracticed: ((String) -> Unit)? = null,
+    lastPracticedAt: Long? = null,
+) {
     var revealed by rememberSaveable { mutableStateOf(false) }
     var audioExpanded by rememberSaveable { mutableStateOf(false) }
     val reveal = remember { Animatable(if (revealed) 1f else 0f) }
@@ -259,6 +265,10 @@ private fun PracticeCard(phrase: PhraseEntity, onRate: suspend (ConfidenceLevel)
                         Spacer(Modifier.height(24.dp))
                         Text("Take a breath.\nThe word is somewhere in you.", style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (lastPracticedAt != null) {
+                            Text(lastPracticedCaption(lastPracticedAt), Modifier.padding(top = 8.dp),
+                                style = RootType.meta, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                         Spacer(Modifier.height(24.dp))
                         OutlinedButton(onClick = { RootHaptics.reveal(view); revealed = true },
                             shape = MaterialTheme.shapes.small) { Text("Reveal the word") }
@@ -283,7 +293,13 @@ private fun PracticeCard(phrase: PhraseEntity, onRate: suspend (ConfidenceLevel)
                 Spacer(Modifier.width(8.dp))
                 Text(if (audioExpanded) "Hide voice practice" else "Listen & compare")
             }
-            if (audioExpanded && !busy) AudioPracticeControls(phrase, onMarkPracticed?.let { { it(phrase.id) } })
+            if (audioExpanded && !busy) {
+                AudioPracticeControls(
+                    phrase = phrase,
+                    onMarkPracticed = onMarkPracticed?.let { { it(phrase.id) } },
+                    lastPracticedAt = lastPracticedAt,
+                )
+            }
             Spacer(Modifier.height(20.dp))
         } else {
             Text("Recall, not a test. Only you decide.", Modifier.padding(bottom = 16.dp),

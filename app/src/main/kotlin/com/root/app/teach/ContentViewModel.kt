@@ -13,6 +13,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.root.app.content.ContentLibrary
 import com.root.app.content.Lesson
 import com.root.app.content.LibraryPack
+import com.root.app.content.PackManifest
 import com.root.app.data.AppDatabase
 import com.root.app.learning.LessonRunner
 import kotlinx.coroutines.flow.launchIn
@@ -138,6 +139,12 @@ class ContentViewModel(
     fun clearError() { error = null }
 
     fun row(unitId: String): TeachUnitRow? = rows.firstOrNull { it.pack.id == unitId }
+
+    /** The currently installed manifest for [unitId], if this unit is installed
+     *  and ready. Used by navigation-owned UI such as reels that needs the
+     *  pack's ordered phrase metadata in addition to the already-exposed lesson
+     *  list. */
+    suspend fun manifest(unitId: String): PackManifest? = library.manifest(unitId)
 
     /** A resolver scoped to this unit's currently-installed revision, for
      *  lesson audio playback. Never resolves remote/undownloaded audio. */

@@ -12,7 +12,19 @@ import com.root.app.ui.theme.RootTheme
 @Preview(name = "Contribution / charcoal", widthDp = 390, heightDp = 844, uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun ContributionPreview() {
-    RootTheme { Surface { ContributeScreen("Your language", { _, _, _, _, _, _ -> }, {}) } }
+    RootTheme {
+        Surface {
+            ContributeScreen(
+                initialLanguageName = "Your language",
+                activeLanguageId = "language-id",
+                onEnsureDraft = { "draft-id" },
+                onAutosaveDraft = { _, _, _, _ -> },
+                onDiscardDraft = {},
+                onSave = { _, _, _, _, _, _, _ -> },
+                onBack = {},
+            )
+        }
+    }
 }
 
 @Preview(name = "Complete / paper", widthDp = 390, heightDp = 844)
