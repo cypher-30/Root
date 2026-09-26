@@ -76,7 +76,8 @@ class RootNavigationTest {
         compose.onNodeWithText("Greetings", substring = true).assertExists()
         compose.activityRule.scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
         compose.onNodeWithContentDescription("More options").performScrollTo().performClick()
-        compose.onNodeWithText("Add a word of your own").performScrollTo().performClick()
+        // The sheet lists this action both as a recommendation and as a menu entry; use the menu entry.
+        compose.onAllNodesWithText("Add a word of your own").onLast().performScrollTo().performClick()
         // The contribution route must render a usable form, not navigate to a paywall.
         compose.onAllNodes(hasSetTextAction()).fetchSemanticsNodes().let { check(it.size >= 3) }
         compose.activityRule.scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }

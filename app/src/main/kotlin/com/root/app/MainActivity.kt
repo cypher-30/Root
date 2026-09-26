@@ -21,22 +21,26 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.root.app.data.ContentAccess
 import com.root.app.overview.OverviewRecommendations
 import com.root.app.archive.ArchiveScreen
-import com.root.app.audio.RootAudioSession
+import com.root.app.audio.WaveformCache
+import com.root.app.content.PackManifest
 import com.root.app.data.ContributionDraftEntity
+import com.root.app.reels.AudioSessionReelPort
 import com.root.app.reels.ReelAudioSource
 import com.root.app.reels.ReelClip
-import com.root.app.reels.ReelPlaybackPort
 import com.root.app.reels.ReelsPlayer
 import com.root.app.teach.ContentViewModel
 import com.root.app.teach.LessonAudioSource
 import com.root.app.teach.LessonViewModel
+import com.root.app.teach.UnitDetailState
 import com.root.app.ui.*
+import com.root.app.ui.audio.rememberRootAudioSession
 import com.root.app.ui.icon.RootIcons
 import com.root.app.ui.launch.LaunchScreen
 import com.root.app.ui.teach.TeachCatalogScreen
@@ -44,9 +48,16 @@ import com.root.app.ui.teach.TeachLessonScreen
 import com.root.app.ui.teach.TeachUnitDetailScreen
 import com.root.app.ui.theme.RootTheme
 import com.root.app.ui.theme.RootType
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
+import java.io.File
+
+/** Result of reading an installed unit's manifest for a navigation-owned screen. */
+private sealed interface ManifestLoad {
+    data object Loading : ManifestLoad
+    data object Missing : ManifestLoad
+    data object Failed : ManifestLoad
+    data class Ready(val manifest: PackManifest) : ManifestLoad
+}
 
 /**
  * Single-activity host. Owns the Compose content root, dark/light resolution (a
@@ -87,7 +98,10 @@ class MainActivity : ComponentActivity() {
                     if (!vm.launched) LaunchScreen(vm::finishLaunch)
                     else {
                         Box(Modifier.fillMaxSize()) {
-                            RootNavigation(vm, widgetRequest, onClose = { finish() })
+                            // While onboarding covers the app, screen readers must not reach the screen beneath it.
+                            Box(if (vm.showOnboarding) Modifier.fillMaxSize().clearAndSetSemantics {} else Modifier.fillMaxSize()) {
+                                RootNavigation(vm, widgetRequest, onClose = { finish() })
+                            }
                             if (vm.showOnboarding) {
                                 OnboardingScreen(onRespond = vm::respondToOnboarding)
                             }
@@ -120,8 +134,14 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
     val contentVm: ContentViewModel = viewModel(factory = ContentViewModel.factory())
     val lifecycleOwner = LocalLifecycleOwner.current
     val snackbar = remember { SnackbarHostState() }
+    var resumeCount by remember { mutableIntStateOf(0) }
     DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) vm.refreshAccess() }
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                vm.refreshAccess()
+                resumeCount++
+            }
+        }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
@@ -129,11 +149,17 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
     var latestDraft by remember { mutableStateOf<ContributionDraftEntity?>(null) }
     LaunchedEffect(
         vm.loading, vm.activeLanguage?.id, vm.current?.id, vm.canPracticeMore,
-        vm.challenge?.id, vm.challenge?.completed, vm.rows.size, vm.contributionDraftVersion,
+        vm.challenge?.id, vm.challenge?.completed, vm.rows.size, vm.contributionDraftVersion, resumeCount,
     ) {
         if (!vm.loading) {
-            recommendations = OverviewRecommendations.recommend(vm.overviewSnapshot())
-            latestDraft = vm.latestOpenContributionDraft()
+            try {
+                recommendations = OverviewRecommendations.recommend(vm.overviewSnapshot())
+                latestDraft = vm.latestOpenContributionDraft()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (e: Exception) {
+                android.util.Log.w("Root", "Recommendations could not refresh", e)
+            }
         }
     }
     LaunchedEffect(widgetRequest) {
@@ -143,6 +169,7 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
         }
     }
     LaunchedEffect(vm.error) { vm.error?.let { snackbar.showSnackbar(it); vm.clearError() } }
+    LaunchedEffect(contentVm.error) { contentVm.error?.let { snackbar.showSnackbar(it); contentVm.clearError() } }
     fun open(route: String) { more = false; nav.navigate(route) { launchSingleTop = true } }
     fun openFreshContribute() { selectedDraftId = null; open("contribute") }
     fun openRecommendations() { open("recommendations") }
@@ -179,7 +206,11 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
                     vm.loadFailed || vm.activeLanguage == null -> Column(Modifier.fillMaxSize().safeDrawingPadding().padding(32.dp),
                         verticalArrangement = Arrangement.Center) {
                         Text("Your words belong here.", style = RootType.editorialTitle)
-                        OutlinedButton(onClick = { vm.load() }, shape = MaterialTheme.shapes.small) { Text("Try again") }
+                        if (vm.loadFailed) {
+                            OutlinedButton(onClick = { vm.load() }, shape = MaterialTheme.shapes.small) { Text("Try again") }
+                        } else {
+                            Text("Add a phrase you know to start practicing.", style = MaterialTheme.typography.bodyLarge)
+                        }
                         TextButton(onClick = { openFreshContribute() }) { Text("Add your first word") }
                     }
                     vm.current != null -> {
@@ -255,28 +286,14 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
                     onBack = { vm.refreshAccess(); nav.popBackStack() })
             }
             composable("contribute") {
-                val draftId = selectedDraftId
-                val draft by produceState<ContributionDraftEntity?>(
-                    null,
-                    draftId,
-                ) {
-                    value = if (draftId != null) vm.contributionDraft(draftId) else null
-                }
-                val initialLanguageName = draft
-                    ?.let { existing -> vm.languages.firstOrNull { it.id == existing.languageId }?.name }
-                    ?: vm.activeLanguage?.name
-                    ?: ""
+                val contributeVm: ContributeViewModel = viewModel()
                 ContributeScreen(
-                    initialLanguageName = initialLanguageName,
+                    vm = contributeVm,
+                    requestedDraftId = selectedDraftId,
+                    defaultLanguageName = vm.activeLanguage?.name ?: "",
                     activeLanguageId = vm.activeLanguage?.id,
-                    initialDraft = draft,
-                    onEnsureDraft = { languageId -> vm.createContributionDraft(languageId).id },
-                    onAutosaveDraft = vm::saveContributionDraftText,
-                    onDiscardDraft = { id ->
-                        vm.discardContributionDraft(id)
-                        selectedDraftId = null
-                    },
-                    onSave = { language, prompt, answer, audio, speakerLabel, consentConfirmed, contributionDraftId ->
+                    onDraftsChanged = vm::contributionDraftsChanged,
+                    onCommit = { language, prompt, answer, audio, speakerLabel, consentConfirmed, contributionDraftId ->
                         vm.contribute(language, prompt, answer, audio, speakerLabel, consentConfirmed, contributionDraftId)
                         selectedDraftId = null
                         nav.popBackStack("home", false)
@@ -295,8 +312,14 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
                         languageName = language.name,
                         onBack = { nav.popBackStack() },
                     )
+                } else if (vm.loading) {
+                    RouteLoading("Gathering your words…")
                 } else {
-                    nav.popBackStack()
+                    RouteMessage(
+                        title = "No language chosen yet.",
+                        body = "Pick or add a language first, then its words will appear here.",
+                        onBack = { nav.popBackStack() },
+                    )
                 }
             }
             composable("study") {
@@ -318,13 +341,19 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
             composable("learnUnit") {
                 val unitId = selectedUnitId
                 val row = unitId?.let { id -> contentVm.row(id) }
-                if (unitId == null || row == null) {
-                    LaunchedEffect(Unit) { nav.popBackStack() }
+                if (unitId != null && row == null && contentVm.loading) {
+                    RouteLoading("Loading unit…")
+                } else if (unitId == null || row == null) {
+                    RouteMessage(
+                        title = "This unit isn't available.",
+                        body = "It may have been removed from the catalog. Choose another unit.",
+                        onBack = { nav.popBackStack() },
+                    )
                 } else {
                     // Lesson bodies are loaded lazily (a manifest read) the first
-                    // time this unit's detail screen opens; safe to call every
-                    // time since it's a no-op once already merged into rows.
-                    LaunchedEffect(unitId) { contentVm.loadDetail(unitId) }
+                    // time this unit's detail screen opens, and again whenever a
+                    // download/update changes the installed revision.
+                    LaunchedEffect(unitId, row.pack.installedVersion) { contentVm.loadDetail(unitId) }
                     TeachUnitDetailScreen(
                         pack = row.pack,
                         lessons = row.lessons,
@@ -360,92 +389,83 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
                 val unitId = selectedUnitId
                 val row = unitId?.let { id -> contentVm.row(id) }
                 val installedVersion = row?.pack?.installedVersion
-                if (unitId == null || row == null || installedVersion == null) {
-                    LaunchedEffect(Unit) { nav.popBackStack() }
+                if (unitId != null && row == null && contentVm.loading) {
+                    RouteLoading("Loading reel…")
+                } else if (unitId == null || row == null || installedVersion == null) {
+                    RouteMessage(
+                        title = "This reel isn't available.",
+                        body = "Download this unit to listen to its recordings.",
+                        onBack = { nav.popBackStack() },
+                    )
                 } else {
                     val context = LocalContext.current.applicationContext
-                    val playbackScope = rememberCoroutineScope()
-                    val reelSession = remember(unitId) { RootAudioSession(context) }
-                    var manifestLoading by remember(unitId, installedVersion) { mutableStateOf(true) }
-                    var manifest by remember(unitId, installedVersion) { mutableStateOf<com.root.app.content.PackManifest?>(null) }
-                    LaunchedEffect(unitId, installedVersion) {
-                        manifestLoading = true
-                        contentVm.loadDetail(unitId)
-                        manifest = contentVm.manifest(unitId)
-                        manifestLoading = false
-                    }
-                    DisposableEffect(reelSession) {
-                        onDispose { reelSession.dispose() }
-                    }
-                    val playbackPort = remember(reelSession, playbackScope) {
-                        object : ReelPlaybackPort {
-                            private var watchJob: Job? = null
-
-                            override fun play(source: ReelAudioSource, onFinished: () -> Unit) {
-                                watchJob?.cancel()
-                                when (source) {
-                                    is ReelAudioSource.Bundled -> reelSession.playReference(source.assetPath)
-                                    is ReelAudioSource.DownloadedFile -> reelSession.playReference(source.absolutePath)
-                                }
-                                watchJob = playbackScope.launch {
-                                    delay(50)
-                                    while (reelSession.playing != null) delay(100)
-                                    onFinished()
-                                }
-                            }
-
-                            override fun stop() {
-                                watchJob?.cancel()
-                                watchJob = null
-                                reelSession.stopPlayback()
-                            }
-
-                            override fun setSpeed(value: Float) {
-                                reelSession.setSpeed(value)
-                            }
+                    // Lifecycle-owned: backgrounding interrupts playback, which the
+                    // player treats as a stop; nothing resumes on its own.
+                    val reelSession = rememberRootAudioSession()
+                    var manifestAttempt by remember(unitId, installedVersion) { mutableIntStateOf(0) }
+                    var manifestState by remember(unitId, installedVersion) { mutableStateOf<ManifestLoad>(ManifestLoad.Loading) }
+                    LaunchedEffect(unitId, installedVersion, manifestAttempt) {
+                        manifestState = ManifestLoad.Loading
+                        manifestState = try {
+                            contentVm.manifest(unitId)?.let { ManifestLoad.Ready(it) } ?: ManifestLoad.Missing
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (_: Exception) {
+                            ManifestLoad.Failed
                         }
                     }
-                    val clips = remember(manifest, unitId, installedVersion) {
-                        val resolver = contentVm.audioResolver(unitId)
-                        manifest?.phrases?.map { phrase ->
-                            val source = phrase.audioAssetId
-                                ?.takeIf { assetId -> contentVm.assetAvailable(unitId, installedVersion, assetId) }
-                                ?.let { assetId ->
-                                    when (val path = resolver.resolve(assetId)) {
-                                        is LessonAudioSource.Bundled -> ReelAudioSource.Bundled(path.assetPath)
-                                        is LessonAudioSource.DownloadedFile -> ReelAudioSource.DownloadedFile(path.absolutePath)
-                                        is LessonAudioSource.Unavailable -> null
-                                    }
+                    when (val load = manifestState) {
+                        ManifestLoad.Loading -> RouteLoading("Loading reel…")
+                        ManifestLoad.Missing -> RouteMessage(
+                            title = "This reel isn't ready yet.",
+                            body = "This unit's content isn't installed on this device.",
+                            onBack = { nav.popBackStack() },
+                        )
+                        ManifestLoad.Failed -> RouteMessage(
+                            title = "This reel couldn't be opened.",
+                            body = "The unit's files couldn't be read. Try again, or remove and download the unit again.",
+                            onBack = { nav.popBackStack() },
+                            onRetry = { manifestAttempt++ },
+                        )
+                        is ManifestLoad.Ready -> {
+                            val manifest = load.manifest
+                            val clips = remember(manifest, unitId, installedVersion) {
+                                val resolver = contentVm.audioResolver(unitId)
+                                manifest.phrases.map { phrase ->
+                                    val source = phrase.audioAssetId
+                                        ?.takeIf { assetId -> contentVm.assetAvailable(unitId, installedVersion, assetId) }
+                                        ?.let { assetId ->
+                                            when (val path = resolver.resolve(assetId)) {
+                                                is LessonAudioSource.Bundled -> ReelAudioSource.Bundled(path.assetPath)
+                                                is LessonAudioSource.DownloadedFile -> ReelAudioSource.DownloadedFile(path.absolutePath)
+                                                is LessonAudioSource.Unavailable -> null
+                                            }
+                                        }
+                                    ReelClip(
+                                        id = phrase.id,
+                                        label = phrase.prompt + if (phrase.meaning.isNotBlank()) " (${phrase.meaning})" else "",
+                                        credits = phrase.credits,
+                                        source = source,
+                                    )
                                 }
-                            ReelClip(
-                                id = phrase.id,
-                                label = phrase.prompt + if (phrase.meaning.isNotBlank()) " (${phrase.meaning})" else "",
-                                credits = phrase.credits,
-                                source = source,
-                            )
-                        }.orEmpty()
-                    }
-                    val player = remember(clips, playbackPort) { ReelsPlayer(clips, playbackPort) }
-                    when {
-                        manifestLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("Loading reel…", style = MaterialTheme.typography.bodyLarge)
-                        }
-
-                        manifest == null -> Column(
-                            Modifier.fillMaxSize().safeDrawingPadding().padding(24.dp),
-                            verticalArrangement = Arrangement.Center,
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            Text("This reel isn't ready yet.", style = RootType.editorialTitle)
-                            TextButton(onClick = { nav.popBackStack() }) { Text("Back") }
-                        }
-
-                        else -> key(manifest!!.id, manifest!!.version) {
-                            ReelsScreen(
-                                title = row.pack.title,
-                                player = player,
-                                onBack = { nav.popBackStack() },
-                            )
+                            }
+                            val player = remember(clips, reelSession) { ReelsPlayer(clips, AudioSessionReelPort(reelSession)) }
+                            val waveforms = remember(context) { WaveformCache(context) }
+                            key(manifest.id, manifest.version) {
+                                ReelsScreen(
+                                    title = row.pack.title,
+                                    player = player,
+                                    onBack = { nav.popBackStack() },
+                                    loadWaveform = { clip ->
+                                        val cacheKey = "$unitId:$installedVersion:${clip.id}"
+                                        when (val source = clip.source) {
+                                            is ReelAudioSource.DownloadedFile -> waveforms.getOrDecode(cacheKey, File(source.absolutePath))
+                                            is ReelAudioSource.Bundled -> waveforms.getOrDecodeAsset(cacheKey, source.assetPath)
+                                            null -> null
+                                        }
+                                    },
+                                )
+                            }
                         }
                     }
                 }
@@ -456,13 +476,29 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
                 val row = unitId?.let { contentVm.row(it) }
                 // Defensive reload: a cold process resume can land directly on
                 // this route (SavedStateHandle-restored selection) before the
-                // unit-detail screen has ever fetched its manifest.
-                LaunchedEffect(unitId) { if (unitId != null) contentVm.loadDetail(unitId) }
+                // catalog rows hydrate, so reload once the row exists.
+                LaunchedEffect(unitId, row != null) { if (unitId != null && row != null) contentVm.loadDetail(unitId) }
                 val lesson = row?.lessons?.firstOrNull { it.id == lessonId }
                 val packVersion = row?.pack?.installedVersion
+                val detail = unitId?.let { contentVm.detailState(it) }
                 if (lessonId == null || unitId == null || lesson == null || packVersion == null) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Opening lesson…", style = MaterialTheme.typography.bodyLarge)
+                    val stillLoading = unitId != null && lessonId != null &&
+                        (row == null && contentVm.loading || row != null && detail == UnitDetailState.LOADING)
+                    if (stillLoading) {
+                        RouteLoading("Opening lesson…")
+                    } else if (detail == UnitDetailState.FAILED && unitId != null) {
+                        RouteMessage(
+                            title = "This lesson couldn't be opened.",
+                            body = "The unit's files couldn't be read. Try again, or remove and download the unit again.",
+                            onBack = { nav.popBackStack() },
+                            onRetry = { contentVm.loadDetail(unitId) },
+                        )
+                    } else {
+                        RouteMessage(
+                            title = "This lesson isn't available.",
+                            body = "It isn't part of the unit installed on this device. Your earlier progress is kept.",
+                            onBack = { nav.popBackStack() },
+                        )
                     }
                 } else {
                     // Keyed per lesson so switching lessons never reuses another
@@ -533,8 +569,10 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
                 MenuEntry("How Root works") { more = false; vm.showOnboardingWalkthrough() }
                 Text("No account. Your practice stays on this device.", style = RootType.meta,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("Dholuo phrases are development samples. Shona and Swahili Greetings are source-checked against Omniglot; Amharic Greetings/Directions against the 1964 FSI course. Native-speaker review and reference audio are still pending for all four.",
-                    Modifier.padding(top = 8.dp), style = RootType.meta, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (BuildConfig.SHIP_SAMPLE_CONTENT) {
+                    Text("Dholuo phrases are development samples. Shona and Swahili Greetings are source-checked against Omniglot; Amharic Greetings/Directions against the 1964 FSI course. Native-speaker review and reference audio are still pending for all four.",
+                        Modifier.padding(top = 8.dp), style = RootType.meta, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 Spacer(Modifier.height(24.dp))
             }
         }

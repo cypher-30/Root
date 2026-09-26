@@ -150,25 +150,10 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
 
     suspend fun latestOpenContributionDraft(): ContributionDraftEntity? = repository.openDrafts().firstOrNull()
 
-    suspend fun contributionDraft(draftId: String): ContributionDraftEntity? = repository.draft(draftId)
-
     suspend fun lastPracticedMarkAt(phraseId: String): Long? = repository.lastPracticedMarkAt(phraseId)
 
-    suspend fun createContributionDraft(languageId: String): ContributionDraftEntity =
-        repository.createDraft(languageId).also { contributionDraftVersion++ }
-
-    suspend fun saveContributionDraftText(
-        draftId: String,
-        prompt: String,
-        answer: String,
-        speakerLabel: String?,
-    ) {
-        repository.saveDraftText(draftId, prompt, answer, speakerLabel)
-        contributionDraftVersion++
-    }
-
-    suspend fun discardContributionDraft(draftId: String) {
-        repository.discardDraft(draftId)
+    /** The contribution editor persisted, committed, or discarded a draft. */
+    fun contributionDraftsChanged() {
         contributionDraftVersion++
     }
 
@@ -370,10 +355,17 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
     /** Self-reported, idempotent "I practiced this out loud" acknowledgement —
      *  see [RootRepository.markPracticed]. Deliberately does not touch `turn`,
      *  `correct`, or any recall/scheduling state: this is not a rating. */
-    fun markPracticed(phraseId: String) = viewModelScope.launch {
-        repository.markPracticed(phraseId)
-        practiceMarkVersion++
-    }
+    suspend fun markPracticed(phraseId: String): Boolean = viewModelScope.async {
+        try {
+            repository.markPracticed(phraseId)
+            practiceMarkVersion++
+            true
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) {
+            Log.w("Root", "Unable to mark practiced", e)
+            false
+        }
+    }.await()
 
     /** Persists the attempt, advances the queue, and refreshes derived state. Guarded
      *  by [ratingMutex] so a second rating call while one is still in flight (e.g. a
@@ -442,22 +434,6 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
             Log.w("Root", "Phrase saved, but presentation could not refresh", e)
             error = "Your phrase is saved. Reopen Root to see it."
         }
-    }
-
-    suspend fun ensureDraft(languageId: String): String {
-        val draft = repository.createDraft(languageId)
-        contributionDraftVersion++
-        return draft.id
-    }
-
-    suspend fun autosaveDraft(draftId: String, prompt: String, answer: String, speakerLabel: String?) {
-        repository.saveDraftText(draftId, prompt, answer, speakerLabel)
-        contributionDraftVersion++
-    }
-
-    suspend fun discardDraft(draftId: String) {
-        repository.discardDraft(draftId)
-        contributionDraftVersion++
     }
 
     private suspend fun updateWidget() {

@@ -16,6 +16,7 @@ import com.root.app.content.LibraryPack
 import com.root.app.content.PackManifest
 import com.root.app.data.AppDatabase
 import com.root.app.learning.LessonRunner
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -27,6 +28,10 @@ import kotlinx.coroutines.launch
  * the whole catalog).
  */
 data class TeachUnitRow(val pack: LibraryPack, val lessons: List<Lesson> = emptyList())
+
+/** Outcome of the most recent [ContentViewModel.loadDetail] for one unit, so a
+ *  destination can distinguish "still loading" from "not installed" and "failed". */
+enum class UnitDetailState { LOADING, READY, MISSING, FAILED }
 
 /**
  * Backs the catalog/unit-detail screens, talking directly to the shared,
@@ -54,6 +59,10 @@ class ContentViewModel(
      *  without this ViewModel keeping its own runId cache. */
     var resumableLessonIds by mutableStateOf(emptySet<String>())
         private set
+    var detailStates by mutableStateOf(emptyMap<String, UnitDetailState>())
+        private set
+
+    fun detailState(unitId: String): UnitDetailState = detailStates[unitId] ?: UnitDetailState.LOADING
 
     init {
         library.observePacks().onEach { packs ->
@@ -93,8 +102,13 @@ class ContentViewModel(
      *  for the whole catalog. Returns null (no-op) until the unit is actually
      *  installed and READY. */
     fun loadDetail(unitId: String) = viewModelScope.launch {
+        if (detailStates[unitId] != UnitDetailState.READY) detailStates = detailStates + (unitId to UnitDetailState.LOADING)
         try {
-            val manifest = library.manifest(unitId) ?: return@launch
+            val manifest = library.manifest(unitId)
+            if (manifest == null) {
+                detailStates = detailStates + (unitId to UnitDetailState.MISSING)
+                return@launch
+            }
             rows = rows.map { if (it.pack.id == unitId) it.copy(lessons = manifest.lessons) else it }
             val resumableInUnit = manifest.lessons
                 .filter { runner.openRunState(unitId, it.id) != null }
@@ -103,8 +117,12 @@ class ContentViewModel(
             // Merge in (don't drop) any other unit's already-known resumable
             // lessons — this only refreshes the unit just opened.
             resumableLessonIds = (resumableLessonIds.filterNot { id -> manifest.lessons.any { it.id == id } }.toSet()) + resumableInUnit
+            detailStates = detailStates + (unitId to UnitDetailState.READY)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.w("ContentViewModel", "loadDetail($unitId) failed", e)
+            detailStates = detailStates + (unitId to UnitDetailState.FAILED)
             error = "Couldn't load this unit's lessons. Please try again."
         }
     }
@@ -124,7 +142,11 @@ class ContentViewModel(
     }
 
     fun uninstall(unitId: String) = viewModelScope.launch {
-        try { library.uninstall(unitId) } catch (e: Exception) {
+        try {
+            library.uninstall(unitId)
+            rows = rows.map { if (it.pack.id == unitId) it.copy(lessons = emptyList()) else it }
+            detailStates = detailStates - unitId
+        } catch (e: Exception) {
             Log.w("ContentViewModel", "uninstall($unitId) failed", e)
             error = "Couldn't remove this unit. Please try again."
         }
