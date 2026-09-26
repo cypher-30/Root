@@ -28,6 +28,11 @@ import java.security.MessageDigest
  *  silently confused with an existing one at any call site. */
 internal enum class AudioClipKind { REFERENCE, RECORDING }
 
+/** How one [RootAudioSession.playReference] call ended, delivered exactly once
+ *  to its optional listener. [INTERRUPTED] covers explicit stops, focus loss,
+ *  lifecycle pauses, and disposal — a caller must never treat it as completion. */
+internal enum class PlaybackEnd { COMPLETED, FAILED, INTERRUPTED }
+
 /**
  * Main-thread audio owner. A practice session retains its learner clip; a contribution
  * owns its draft until the database save succeeds. No recording leaves app storage.
@@ -40,12 +45,20 @@ internal class RootAudioSession(context: Context, private val phraseId: String? 
     private var recorder: MediaRecorder? = null
     private var player: MediaPlayer? = null
     private var recordingFile: File? = null
-    private var clip: File? = phraseId?.let { learnerFile(it).takeIf(File::isFile) }
+    private var clipState by mutableStateOf(phraseId?.let { learnerFile(it).takeIf(File::isFile) })
+    private var clip: File?
+        get() = clipState
+        set(value) { clipState = value }
+    // A completed contribution take that a durable draft now references must
+    // survive this session's disposal; see [retainClipForDraft].
+    private var retainClip = false
+    private var movedFromDraft: File? = null
     private var startedAt = 0L
     private var disposed = false
     private var saving = false
     private var transferred = false
     private var focusRequest: AudioFocusRequest? = null
+    private var endListener: ((PlaybackEnd) -> Unit)? = null
 
     var isRecording by mutableStateOf(false)
         private set
@@ -72,6 +85,32 @@ internal class RootAudioSession(context: Context, private val phraseId: String? 
     var message by mutableStateOf<String?>(null)
         private set
 
+    /** Absolute path of the current completed take, observable by Compose. */
+    val clipPath: String? get() = clipState?.absolutePath
+
+    /** Marks the current contribution take as owned by a durable draft, so
+     *  leaving the screen keeps the file instead of deleting it. No-op when
+     *  [path] is no longer the current take. */
+    fun retainClipForDraft(path: String) {
+        if (phraseId == null && clip?.absolutePath == path) retainClip = true
+    }
+
+    /** Restores a draft's previously completed contribution take. Returns
+     *  false (and changes nothing) if the file is gone or not a draft file. */
+    fun adoptDraftRecording(path: String): Boolean {
+        if (phraseId != null || disposed || isRecording || clip != null) return false
+        val file = File(path)
+        return try {
+            val canonical = file.canonicalFile
+            if (!canonical.isFile || !canonical.toPath().startsWith(File(root, "drafts").canonicalFile.toPath())) return false
+            clip = canonical
+            hasRecording = true
+            retainClip = true
+            true
+        } catch (error: IOException) {
+            false
+        }
+    }
     private val ticker = object : Runnable {
         override fun run() {
             if (!isRecording) return
@@ -179,6 +218,7 @@ internal class RootAudioSession(context: Context, private val phraseId: String? 
             } else {
                 if (deleteOwned(clip)) {
                     clip = file
+                    retainClip = false
                 } else {
                     deleteOwned(file)
                     return
@@ -220,6 +260,19 @@ internal class RootAudioSession(context: Context, private val phraseId: String? 
         play(AudioClipKind.REFERENCE, source)
     }
 
+    /** Plays one reference clip from the start at [speed] and reports how it
+     *  ended through [onEnded], exactly once. Never toggles an already-playing
+     *  clip off; any previous playback is interrupted first. */
+    fun playClip(source: String, speed: Float, onEnded: (PlaybackEnd) -> Unit) {
+        require(speed in SPEED_CHOICES) { "Unsupported playback speed: $speed" }
+        if (disposed || saving) {
+            onEnded(PlaybackEnd.INTERRUPTED)
+            return
+        }
+        stopPlayback()
+        play(AudioClipKind.REFERENCE, source, speed, onEnded)
+    }
+
     fun playRecording() {
         val file = clip
         if (file == null || !file.isFile) {
@@ -230,13 +283,22 @@ internal class RootAudioSession(context: Context, private val phraseId: String? 
         play(AudioClipKind.RECORDING, file.absolutePath)
     }
 
-    private fun play(kind: AudioClipKind, source: String) {
-        if (disposed || saving) return
-        if (playing == kind) {
+    private fun play(
+        kind: AudioClipKind,
+        source: String,
+        initialSpeed: Float = 1f,
+        onEnded: ((PlaybackEnd) -> Unit)? = null,
+    ) {
+        if (disposed || saving) {
+            onEnded?.invoke(PlaybackEnd.INTERRUPTED)
+            return
+        }
+        if (playing == kind && onEnded == null) {
             stopPlayback()
             return
         }
         claimAudio()
+        endListener = onEnded
         message = null
         try {
             val attributes = AudioAttributes.Builder()
@@ -253,6 +315,7 @@ internal class RootAudioSession(context: Context, private val phraseId: String? 
             if (audioManager.requestAudioFocus(request) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
                 message = "Audio is busy in another app. Try again in a moment."
                 releaseAudio()
+                notifyEnd(PlaybackEnd.FAILED)
                 return
             }
             val next = MediaPlayer()
@@ -281,13 +344,16 @@ internal class RootAudioSession(context: Context, private val phraseId: String? 
                     try {
                         durationMs = it.duration.takeIf { ms -> ms > 0 }
                         it.start()
+                        // Speed must be applied after start: on some decoders,
+                        // setting playback params on a prepared player starts it.
+                        if (initialSpeed != 1f) setSpeed(initialSpeed)
                         handler.post(positionTicker)
                     } catch (error: RuntimeException) {
                         playbackFailed(kind, error)
                     }
                 }
             }
-            next.setOnCompletionListener { if (player === it) stopPlayback() }
+            next.setOnCompletionListener { if (player === it) stopPlayback(PlaybackEnd.COMPLETED) }
             next.setOnErrorListener { mediaPlayer, _, _ ->
                 if (player === mediaPlayer) playbackFailed(kind, null)
                 true
@@ -336,7 +402,9 @@ internal class RootAudioSession(context: Context, private val phraseId: String? 
         }
     }
 
-    fun stopPlayback() {
+    fun stopPlayback() = stopPlayback(PlaybackEnd.INTERRUPTED)
+
+    private fun stopPlayback(reason: PlaybackEnd) {
         val current = player
         player = null
         playing = null
@@ -350,6 +418,13 @@ internal class RootAudioSession(context: Context, private val phraseId: String? 
             current.release()
         }
         releaseAudio()
+        notifyEnd(reason)
+    }
+
+    private fun notifyEnd(reason: PlaybackEnd) {
+        val listener = endListener ?: return
+        endListener = null
+        listener(reason)
     }
 
     fun deleteRecording() {
@@ -358,6 +433,7 @@ internal class RootAudioSession(context: Context, private val phraseId: String? 
         cancelRecording()
         if (deleteOwned(clip)) {
             clip = null
+            retainClip = false
             hasRecording = false
             message = "Recording deleted."
         }
@@ -375,6 +451,7 @@ internal class RootAudioSession(context: Context, private val phraseId: String? 
             val destination = File(directory, current.name)
             Files.move(current.toPath(), destination.toPath())
             clip = destination
+            movedFromDraft = current
         }
         saving = true
         return clip?.absolutePath
@@ -383,10 +460,24 @@ internal class RootAudioSession(context: Context, private val phraseId: String? 
     fun endContributionSave(success: Boolean) {
         saving = false
         transferred = success
+        val draftLocation = movedFromDraft
+        movedFromDraft = null
         if (success) {
             clip = null
             hasRecording = false
-        } else if (disposed) {
+            return
+        }
+        // Put a failed save's take back where its durable draft points.
+        val current = clip
+        if (current != null && draftLocation != null) {
+            try {
+                Files.move(current.toPath(), draftLocation.toPath())
+                clip = draftLocation
+            } catch (error: IOException) {
+                Log.w(TAG, "Could not return recording to its draft", error)
+            }
+        }
+        if (disposed && !retainClip) {
             deleteOwned(clip)
             clip = null
         }
@@ -402,7 +493,7 @@ internal class RootAudioSession(context: Context, private val phraseId: String? 
     fun dispose() {
         disposed = true
         interrupt()
-        if (phraseId == null && !saving && !transferred) {
+        if (phraseId == null && !saving && !transferred && !retainClip) {
             deleteOwned(clip)
             clip = null
         }
@@ -427,7 +518,7 @@ internal class RootAudioSession(context: Context, private val phraseId: String? 
 
     private fun playbackFailed(kind: AudioClipKind, error: Exception?) {
         Log.w(TAG, "Could not play $kind audio", error)
-        stopPlayback()
+        stopPlayback(PlaybackEnd.FAILED)
         message = if (kind == AudioClipKind.REFERENCE) {
             "Reference audio is unavailable. This phrase still needs a playable speaker recording."
         } else {
