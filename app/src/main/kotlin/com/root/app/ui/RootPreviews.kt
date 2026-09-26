@@ -6,6 +6,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
 import com.root.app.data.WeeklyChallengeEntity
+import com.root.app.ui.audio.rememberRootAudioSession
 import com.root.app.ui.theme.RootTheme
 
 @Preview(name = "Contribution / paper", widthDp = 390, heightDp = 844)
@@ -14,14 +15,22 @@ import com.root.app.ui.theme.RootTheme
 private fun ContributionPreview() {
     RootTheme {
         Surface {
-            ContributeScreen(
-                initialLanguageName = "Your language",
-                activeLanguageId = "language-id",
-                onEnsureDraft = { "draft-id" },
-                onAutosaveDraft = { _, _, _, _ -> },
-                onDiscardDraft = {},
-                onSave = { _, _, _, _, _, _, _ -> },
+            ContributeForm(
+                fields = DraftFields(languageName = "Your language", prompt = "How are you?"),
+                onFieldsChange = {},
+                status = DraftSaveStatus.Saved,
+                session = rememberRootAudioSession(),
+                audioNotice = null,
+                consentConfirmed = false,
+                onConsentChange = {},
+                canDiscard = true,
+                saving = false,
+                discarding = false,
+                busy = false,
+                error = null,
                 onBack = {},
+                onDiscard = {},
+                onSave = {},
             )
         }
     }
