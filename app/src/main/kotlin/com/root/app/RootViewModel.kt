@@ -32,6 +32,8 @@ import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
 /**
  * Backs [com.root.app.MainActivity]'s navigation host. Owns everything the UI needs
@@ -93,7 +95,7 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
         private set
     var challenge by mutableStateOf<WeeklyChallengeEntity?>(null)
         private set
-    var premium by mutableStateOf(access.isPremium())
+    var premium by mutableStateOf(access.current())
         private set
     var reward by mutableStateOf(ReferralPrefs.hasUnlockedReward(application))
         private set
@@ -124,7 +126,7 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
         load()
         showOnboarding = repository.shouldOfferOnboarding()
         viewModelScope.launch {
-            access.premium.collect { active -> premium = active }
+            access.access.collect { active -> premium = active }
         }
         viewModelScope.launch {
             ReferralPrefs.observeReward(application).collect { unlocked ->
@@ -170,6 +172,11 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
     }
 
     suspend fun latestOpenContributionDraft(): ContributionDraftEntity? = repository.openDrafts().firstOrNull()
+
+    /** Every currently-open (unfinished) draft, most-recent first — used by
+     *  Profile's "Continue a draft" list so more than just the latest one is
+     *  reachable (see docs/DESIGN.md's navigation contract). */
+    suspend fun openContributionDrafts(): List<ContributionDraftEntity> = repository.openDrafts()
 
     suspend fun lastPracticedMarkAt(phraseId: String): Long? = repository.lastPracticedMarkAt(phraseId)
 
@@ -246,7 +253,7 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
     }
 
     fun refreshAccess() {
-        premium = access.isPremium()
+        premium = access.current()
         reward = ReferralPrefs.hasUnlockedReward(getApplication())
         access.refresh { active ->
             viewModelScope.launch {
@@ -288,6 +295,41 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
         try { startSessionInternal(packId) }
         catch (_: Exception) { error = "Couldn’t open these words. Please try again." }
         finally { loading = false }
+    }
+
+    /** Phrases of one pack for browsing in Explore. Empty when the pack is locked:
+     *  [RootRepository.phrases] never returns locked phrase text. */
+    suspend fun browsePhrases(packId: String): List<PhraseEntity> =
+        try { repository.phrases(packId) }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: Exception) { Log.w("Root", "Unable to load phrases for $packId", failure); emptyList() }
+
+    /** IDs of every phrase bookmarked in Explore. */
+    val savedPhraseIds: Flow<Set<String>> = repository.db.savedPhraseDao().observeIds().map { it.toSet() }
+
+    /** Saved phrases for [languageId] that the learner can still open; a phrase
+     *  whose pack became locked stays saved but is hidden until it unlocks. */
+    fun savedPhrases(languageId: String): Flow<List<PhraseEntity>> =
+        repository.db.savedPhraseDao().observeForLanguage(languageId).map { phrases ->
+            val language = repository.db.languageDao().getById(languageId) ?: return@map emptyList()
+            val open = mutableMapOf<String, Boolean>()
+            phrases.filter { phrase ->
+                open.getOrPut(phrase.packId) {
+                    repository.db.packDao().getById(phrase.packId)
+                        ?.let { ContentAccess.canAccess(language, it, premium, reward) } == true
+                }
+            }
+        }
+
+    fun setPhraseSaved(phraseId: String, saved: Boolean) = viewModelScope.launch {
+        try {
+            val dao = repository.db.savedPhraseDao()
+            if (saved) dao.save(SavedPhraseEntity(phraseId)) else dao.remove(phraseId)
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: Exception) {
+            Log.w("Root", "Unable to update saved phrase", failure)
+            error = "Couldn’t update your notebook. Please try again."
+        }
     }
 
     fun startPackPractice(packId: String) = viewModelScope.launch {

@@ -6,7 +6,6 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import com.root.app.data.ConfidenceLevel
 import com.root.app.data.PhraseEntity
-import com.root.app.ui.DesignStudyScreen
 import com.root.app.ui.OnboardingScreen
 import com.root.app.ui.PracticeScreen
 import com.root.app.ui.SessionCompleteScreen
@@ -55,19 +54,6 @@ class RootExperienceTest {
         compose.onNodeWithText("Missed").assertHasClickAction()
         compose.onNodeWithText("Close").assertHasClickAction()
         compose.onNodeWithText("Got it").assertHasClickAction()
-    }
-
-    @Test fun designStudyShowsLogoAtIconScaleAndLaunchFrames() {
-        compose.setContent {
-            RootTheme {
-                Surface { DesignStudyScreen({}, {}) }
-            }
-        }
-        compose.onNodeWithText("Root").assertExists()
-        compose.onNodeWithText("Seed").assertExists()
-        compose.onNodeWithText("Taking root").assertExists()
-        compose.onNodeWithText("Settled").assertExists()
-        compose.onNodeWithText("Replay launch").performScrollTo().assertHasClickAction()
     }
 
     @Test fun completionOffersClosureWithoutScorePressure() {

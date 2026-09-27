@@ -22,8 +22,10 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.root.app.data.ContentAccess
 import com.root.app.overview.OverviewRecommendations
@@ -51,7 +53,9 @@ import com.root.app.audio.RootSoundCue
 import com.root.app.audio.SoundRequest
 import com.root.app.ui.icon.RootIcons
 import com.root.app.ui.launch.LaunchScreen
-import com.root.app.ui.teach.TeachCatalogScreen
+import com.root.app.ui.navigation.RootBottomBar
+import com.root.app.ui.navigation.RootDestination
+import com.root.app.ui.teach.LearnPathScreen
 import com.root.app.ui.teach.TeachLessonScreen
 import com.root.app.ui.teach.TeachUnitDetailScreen
 import com.root.app.ui.theme.RootTheme
@@ -145,9 +149,10 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () -> Unit) {
     val nav = rememberNavController()
-    var more by rememberSaveable { mutableStateOf(false) }
     var languagePicker by rememberSaveable { mutableStateOf(false) }
     var selectedDraftId by rememberSaveable { mutableStateOf<String?>(null) }
+    // The language whose single-language plan the paywall offers (defaults to the active one).
+    var paywallLanguage by rememberSaveable { mutableStateOf<String?>(null) }
     // Selected teaching unit/lesson for the "learn" routes below. Kept as simple
     // saveable state (matching the "invite"/"contribute" routes' pattern) rather
     // than NavHost path arguments, since this integration deliberately stays
@@ -155,6 +160,16 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
     var selectedUnitId by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedLessonId by rememberSaveable { mutableStateOf<String?>(null) }
     val contentVm: ContentViewModel = viewModel(factory = ContentViewModel.factory())
+    // Teaching units are catalogued across every language at once (see
+    // ContentViewModel), but Learn/Explore must only ever show the language
+    // currently being practiced — otherwise switching to a one-pack language
+    // still shows every other language's units, which reads as a bug, not a
+    // library. Matched by language row id; units whose revision isn't installed
+    // yet carry no id, so they fall back to the display name.
+    val activeLanguageUnits = contentVm.rows.filter { row ->
+        val active = vm.activeLanguage
+        active != null && (row.pack.languageId?.let { it == active.id } ?: (row.pack.languageName == active.name))
+    }
     val lifecycleOwner = LocalLifecycleOwner.current
     val snackbar = remember { SnackbarHostState() }
     var resumeCount by remember { mutableIntStateOf(0) }
@@ -170,6 +185,7 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
     }
     var recommendations by remember { mutableStateOf<List<OverviewRecommendations.Recommendation>>(emptyList()) }
     var latestDraft by remember { mutableStateOf<ContributionDraftEntity?>(null) }
+    var openDrafts by remember { mutableStateOf<List<ContributionDraftEntity>>(emptyList()) }
     LaunchedEffect(
         vm.loading, vm.activeLanguage?.id, vm.current?.id, vm.canPracticeMore,
         vm.challenge?.id, vm.challenge?.completed, vm.rows.size, vm.contributionDraftVersion, resumeCount,
@@ -177,7 +193,8 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
         if (!vm.loading) {
             try {
                 recommendations = OverviewRecommendations.recommend(vm.overviewSnapshot())
-                latestDraft = vm.latestOpenContributionDraft()
+                openDrafts = vm.openContributionDrafts()
+                latestDraft = openDrafts.firstOrNull()
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (e: Exception) {
@@ -188,15 +205,19 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
     LaunchedEffect(widgetRequest) {
         if (widgetRequest > 0) {
             vm.startSession()
-            nav.navigate("home") { popUpTo("home") { inclusive = true }; launchSingleTop = true }
+            nav.navigate(RootDestination.Practice.route) {
+                popUpTo(RootDestination.Practice.route) { inclusive = true }
+                launchSingleTop = true
+            }
         }
     }
     LaunchedEffect(vm.error) { vm.error?.let { snackbar.showSnackbar(it); vm.clearError() } }
     LaunchedEffect(contentVm.error) { contentVm.error?.let { snackbar.showSnackbar(it); contentVm.clearError() } }
-    fun open(route: String) { more = false; nav.navigate(route) { launchSingleTop = true } }
+    fun open(route: String) { nav.navigate(route) { launchSingleTop = true } }
+    fun openPaywall(languageName: String? = vm.activeLanguage?.name) { paywallLanguage = languageName; open("paywall") }
     fun openFreshContribute() { selectedDraftId = null; open("contribute") }
-    fun openRecommendations() { open("recommendations") }
-    fun goHome() { more = false; nav.popBackStack("home", false) }
+    fun goHome() { nav.popBackStack(RootDestination.Practice.route, false) }
+    fun openProfile() { open(RootDestination.Profile.route) }
     fun handleRecommendation(kind: OverviewRecommendations.Kind) {
         when (kind) {
             OverviewRecommendations.Kind.PRACTICE_DUE -> {
@@ -215,12 +236,41 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
                 }
             }
             OverviewRecommendations.Kind.ADD_A_WORD -> openFreshContribute()
-            OverviewRecommendations.Kind.EXPLORE_PACKS -> open("packs")
+            OverviewRecommendations.Kind.EXPLORE_PACKS -> open(RootDestination.Explore.route)
         }
     }
-    Box(Modifier.fillMaxSize()) {
-        NavHost(navController = nav, startDestination = "home") {
-            composable("home") {
+
+    val backStackEntry by nav.currentBackStackEntryAsState()
+    val currentRoute = backStackEntry?.destination?.route
+    // Used only to highlight which tab is selected — the bar itself is always
+    // visible and always overrides whatever screen is currently open (see
+    // selectTab below), so a learner can jump straight to any tab from
+    // anywhere instead of needing to back out of a detail screen first.
+    val currentTab = RootDestination.fromRoute(currentRoute)
+
+    fun selectTab(destination: RootDestination) {
+        languagePicker = false
+        if (destination == RootDestination.Practice) {
+            // Home is the start destination: pop to it without saving. Saving a
+            // non-inclusive pop keys the popped stack to Practice itself, so
+            // restoreState would push e.g. a header-opened Profile straight back.
+            nav.popBackStack(RootDestination.Practice.route, inclusive = false, saveState = false)
+            return
+        }
+        nav.navigate(destination.route) {
+            popUpTo(nav.graph.findStartDestination().id) { saveState = true }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
+
+    Scaffold(
+        bottomBar = { RootBottomBar(current = currentTab, onSelect = ::selectTab) },
+        snackbarHost = { SnackbarHost(snackbar) },
+    ) { scaffoldPadding ->
+    Box(Modifier.fillMaxSize().padding(bottom = scaffoldPadding.calculateBottomPadding())) {
+        NavHost(navController = nav, startDestination = RootDestination.Practice.route) {
+            composable(RootDestination.Practice.route) {
                 CollectSoundEvents(vm.soundEvents)
                 when {
                     vm.loading -> Column(Modifier.fillMaxSize().safeDrawingPadding().padding(32.dp),
@@ -247,7 +297,7 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
                             value = vm.lastPracticedMarkAt(phrase.id)
                         }
                         PracticeScreen(phrase, vm.activeLanguage!!.name, vm.correct, vm.turn,
-                            onRate = { vm.rate(phrase.id, it) }, onMore = { more = true },
+                            onRate = { vm.rate(phrase.id, it) }, onMore = { openProfile() },
                             // "Stop for now" durably ends the run in Room without
                             // navigating away — the next composition falls through
                             // to the completed branch below, same as running out
@@ -259,7 +309,7 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
                         }
                     }
                     else -> SessionCompleteScreen(vm.correct, vm.capability, vm.completed,
-                        vm.activeLanguage!!.name, vm.challenge, { vm.completeChallenge() }, { more = true },
+                        vm.activeLanguage!!.name, vm.challenge, { vm.completeChallenge() }, { openProfile() },
                         // Durably end the run before finishing the Activity (onClose),
                         // so a session can never look finished on screen while a run
                         // is still open in Room and silently resumable later.
@@ -271,39 +321,42 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
                         onRecommendationClick = ::handleRecommendation)
                 }
             }
-            composable("recommendations") {
-                RecommendationsScreen(
-                    recommendations = recommendations,
-                    onAction = { kind ->
-                        nav.popBackStack()
-                        handleRecommendation(kind)
-                    },
-                    onBack = { nav.popBackStack() },
-                )
-            }
-            composable("packs") {
-                PacksScreen(
-                    languageName = vm.activeLanguage?.name ?: "Your language",
-                    rows = vm.rows,
-                    onPackClick = { pack ->
-                        val hasContent = vm.rows.firstOrNull { it.pack.id == pack.id }?.phraseCount?.let { it > 0 } == true
-                        if (hasContent) {
-                            if (vm.activeLanguage?.let { ContentAccess.canAccess(it, pack, vm.premium, vm.reward) } == true) {
-                                vm.startSession(pack.id)
-                                nav.popBackStack("home", false)
-                            } else open("paywall")
-                        }
-                    },
-                    onBack = { nav.popBackStack() },
+            composable(RootDestination.Explore.route) {
+                val language = vm.activeLanguage
+                val savedIds by vm.savedPhraseIds.collectAsState(initial = emptySet())
+                val savedFlow = remember(language?.id, vm.premium, vm.reward) {
+                    language?.let { vm.savedPhrases(it.id) } ?: kotlinx.coroutines.flow.flowOf(emptyList())
+                }
+                val savedPhrases by savedFlow.collectAsState(initial = emptyList())
+                ExploreScreen(
+                    language = language,
+                    packRows = vm.rows,
                     premium = vm.premium,
                     rewardUnlocked = vm.reward,
-                    onLanguageClick = { languagePicker = true },
-                    languagePremium = vm.activeLanguage?.isPremium == true,
+                    loadPhrases = vm::browsePhrases,
+                    savedIds = savedIds,
+                    savedPhrases = savedPhrases,
+                    onSetSaved = { phraseId, saved -> vm.setPhraseSaved(phraseId, saved) },
+                    onPracticePack = { pack ->
+                        if (language != null && ContentAccess.canAccess(language, pack, vm.premium, vm.reward)) {
+                            vm.startSession(pack.id)
+                            goHome()
+                        } else openPaywall()
+                    },
+                    onUnlock = { openPaywall() },
+                    onYourWords = { open("archive") },
                     onContribute = { openFreshContribute() },
+                    openDrafts = openDrafts.filter { it.languageId == language?.id },
+                    onOpenDraft = { draftId -> selectedDraftId = draftId; open("contribute") },
+                    onProfileClick = { openProfile() },
                 )
             }
             composable("paywall") {
-                PaywallScreen(onUnlocked = { vm.refreshAccess(); nav.popBackStack() }, onBack = { nav.popBackStack() })
+                PaywallScreen(
+                    languageName = paywallLanguage ?: vm.activeLanguage?.name,
+                    onUnlocked = { vm.refreshAccess(); nav.popBackStack() },
+                    onBack = { nav.popBackStack() },
+                )
             }
             composable("invite") {
                 InviteScreen(phrase = vm.sharePhrase, languageName = vm.activeLanguage?.name ?: "Your language",
@@ -320,7 +373,7 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
                     onCommit = { language, prompt, answer, audio, speakerLabel, consentConfirmed, contributionDraftId ->
                         vm.contribute(language, prompt, answer, audio, speakerLabel, consentConfirmed, contributionDraftId)
                         selectedDraftId = null
-                        nav.popBackStack("home", false)
+                        goHome()
                     },
                     onBack = {
                         selectedDraftId = null
@@ -346,68 +399,30 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
                     )
                 }
             }
-            composable("study") {
-                DesignStudyScreen({ nav.popBackStack() }, { nav.navigate("launch-study") })
-            }
-            composable("launch-study") {
-                LaunchScreen(onComplete = { nav.popBackStack("study", false) })
-            }
-            composable("learn") {
-                TeachCatalogScreen(
-                    rows = contentVm.rows,
-                    onOpenUnit = { unitId -> selectedUnitId = unitId; nav.navigate("learnUnit") },
-                    onDownload = contentVm::download,
-                    onRetry = contentVm::retry,
-                    onUpdate = contentVm::update,
-                    onBack = { nav.popBackStack() },
-                )
-            }
-            composable("learnUnit") {
-                val unitId = selectedUnitId
-                val row = unitId?.let { id -> contentVm.row(id) }
-                if (unitId != null && row == null && contentVm.loading) {
-                    RouteLoading("Loading unit…")
-                } else if (unitId == null || row == null) {
-                    RouteMessage(
-                        title = "This unit isn't available.",
-                        body = "It may have been removed from the catalog. Choose another unit.",
-                        onBack = { nav.popBackStack() },
-                    )
-                } else {
-                    // Lesson bodies are loaded lazily (a manifest read) the first
-                    // time this unit's detail screen opens, and again whenever a
-                    // download/update changes the installed revision.
-                    LaunchedEffect(unitId, row.pack.installedVersion) { contentVm.loadDetail(unitId) }
-                    TeachUnitDetailScreen(
-                        pack = row.pack,
-                        lessons = row.lessons,
-                        onOpenLesson = { lesson -> selectedLessonId = lesson.id; nav.navigate("learnLesson") },
-                        onBack = { nav.popBackStack() },
-                        onDownload = { contentVm.download(unitId) },
-                        onCancel = { contentVm.cancel(unitId) },
-                        onUninstall = { contentVm.uninstall(unitId) },
-                        onRetry = { contentVm.retry(unitId) },
-                        onUpdate = { contentVm.update(unitId) },
-                        isResumable = { lessonId -> lessonId in contentVm.resumableLessonIds },
-                        // The linked recall phrases live in the pack sharing this
-                        // unit's own id (PackEntity.id == PackManifest.id).
-                        // startPackPractice durably switches the active
-                        // language/pack itself — this must never be
-                        // `vm.startSession(unitId)` while the active language
-                        // stays on whatever was last practiced, since the unit's
-                        // language and the current recall language can
-                        // genuinely differ.
-                        onReviewPhrases = if (row.pack.phraseCount > 0 && row.pack.installedVersion != null) {
-                            {
-                                vm.startPackPractice(unitId)
-                                nav.navigate("home") { popUpTo("home") { inclusive = true }; launchSingleTop = true }
-                            }
-                        } else null,
-                        onPlayReels = if (row.pack.phraseCount > 0 && row.pack.installedVersion != null) {
-                            { nav.navigate("reels") }
-                        } else null,
-                    )
+            composable(RootDestination.Learn.route) {
+                // Unlike the old catalog list, the Learn tab shows every
+                // installed unit's lesson path inline, so their manifests must
+                // be loaded (not just on-demand from a detail screen) — still
+                // skipped once a unit's lessons are already known, and never
+                // for units that are not yet installed.
+                LaunchedEffect(activeLanguageUnits.map { it.pack.id to it.pack.installedVersion }) {
+                    activeLanguageUnits.forEach { row ->
+                        if (row.pack.installedVersion != null && row.lessons.isEmpty()) contentVm.loadDetail(row.pack.id)
+                    }
                 }
+                LearnPathScreen(
+                    languageName = vm.activeLanguage?.name ?: "your language",
+                    rows = activeLanguageUnits,
+                    progressFor = { unitId -> contentVm.progressFor(unitId) },
+                    onOpenLesson = { unitId, lesson ->
+                        selectedUnitId = unitId; selectedLessonId = lesson.id; open("learnLesson")
+                    },
+                    onRemoveUnit = { unitId -> contentVm.uninstall(unitId) },
+                    onPlayReels = { unitId -> selectedUnitId = unitId; open("reels") },
+                    onDownload = { unitId -> contentVm.download(unitId) },
+                    onExplore = { open(RootDestination.Explore.route) },
+                    onProfileClick = { openProfile() },
+                )
             }
             composable("reels") {
                 val unitId = selectedUnitId
@@ -530,7 +545,7 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
                     // Keyed per lesson so switching lessons never reuses another
                     // lesson's SavedStateHandle-held run ID.
                     val lessonVm: LessonViewModel = viewModel(
-                        key = "lesson-$lessonId",
+                        key = "lesson-$unitId-$lessonId",
                         factory = LessonViewModel.factory(
                             audioResolver = contentVm.audioResolver(unitId),
                             assetAvailable = { packId, version, assetId -> contentVm.assetAvailable(packId, version, assetId) },
@@ -557,6 +572,21 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
                     )
                 }
             }
+            composable(RootDestination.Profile.route) {
+                ProfileScreen(
+                    languageName = vm.activeLanguage?.name ?: "Choose",
+                    capability = vm.capability,
+                    correctThisSession = vm.correct,
+                    theme = vm.theme,
+                    onThemeChange = { vm.changeTheme(it) },
+                    onLanguageClick = { languagePicker = true },
+                    onUnlockMoreWords = { openPaywall() },
+                    onShareAWord = { open("invite") },
+                    onHowRootWorks = { vm.showOnboardingWalkthrough() },
+                    soundSettings = vm.soundSettings,
+                    onOpenSound = { open("sound") },
+                )
+            }
             composable("sound") {
                 SoundSettingsScreen(
                     settings = vm.soundSettings,
@@ -569,64 +599,21 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
                 SoundLabScreen(onBack = { nav.popBackStack() })
             }
         }
-        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).safeDrawingPadding())
     }
-    if (more) {
-        ModalBottomSheet(onDismissRequest = { more = false }, shape = MaterialTheme.shapes.large,
-            containerColor = MaterialTheme.colorScheme.surface, dragHandle = null) {
-            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("A little more Root.", style = RootType.editorialTitle, modifier = Modifier.weight(1f))
-                    IconButton(onClick = { more = false }) { Icon(RootIcons.Close, "Close options") }
-                }
-                OverviewRecommendationList(
-                    recommendations = recommendations,
-                    onRecommendationClick = ::handleRecommendation,
-                    modifier = Modifier.padding(top = 20.dp, bottom = 16.dp),
-                )
-                HorizontalDivider(Modifier.padding(vertical = 12.dp))
-                MenuEntry("What to do next") { openRecommendations() }
-                MenuEntry("Browse phrase packs") { open("packs") }
-                MenuEntry("Learn a teaching unit") { open("learn") }
-                MenuEntry("Unlock more words") { open("paywall") }
-                MenuEntry("Teach someone one word") { open("invite") }
-                MenuEntry("Add a word of your own") { openFreshContribute() }
-                MenuEntry("Your words") { open("archive") }
-                MenuEntry("Language · ${vm.activeLanguage?.name ?: "Choose"}") { more = false; languagePicker = true }
-                HorizontalDivider(Modifier.padding(vertical = 12.dp))
-                Text("PAPER & INK", style = RootType.label, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf("system", "light", "dark").forEach { value ->
-                        OutlinedButton(onClick = { vm.changeTheme(value) }, modifier = Modifier.weight(1f),
-                            shape = MaterialTheme.shapes.small, contentPadding = PaddingValues(horizontal = 4.dp)) {
-                            Text((if (value == vm.theme) "• " else "") + value.replaceFirstChar { it.uppercase() })
-                        }
-                    }
-                }
-                MenuEntry("The design study") { open("study") }
-                MenuEntry("How Root works") { more = false; vm.showOnboardingWalkthrough() }
-                Text("No account. Your practice stays on this device.", style = RootType.meta,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                if (BuildConfig.SHIP_SAMPLE_CONTENT) {
-                    Text("Dholuo phrases are development samples. Shona and Swahili Greetings are source-checked against Omniglot; Amharic Greetings/Directions against the 1964 FSI course. Native-speaker review and reference audio are still pending for all four.",
-                        Modifier.padding(top = 8.dp), style = RootType.meta, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Spacer(Modifier.height(24.dp))
-            }
-        }
     }
     if (languagePicker) {
         ModalBottomSheet(onDismissRequest = { languagePicker = false }, shape = MaterialTheme.shapes.large,
             containerColor = MaterialTheme.colorScheme.surface, dragHandle = null) {
             Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp)) {
                 Text("Your language, your words.", style = RootType.editorialTitle)
-                Text("Curated languages can be unlocked. Adding your own words is always free.",
+                Text("Every language's starter sets are free, and so is adding your own words.",
                     Modifier.padding(vertical = 12.dp), style = MaterialTheme.typography.bodyMedium)
                 vm.languages.forEach { language ->
-                    MenuEntry(language.name + if (language.isPremium && !vm.premium) " · Locked" else "") {
+                    val locked = language.isPremium && !vm.premium.covers(language)
+                    MenuEntry(language.name + if (locked) " · Locked" else "") {
                         languagePicker = false
-                        if (language.isPremium && !vm.premium && language.id !in vm.personalLanguageIds) open("paywall")
-                        else { vm.selectLanguage(language); nav.popBackStack("home", false) }
+                        if (locked && language.id !in vm.personalLanguageIds) openPaywall(language.name)
+                        else { vm.selectLanguage(language); goHome() }
                     }
                 }
                 MenuEntry("Add a language and its first word") { languagePicker = false; openFreshContribute() }
