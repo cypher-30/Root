@@ -40,7 +40,6 @@ import com.root.app.ui.brand.RootMark
 import com.root.app.ui.icon.RootIcons
 import com.root.app.ui.motion.RootHaptics
 import com.root.app.ui.motion.RootMotion
-import com.root.app.ui.root.RecallRoots
 import com.root.app.ui.theme.RootTheme
 import com.root.app.ui.theme.RootType
 import com.root.app.ui.theme.paperSurface
@@ -79,42 +78,40 @@ fun PracticeScreen(
     lastPracticedAt: Long? = null,
     challenge: @Composable () -> Unit = {},
 ) {
-    Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
-        Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+    Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             RootMark(compact = true)
             Spacer(Modifier.weight(1f))
-            IconButton(onClick = onMore) { Icon(RootIcons.More, "More options") }
+            IconButton(onClick = onMore) { Icon(RootIcons.TabProfile, "Profile") }
         }
-        HorizontalDivider(Modifier.padding(top = 12.dp), color = MaterialTheme.colorScheme.outlineVariant)
-        Row(Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("THE DAILY PRACTICE", style = RootType.label, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.weight(1f))
-            Text(languageName, style = RootType.meta, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        key(phrase.id, turn) {
-            PracticeCard(phrase, onRate, onMarkPracticed, lastPracticedAt)
-        }
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("A little closer.", style = RootType.editorialTitle)
-                Text("One word, then another.", style = RootType.meta, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
+            Row(Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("THE DAILY PRACTICE", style = RootType.label, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.weight(1f))
+                Text(languageName, style = RootType.meta, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            RecallRoots(correctCount, Modifier.width(128.dp).height(64.dp))
+            key(phrase.id, turn) {
+                PracticeCard(phrase, onRate, onMarkPracticed, lastPracticedAt)
+            }
+            // The session's growth feedback ("A little closer.") now lives only on
+            // Session Complete and Profile: an active recall card stays focused on
+            // one word at a time instead of also carrying a running tally.
+            TextButton(onClick = onTeach, contentPadding = PaddingValues(vertical = 8.dp)) {
+                Icon(RootIcons.Share, null, Modifier.size(16.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Teach someone this word")
+            }
+            // Durably ends the run (see PracticeRepository.stop) without leaving the
+            // screen; the learner sees the same completion state as running out of
+            // due phrases, just triggered on demand.
+            TextButton(onClick = onStop, contentPadding = PaddingValues(vertical = 8.dp)) {
+                Text("Stop for now")
+            }
+            HorizontalDivider(Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant)
+            challenge()
+            Spacer(Modifier.height(24.dp))
         }
-        TextButton(onClick = onTeach, contentPadding = PaddingValues(vertical = 8.dp)) {
-            Icon(RootIcons.Share, null, Modifier.size(16.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("Teach someone this word")
-        }
-        // Durably ends the run (see PracticeRepository.stop) without leaving the
-        // screen; the learner sees the same completion state as running out of
-        // due phrases, just triggered on demand.
-        TextButton(onClick = onStop, contentPadding = PaddingValues(vertical = 8.dp)) {
-            Text("Stop for now")
-        }
-        HorizontalDivider(Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant)
-        challenge()
-        Spacer(Modifier.height(24.dp))
     }
 }
 

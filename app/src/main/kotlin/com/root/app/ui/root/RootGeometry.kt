@@ -30,6 +30,18 @@ object RootGeometry {
         Path().apply { moveTo(30f, 47f); cubicTo(29f, 58f, 32f, 64f, 27f, 75f); lineTo(23f, 86f) },
         Path().apply { moveTo(67f, 58f); cubicTo(64f, 68f, 69f, 77f, 71f, 85f) },
     )
+
+    /** Same trunk as [branches], but with every side branch forking from an actual
+     *  point on the trunk curve (verified against the trunk's own cubic-bezier math)
+     *  instead of floating free in space. Used only by [RecallRoots] — the shared
+     *  brand mark/launch geometry in [branches] is left untouched. */
+    fun recallBranches(): List<Path> = listOf(
+        Path().apply { moveTo(50f, 12f); cubicTo(50f, 27f, 48f, 42f, 51f, 56f); cubicTo(53f, 66f, 49f, 77f, 48f, 90f) },
+        Path().apply { moveTo(49f, 34f); cubicTo(39f, 43f, 29f, 44f, 22f, 55f); lineTo(12f, 69f) },
+        Path().apply { moveTo(50f, 45f); cubicTo(62f, 50f, 65f, 59f, 76f, 64f); lineTo(89f, 69f) },
+        Path().apply { moveTo(49.7f, 47.5f); cubicTo(38f, 55f, 32f, 60f, 27f, 72f); lineTo(20f, 85f) },
+        Path().apply { moveTo(51.4f, 58f); cubicTo(60f, 64f, 66f, 72f, 71f, 82f); lineTo(74f, 90f) },
+    )
 }
 
 @Composable
@@ -46,9 +58,9 @@ fun RootPath(
     color: Color = MaterialTheme.colorScheme.primary,
     showGuide: Boolean = false,
     description: String? = null,
+    branches: List<Path> = remember { RootGeometry.branches() },
 ) {
-    val branches = remember { RootGeometry.branches() }
-    val measures = remember { branches.map { path -> PathMeasure().apply { setPath(path, false) } } }
+    val measures = remember(branches) { branches.map { path -> PathMeasure().apply { setPath(path, false) } } }
     Canvas(if (description == null) modifier else modifier.semantics { contentDescription = description }) {
         val fraction = progress.coerceIn(0f, 1f)
         val lineWidth = (1.dp.toPx() * 100f / min(size.width, size.height).coerceAtLeast(1f)).coerceAtLeast(1.6f)
@@ -82,5 +94,6 @@ fun RecallRoots(correct: Int, modifier: Modifier = Modifier) {
         animationSpec = RootMotion.settle(), label = "Recall roots",
     )
     RootPath(progress, modifier, MaterialTheme.colorScheme.tertiary, showGuide = true,
-        description = "Roots grown from $correct distinct phrases recalled in this session")
+        description = "Roots grown from $correct distinct phrases recalled in this session",
+        branches = remember { RootGeometry.recallBranches() })
 }

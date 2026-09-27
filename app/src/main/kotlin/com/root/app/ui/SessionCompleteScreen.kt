@@ -79,46 +79,48 @@ fun SessionCompleteScreen(
     recommendations: List<OverviewRecommendations.Recommendation> = emptyList(),
     onRecommendationClick: (OverviewRecommendations.Kind) -> Unit = {},
 ) {
-    Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(24.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+        Row(Modifier.fillMaxWidth().padding(24.dp), verticalAlignment = Alignment.CenterVertically) {
             RootMark(compact = true)
             Spacer(Modifier.weight(1f))
-            IconButton(onClick = onMore) { Icon(RootIcons.More, "More options") }
+            IconButton(onClick = onMore) { Icon(RootIcons.TabProfile, "Profile") }
         }
-        Spacer(Modifier.height(48.dp))
-        Text(if (completed) "A GOOD PLACE TO PAUSE" else "ROOM TO BREATHE", style = RootType.label,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(20.dp))
-        Text(if (completed) "Enough for today." else "Nothing due.\nNothing owed.", style = RootType.heroAnswer)
-        Spacer(Modifier.height(20.dp))
-        Text(if (completed) "You made space for your words. Take them with you."
-            else "Your $language words will be here when they’re ready. You can also add a word of your own.",
-            style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        RecallRoots(correct, Modifier.fillMaxWidth().height(130.dp).padding(vertical = 16.dp))
-        if (capability > 0) Text("$capability ${if (capability == 1) "phrase" else "phrases"} you recalled at last practice.",
-            style = MaterialTheme.typography.bodyMedium)
-        // Quiet ritual, open continuation: a page finished, but there is no fixed
-        // session size — offer to keep going rather than forcing a restart/new session.
-        if (completed && canPracticeMore) {
-            OutlinedButton(onClick = onContinuePracticing, modifier = Modifier.padding(top = 24.dp),
-                shape = MaterialTheme.shapes.small) { Text("Keep practicing") }
-        }
-        OutlinedButton(onClick = onDone, modifier = Modifier.padding(top = 12.dp), shape = MaterialTheme.shapes.small) {
-            Text("Close this session")
-        }
-        TextButton(onClick = onRefresh) { Text("Check for due words") }
-        HorizontalDivider(Modifier.padding(vertical = 24.dp), color = MaterialTheme.colorScheme.outlineVariant)
-        WeeklyChallengeCard(challenge, onChallenge)
-        if (recommendations.isNotEmpty()) {
-            if (challenge != null) {
-                HorizontalDivider(Modifier.padding(vertical = 24.dp), color = MaterialTheme.colorScheme.outlineVariant)
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
+            Text(if (completed) "A GOOD PLACE TO PAUSE" else "ROOM TO BREATHE", style = RootType.label,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(20.dp))
+            Text(if (completed) "Enough for today." else "Nothing due.\nNothing owed.", style = RootType.heroAnswer)
+            Spacer(Modifier.height(20.dp))
+            Text(if (completed) "You made space for your words. Take them with you."
+                else "Your $language words will be here when they’re ready. You can also add a word of your own.",
+                style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            RecallRoots(correct, Modifier.size(130.dp).padding(vertical = 16.dp))
+            if (capability > 0) Text("$capability ${if (capability == 1) "phrase" else "phrases"} you recalled at last practice.",
+                style = MaterialTheme.typography.bodyMedium)
+            // Quiet ritual, open continuation: a page finished, but there is no fixed
+            // session size, so offer to keep going rather than forcing a restart/new session.
+            if (completed && canPracticeMore) {
+                OutlinedButton(onClick = onContinuePracticing, modifier = Modifier.padding(top = 24.dp),
+                    shape = MaterialTheme.shapes.small) { Text("Keep practicing") }
             }
-            OverviewRecommendationList(
-                recommendations = recommendations,
-                onRecommendationClick = onRecommendationClick,
-                title = "WHAT TO DO NEXT",
-                modifier = Modifier.padding(bottom = 24.dp),
-            )
+            OutlinedButton(onClick = onDone, modifier = Modifier.padding(top = 12.dp), shape = MaterialTheme.shapes.small) {
+                Text("Close this session")
+            }
+            TextButton(onClick = onRefresh) { Text("Check for due words") }
+            HorizontalDivider(Modifier.padding(vertical = 24.dp), color = MaterialTheme.colorScheme.outlineVariant)
+            WeeklyChallengeCard(challenge, onChallenge)
+            if (recommendations.isNotEmpty()) {
+                if (challenge != null) {
+                    HorizontalDivider(Modifier.padding(vertical = 24.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                }
+                OverviewRecommendationList(
+                    recommendations = recommendations,
+                    onRecommendationClick = onRecommendationClick,
+                    title = "WHAT TO DO NEXT",
+                    modifier = Modifier.padding(bottom = 24.dp),
+                )
+            }
+            Spacer(Modifier.height(24.dp))
         }
     }
 }
