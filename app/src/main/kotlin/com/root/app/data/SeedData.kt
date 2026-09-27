@@ -3,12 +3,11 @@ package com.root.app.data
 import androidx.room.withTransaction
 
 /**
- * Dholuo development samples, source-checked Shona/Swahili starter packs, and
- * a public-domain-sourced Amharic starter set. None of the four languages has
- * completed native-speaker review yet. Shona, Swahili, and Amharic spelling/
- * usage provenance is bundled in assets/content_sources.txt.
- * Authentic native-speaker reference audio is unavailable; null audio is intentional,
- * not a placeholder to replace with a manufactured voice.
+ * Installs [SeedCatalog] — source-checked starter phrases for Dholuo, Shona,
+ * Swahili, and Amharic. Runs on every start and only adds what is missing, so
+ * learner edits, retirements, and history are never overwritten.
+ * Only phrases listed in [SeedAudio] get a reference recording; every other phrase
+ * keeps null audio on purpose rather than a manufactured voice.
  */
 object SeedData {
     suspend fun seedIfEmpty(db: AppDatabase) = db.withTransaction {
@@ -16,156 +15,40 @@ object SeedData {
         val packs = db.packDao()
         val phrases = db.phraseDao()
 
-        val dholuo = LanguageEntity(id = "lang-dholuo", name = "Dholuo", isPremium = false)
+        for (language in SeedCatalog.languages) {
+            // Reuse a learner-created language of the same name rather than listing it twice.
+            val entity = languages.getById(language.defaultId)
+                ?: languages.getAll().firstOrNull { it.name.equals(language.name, ignoreCase = true) }
+                ?: LanguageEntity(id = language.defaultId, name = language.name, isPremium = false)
+            languages.insertMissing(listOf(entity))
 
-        // Greetings is the only pack with real content — everything else is a shell
-        // (theme + lock state, zero phrases) until Block 2's Kencorpus curation lands.
-        // Deliberately not filled with more hand-typed phrases: SeedData's Greetings
-        // set is already flagged as unreviewed by a native speaker, and duplicating
-        // that risk across more packs just to make this screen look fuller isn't worth
-        // it — an honestly-empty "Coming soon" pack beats more unverified content.
-        val greetings = PackEntity(id = "pack-dholuo-greetings", languageId = dholuo.id, theme = "Greetings", sortOrder = 0, isFree = true)
-        val family = PackEntity(id = "pack-dholuo-family", languageId = dholuo.id, theme = "Family", sortOrder = 1, isFree = true)
-        val market = PackEntity(id = "pack-dholuo-market", languageId = dholuo.id, theme = "Market", sortOrder = 2, isFree = false)
-        val numbers = PackEntity(id = "pack-dholuo-numbers", languageId = dholuo.id, theme = "Numbers", sortOrder = 3, isFree = false)
-        val food = PackEntity(id = "pack-dholuo-food", languageId = dholuo.id, theme = "Food", sortOrder = 4, isFree = false)
-        val directions = PackEntity(id = "pack-dholuo-directions", languageId = dholuo.id, theme = "Directions", sortOrder = 5, isFree = false)
+            val languagePacks = SeedCatalog.packsFor(language.key)
+            packs.insertMissing(languagePacks.map {
+                PackEntity(id = it.id, languageId = entity.id, theme = it.theme, sortOrder = it.sortOrder, isFree = it.isFree)
+            })
+            SeedCatalog.renamedThemes.forEach { (packId, names) ->
+                if (languagePacks.any { it.id == packId }) packs.renameTheme(packId, names.first, names.second)
+            }
+            // Starter sets used to be partly locked; they are all free now, including on older installs.
+            packs.markFree(languagePacks.filter { it.isFree }.map { it.id })
 
-        val seedPhrases = listOf(
-            PhraseEntity(id = "phrase-dholuo-hello", packId = greetings.id, prompt = "Hello", answer = "Amosi", audioAsset = null),
-            PhraseEntity(id = "phrase-dholuo-how-are-you", packId = greetings.id, prompt = "How are you?", answer = "Idhi nade?", audioAsset = null),
-            PhraseEntity(id = "phrase-dholuo-thank-you", packId = greetings.id, prompt = "Thank you", answer = "Erokamano", audioAsset = null),
-        )
-
-        languages.insertMissing(listOf(dholuo))
-        packs.insertMissing(listOf(greetings, family, market, numbers, food, directions))
-        // Earlier installs used random phrase IDs. Leave populated packs (and their
-        // edits/history) intact instead of duplicating or replacing those phrases.
-        if (phrases.countForPack(greetings.id) == 0) {
-            phrases.insertMissing(seedPhrases)
+            if (language == SeedCatalog.dholuo && phrases.countForPack("pack-dholuo-greetings") == 0) {
+                // Earlier installs used random phrase IDs. Leave populated packs (and their
+                // edits/history) intact instead of duplicating or replacing those phrases.
+                phrases.insertMissing(SeedCatalog.legacyDholuoGreetings.map { it.toEntity("pack-dholuo-greetings") })
+            }
+            for (pack in languagePacks) {
+                phrases.insertMissing(pack.phrases.map { it.toEntity(pack.id) })
+            }
         }
-
-        // Reuse a learner-created Shona language rather than listing it twice.
-        val shona = languages.getAll().firstOrNull { it.name.equals("Shona", ignoreCase = true) }
-            ?: LanguageEntity(id = "lang-shona", name = "Shona", isPremium = false)
-        val shonaGreetings = PackEntity(
-            id = "pack-shona-greetings",
-            languageId = shona.id,
-            theme = "Greetings",
-            sortOrder = 0,
-            isFree = true,
-        )
-        languages.insertMissing(listOf(shona))
-        packs.insertMissing(listOf(shonaGreetings))
-        phrases.insertMissing(listOf(
-            PhraseEntity(id = "phrase-shona-greetings-01", packId = shonaGreetings.id,
-                prompt = "Hello (one person)", answer = "Mhoro", audioAsset = null),
-            PhraseEntity(id = "phrase-shona-greetings-02", packId = shonaGreetings.id,
-                prompt = "Hello (more than one person)", answer = "Mhoroi", audioAsset = null),
-            PhraseEntity(id = "phrase-shona-greetings-03", packId = shonaGreetings.id,
-                prompt = "Welcome", answer = "Mauya", audioAsset = null),
-            PhraseEntity(id = "phrase-shona-greetings-04", packId = shonaGreetings.id,
-                prompt = "Good morning", answer = "Mangwanani", audioAsset = null),
-            PhraseEntity(id = "phrase-shona-greetings-05", packId = shonaGreetings.id,
-                prompt = "Good afternoon", answer = "Masikati", audioAsset = null),
-            PhraseEntity(id = "phrase-shona-greetings-06", packId = shonaGreetings.id,
-                prompt = "Good evening", answer = "Manheru", audioAsset = null),
-            PhraseEntity(id = "phrase-shona-greetings-07", packId = shonaGreetings.id,
-                prompt = "Thank you (one person)", answer = "Waita zvako", audioAsset = null),
-            PhraseEntity(id = "phrase-shona-greetings-08", packId = shonaGreetings.id,
-                prompt = "Thank you (more than one person)", answer = "Maita zvenyu", audioAsset = null),
-        ))
-
-        // Reuse a learner-created Swahili language rather than listing it twice.
-        val swahili = languages.getAll().firstOrNull { it.name.equals("Swahili", ignoreCase = true) }
-            ?: LanguageEntity(id = "lang-swahili", name = "Swahili", isPremium = false)
-        val swahiliGreetings = PackEntity(
-            id = "pack-swahili-greetings",
-            languageId = swahili.id,
-            theme = "Greetings",
-            sortOrder = 0,
-            isFree = true,
-        )
-        languages.insertMissing(listOf(swahili))
-        packs.insertMissing(listOf(swahiliGreetings))
-        phrases.insertMissing(listOf(
-            PhraseEntity(id = "phrase-swahili-greetings-01", packId = swahiliGreetings.id,
-                prompt = "Hello (one person)", answer = "Hujambo", audioAsset = null),
-            PhraseEntity(id = "phrase-swahili-greetings-02", packId = swahiliGreetings.id,
-                prompt = "Hello (more than one person)", answer = "Hamjambo", audioAsset = null),
-            PhraseEntity(id = "phrase-swahili-greetings-03", packId = swahiliGreetings.id,
-                prompt = "Welcome", answer = "Karibu", audioAsset = null),
-            PhraseEntity(id = "phrase-swahili-greetings-04", packId = swahiliGreetings.id,
-                prompt = "Good morning", answer = "Habari ya asubuhi", audioAsset = null),
-            PhraseEntity(id = "phrase-swahili-greetings-05", packId = swahiliGreetings.id,
-                prompt = "Good afternoon", answer = "Habari ya mchana", audioAsset = null),
-            PhraseEntity(id = "phrase-swahili-greetings-06", packId = swahiliGreetings.id,
-                prompt = "Good evening", answer = "Habari ya jioni", audioAsset = null),
-            PhraseEntity(id = "phrase-swahili-greetings-07", packId = swahiliGreetings.id,
-                prompt = "Thank you (one person)", answer = "Asante", audioAsset = null),
-            PhraseEntity(id = "phrase-swahili-greetings-08", packId = swahiliGreetings.id,
-                prompt = "Thank you (more than one person)", answer = "Asanteni", audioAsset = null),
-        ))
-
-        // Reuse a learner-created Amharic language rather than listing it twice.
-        // Content transliterated from the FSI Amharic Basic Course (Foreign
-        // Service Institute, U.S. Department of State, 1964) -- a U.S. federal
-        // government work with no copyright (17 U.S.C. Section 105), so it is
-        // usable regardless of which copy it was read from. See
-        // assets/content_sources.txt for unit/page references.
-        val amharic = languages.getAll().firstOrNull { it.name.equals("Amharic", ignoreCase = true) }
-            ?: LanguageEntity(id = "lang-amharic", name = "Amharic", isPremium = false)
-        val amharicGreetings = PackEntity(
-            id = "pack-amharic-greetings",
-            languageId = amharic.id,
-            theme = "Greetings",
-            sortOrder = 0,
-            isFree = true,
-        )
-        val amharicDirections = PackEntity(
-            id = "pack-amharic-directions",
-            languageId = amharic.id,
-            theme = "Directions",
-            sortOrder = 1,
-            isFree = true,
-        )
-        languages.insertMissing(listOf(amharic))
-        packs.insertMissing(listOf(amharicGreetings, amharicDirections))
-        phrases.insertMissing(listOf(
-            PhraseEntity(id = "phrase-amharic-greetings-01", packId = amharicGreetings.id,
-                prompt = "Hello / Goodbye (general greeting)", answer = "Tena yisTilliñ.", audioAsset = null),
-            PhraseEntity(id = "phrase-amharic-greetings-02", packId = amharicGreetings.id,
-                prompt = "Good morning, how are you?", answer = "Tena yisTilliñ, indemin adderu.", audioAsset = null),
-            PhraseEntity(id = "phrase-amharic-greetings-03", packId = amharicGreetings.id,
-                prompt = "Very well, thank you", answer = "Dehna, igziyabher yimmesgen.", audioAsset = null),
-            PhraseEntity(id = "phrase-amharic-greetings-04", packId = amharicGreetings.id,
-                prompt = "Do you know Amharic?", answer = "Amariñña yawKallu?", audioAsset = null),
-            PhraseEntity(id = "phrase-amharic-greetings-05", packId = amharicGreetings.id,
-                prompt = "Yes, I know", answer = "Awo, awKallehu.", audioAsset = null),
-            PhraseEntity(id = "phrase-amharic-greetings-06", packId = amharicGreetings.id,
-                prompt = "No, I don't know", answer = "Yellem, alawKim.", audioAsset = null),
-            PhraseEntity(id = "phrase-amharic-greetings-07", packId = amharicGreetings.id,
-                prompt = "I know a little", answer = "Tinniš awKallehu.", audioAsset = null),
-            PhraseEntity(id = "phrase-amharic-greetings-08", packId = amharicGreetings.id,
-                prompt = "What did you say?", answer = "Minalu?", audioAsset = null),
-        ))
-        phrases.insertMissing(listOf(
-            PhraseEntity(id = "phrase-amharic-directions-01", packId = amharicDirections.id,
-                prompt = "Please / Excuse me", answer = "Ibákkiwo.", audioAsset = null),
-            PhraseEntity(id = "phrase-amharic-directions-02", packId = amharicDirections.id,
-                prompt = "Where?", answer = "Yet?", audioAsset = null),
-            PhraseEntity(id = "phrase-amharic-directions-03", packId = amharicDirections.id,
-                prompt = "It's in front of you", answer = "Fitlefit new.", audioAsset = null),
-            PhraseEntity(id = "phrase-amharic-directions-04", packId = amharicDirections.id,
-                prompt = "It's far", answer = "RuK new.", audioAsset = null),
-            PhraseEntity(id = "phrase-amharic-directions-05", packId = amharicDirections.id,
-                prompt = "It's on your right", answer = "BesteKeññiwo new.", audioAsset = null),
-            PhraseEntity(id = "phrase-amharic-directions-06", packId = amharicDirections.id,
-                prompt = "It's on your left", answer = "Bestegrawo new.", audioAsset = null),
-            PhraseEntity(id = "phrase-amharic-directions-07", packId = amharicDirections.id,
-                prompt = "Go straight ahead and turn", answer = "Wedefit yihidunná, wedegrá yizuru.", audioAsset = null),
-            PhraseEntity(id = "phrase-amharic-directions-08", packId = amharicDirections.id,
-                prompt = "It's nearby", answer = "Kirb new.", audioAsset = null),
-        ))
+        SeedAudio.clips.forEach { phrases.attachMissingAudio(it.phraseId, it.answer, it.assetPath) }
     }
+
+    private fun SeedCatalog.Phrase.toEntity(packId: String) = PhraseEntity(
+        id = id,
+        packId = packId,
+        prompt = prompt,
+        answer = answer,
+        audioAsset = SeedAudio.forPhrase(id)?.takeIf { it.answer == answer }?.assetPath,
+    )
 }

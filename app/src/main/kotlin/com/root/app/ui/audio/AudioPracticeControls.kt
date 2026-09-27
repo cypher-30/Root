@@ -41,6 +41,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.root.app.audio.AudioClipKind
 import com.root.app.audio.RootAudioSession
 import com.root.app.data.PhraseEntity
+import com.root.app.data.SeedAudio
 import com.root.app.ui.lastPracticedCaption
 import com.root.app.ui.icon.RootIcons
 import kotlinx.coroutines.launch
@@ -140,6 +141,13 @@ fun AudioPracticeControls(
                     Spacer(Modifier.width(8.dp))
                     Text(if (session.playing == AudioClipKind.REFERENCE) "Stop reference" else "Play reference")
                 }
+                SeedAudio.creditFor(phrase.audioAsset)?.let { credit ->
+                    Text(
+                        credit,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
 
             VoiceRecordingControls(session)
@@ -198,7 +206,7 @@ fun AudioPracticeControls(
                 Text(
                     // Self-reported only: tapping this never rates or reschedules
                     // recall — it is a separate acknowledgement, not a grade.
-                    "This is just for you — it doesn't rate or reschedule this word.",
+                    "This is just for you, it doesn't rate or reschedule this word.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

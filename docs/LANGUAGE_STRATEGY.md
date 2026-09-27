@@ -7,9 +7,19 @@ free/paid line, not geography. Details below.
 
 ## Current state (as of this doc)
 
-Three free (non-premium) languages, each with a single "Greetings" starter
-pack, source-checked but **not yet native-speaker reviewed**, no authentic
-reference audio bundled:
+Four free (non-premium) languages — Dholuo, Shona, Swahili, and Amharic — each
+with five or six starter topic sets (39–40 phrases), source-checked against
+Wikivoyage, Omniglot, Wiktionary, or the public-domain FSI Amharic course, but
+**not yet native-speaker reviewed**. Six phrases (Swahili "Karibu"; Amharic
+"where" and the numbers one, two, three, five) play unmodified Lingua Libre
+recordings (CC BY-SA 4.0, credited in the app); the rest have no reference audio.
+Every starter set is free (there used to be a few locked ones; `SeedData` opens
+them on older installs). Premium is defined in [PREMIUM.md](PREMIUM.md): deeper,
+native-reviewed and recorded content, sold as a one-time unlock per language
+(US$4.99) or for every language (US$9.99).
+
+The original notes below were written when there were three languages with one
+Greetings pack each:
 
 - Dholuo — hand-entered development samples
 - Shona — checked against Omniglot

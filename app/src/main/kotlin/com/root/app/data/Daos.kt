@@ -46,6 +46,17 @@ interface PackDao {
 
     @Query("SELECT * FROM packs WHERE language_id = :languageId ORDER BY sortOrder")
     fun observeForLanguage(languageId: String): Flow<List<PackEntity>>
+
+    /** Renames only while the theme still has its old seeded name. */
+    @Query("UPDATE packs SET theme = :newTheme, updated_at = :now WHERE id = :id AND theme = :oldTheme")
+    suspend fun renameTheme(id: String, oldTheme: String, newTheme: String, now: Long = System.currentTimeMillis())
+
+    @Query("UPDATE packs SET theme = :theme, updated_at = :now WHERE id = :id")
+    suspend fun updateTheme(id: String, theme: String, now: Long = System.currentTimeMillis())
+
+    /** Opens packs that older installs seeded as locked. Only ever widens access. */
+    @Query("UPDATE packs SET isFree = 1, updated_at = :now WHERE id IN (:ids) AND isFree = 0")
+    suspend fun markFree(ids: List<String>, now: Long = System.currentTimeMillis())
 }
 
 @Dao
@@ -89,6 +100,11 @@ interface PhraseDao {
      *  do on its own). */
     @Query("DELETE FROM phrases WHERE id = :id")
     suspend fun deleteById(id: String)
+
+    /** Attaches bundled audio to an existing seeded phrase only while it has no
+     *  audio and still says [answer], so a learner's edit is never overwritten. */
+    @Query("UPDATE phrases SET audio_asset = :asset, updated_at = :now WHERE id = :id AND audio_asset IS NULL AND answer = :answer")
+    suspend fun attachMissingAudio(id: String, answer: String, asset: String, now: Long = System.currentTimeMillis())
 }
 
 /** DAO for [PhraseConsentEntity] — see that entity's doc for the "local

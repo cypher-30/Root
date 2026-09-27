@@ -1,60 +1,97 @@
 Root content provenance
 
-Shona / Greetings
-Eight common greetings and courtesies, checked on 15 September 2026 against:
-Omniglot, "Useful Shona phrases"
+Every starter phrase is a short everyday expression checked against the public
+reference named below. This is a small starter selection for each language,
+not an imported course, and not a claim to cover every dialect, register, or
+respectful form of address. English prompts say "one person" / "more than one
+person" where a source distinguishes singular and plural.
+
+Status for everything below: source-checked; native-speaker review for this
+app is pending. No source illustrations or course materials have been
+imported. Six starter phrases play a real recording (listed under "Reference
+recordings" below); every other phrase and every lesson has no audio rather
+than a synthetic voice.
+
+Dholuo (39 phrases: Greetings, Family, Market, Numbers, Food, Meeting people)
+Wikivoyage contributors, "Luo phrasebook", CC BY-SA 4.0
+https://en.wikivoyage.org/wiki/Luo_phrasebook
+Spelling is normalized to the "dh" spelling used elsewhere in Root (the
+phrasebook writes, for example, "Ithi nade?" for "Idhi nade?"). The three
+original greetings (Amosi, Idhi nade?, Erokamano) were hand-entered earlier
+and are kept for existing learners' history.
+
+Shona (40 phrases: Greetings, Meeting people, Food & market, Getting around,
+Numbers & time)
+Omniglot, "Useful Shona phrases", phrases contributed by Emma Thembani and
+Ernest Mdende; single food words checked against Wiktionary (CC BY-SA 4.0);
+numbers checked against Omniglot, "Numbers in Shona".
 https://www.omniglot.com/language/phrases/shona.php
-The source credits phrase contributors Emma Thembani and Ernest Mdende.
+https://www.omniglot.com/language/numbers/shona.htm
+Omniglot content was checked for accuracy only; it is not license-cleared
+for redistribution beyond these short phrase pairs.
 
-Root uses short everyday expressions, with English recall prompts specifying
-one person / more than one person where the source distinguishes sg / pl.
-This is a small starter selection, not an imported course or a claim to cover
-all dialects, registers, or respectful forms of address.
-
-Status: source-checked; native-speaker review for this app is pending.
-No source recordings, illustrations, or course materials have been imported.
-Authentic reference audio still needs to be supplied or recorded with consent.
-
-Dholuo / Greetings
-Three pre-existing, hand-entered development samples.
-Status: unreviewed; no authentic reference recordings bundled.
-
-Amharic / Greetings, Directions
-Sixteen phrases (two packs of eight) transliterated from:
-FSI Amharic Basic Course, Units 1-2 (Basic Sentences)
-Serge Obolensky, Debebow Zelelie, Mulugeta Andualem
-Foreign Service Institute, U.S. Department of State, Washington D.C., 1964
-This is a work of the United States federal government and carries no
-copyright in the U.S. (17 U.S.C. Section 105); it is usable here regardless of
-which copy of the scan it was read from. Romanization is exactly as printed
-in the 1964 source (its own ad-hoc phonemic scheme, e.g. capital K for a
-glottalized/ejective consonant, ñ/š for palatal sounds) -- not Ge'ez script,
-and not IPA. This is a small starter selection from the first two of the
-course's 50 units, not the full course and not a claim to cover every
-register, dialect, or courtesy form.
-
-Status: source-checked against the original 1964 text; native-speaker review
-for this app is pending. No audio, illustrations, or other course materials
-have been imported -- only these transliterated phrase pairs.
-Everything else in the learner's personal Amharic reference collection
-(dictionaries, grammars, the Colloquial Amharic course, scripture translations,
-etc.) is separately copyrighted and has deliberately not been used as a Root
-content source.
-
-Swahili / Greetings
-Eight common greetings and courtesies, checked on 23 September 2026 against:
-Omniglot, "Useful Swahili phrases"
+Swahili (40 phrases: Greetings, Meeting people, Food & market, Getting
+around, Numbers & time)
+Omniglot, "Useful Swahili phrases" (credits Ylanne Sorrows, Rushomesa
+Remigius, Dwayne Panzeter, Corona Cermak, and EasySwahili), and Wikivoyage
+contributors, "Swahili phrasebook", CC BY-SA 4.0.
 https://www.omniglot.com/language/phrases/swahili.php
-The source credits corrections/recordings/translations from Ylanne Sorrows,
-Rushomesa Remigius, Dwayne Panzeter, Corona Cermak, and EasySwahili.
+https://en.wikivoyage.org/wiki/Swahili_phrasebook
+Swahili has many regional varieties (Kenya, Tanzania, DRC and more); these
+are the sources' standard/coastal forms only.
 
-Root uses short everyday expressions, with English recall prompts specifying
-one person / more than one person where the source distinguishes sg / pl.
-This is a small starter selection, not an imported course or a claim to cover
-all dialects, registers, or respectful forms of address. Swahili has many
-regional and country-specific varieties (e.g. Kenya, Tanzania, DRC); this
-starter set uses the source's standard/coastal forms only.
+Amharic (40 phrases: Greetings, Directions, Meeting people, Food & market,
+Numbers & time)
+FSI Amharic Basic Course, Units 1-2 (Basic Sentences), Serge Obolensky,
+Debebow Zelelie, Mulugeta Andualem, Foreign Service Institute, U.S.
+Department of State, 1964. A work of the U.S. federal government, with no
+U.S. copyright (17 U.S.C. Section 105). Its romanization is kept exactly as
+printed (capital K for an ejective consonant, ñ/š for palatal sounds), not
+Ge'ez script or IPA.
+Informal greetings, meeting people, food, and numbers were checked against
+Omniglot, "Useful Amharic phrases", and Wikivoyage contributors, "Amharic
+phrasebook" (CC BY-SA 4.0), and are shown with Ge'ez script in brackets.
+https://www.omniglot.com/language/phrases/amharic.php
+https://en.wikivoyage.org/wiki/Amharic_phrasebook
+The learner's other Amharic references (dictionaries, grammars, courses,
+scripture translations) are separately copyrighted and were deliberately not
+used.
 
-Status: source-checked; native-speaker review for this app is pending.
-No source recordings, illustrations, or course materials have been imported.
-Authentic reference audio still needs to be supplied or recorded with consent.
+Learn units
+Each lesson in Learn is written only with the starter phrases above (and, for
+Shona greetings, the Shona pilot unit's own source-checked lines). English
+explanations were written for Root. Listening steps say plainly that no real
+recording exists yet; they are never filled with synthetic speech.
+
+Explore: stories and culture notes
+Stories are short English scenes whose spoken lines are starter phrases from
+free sets above. Culture notes restate what these pages say:
+- Wikivoyage, "Swahili phrasebook" (Karibu as "you're welcome"; Swahili time)
+  https://en.wikivoyage.org/wiki/Swahili_phrasebook
+- Omniglot, "Useful Shona phrases" (singular and plural forms; greetings by
+  time of day) https://www.omniglot.com/language/phrases/shona.php
+- Wikivoyage, "Luo phrasebook" (colour words; family words)
+  https://en.wikivoyage.org/wiki/Luo_phrasebook
+- Wikivoyage, "Ethiopia" (Ethiopian clock time)
+  https://en.wikivoyage.org/wiki/Ethiopia
+- Wikipedia, "Coffee ceremony of Ethiopia and Eritrea", CC BY-SA 4.0
+  https://en.wikipedia.org/wiki/Coffee_ceremony_of_Ethiopia_and_Eritrea
+
+Reference recordings
+Unmodified single-word recordings from Lingua Libre, hosted on Wikimedia
+Commons under CC BY-SA 4.0. A clip is attached only when its word is exactly
+the phrase's answer. Lingua Libre speakers are volunteers, not verified native
+speakers, and these clips have not had Root's own review. Dholuo and Shona
+have no matching recordings yet.
+- Swahili "Karibu" (Welcome): speaker Rigolearning, recorded by WikiLucas00
+  https://commons.wikimedia.org/wiki/File:LL-Q7838_(swa)-Rigolearning_(WikiLucas00)-karibu.wav
+- Amharic "Yet?" / የት (Where?): speaker Woubster
+  https://commons.wikimedia.org/wiki/File:LL-Q28244_(amh)-Woubster-የት.wav
+- Amharic አንድ (One): speaker Woubster
+  https://commons.wikimedia.org/wiki/File:LL-Q28244_(amh)-Woubster-አንድ.wav
+- Amharic ሁለት (Two): speaker Woubster
+  https://commons.wikimedia.org/wiki/File:LL-Q28244_(amh)-Woubster-ሁለት.wav
+- Amharic ሶስት (Three): speaker Woubster
+  https://commons.wikimedia.org/wiki/File:LL-Q28244_(amh)-Woubster-ሶስት.wav
+- Amharic አምስት (Five): speaker Woubster
+  https://commons.wikimedia.org/wiki/File:LL-Q28244_(amh)-Woubster-አምስት.wav

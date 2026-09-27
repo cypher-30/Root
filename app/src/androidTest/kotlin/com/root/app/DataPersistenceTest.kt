@@ -41,9 +41,12 @@ class DataPersistenceTest {
         db.phraseDao().insertMissing(listOf(phrase))
         db.attemptDao().insert(AttemptEntity(phraseId = phrase.id, confidence = ConfidenceLevel.GOT_IT, nextDueAt = Long.MAX_VALUE))
         SeedData.seedIfEmpty(db)
-        assertEquals(listOf(phrase), db.phraseDao().getForPack(pack.id))
+        val greetings = db.phraseDao().getForPack(pack.id)
+        assertEquals(phrase, greetings.single { it.id == phrase.id })
+        assertTrue(SeedCatalog.legacyDholuoGreetings.none { legacy -> greetings.any { it.id == legacy.id } })
+        assertEquals(1 + SeedCatalog.packsFor("dholuo").first().phrases.size, greetings.size)
         assertEquals(1, db.attemptDao().capabilityCount(language.id))
-        assertEquals(8, db.phraseDao().countForPack("pack-shona-greetings"))
+        assertEquals(12, db.phraseDao().countForPack("pack-shona-greetings"))
     }
 
     @Test fun shonaStarterIsFreeScopedAndPreservesEditsOnReseeding() = runBlocking {
@@ -53,10 +56,10 @@ class DataPersistenceTest {
         assertTrue(ContentAccess.canAccess(language, pack, premium = false, rewardUnlocked = false))
         val due = db.attemptDao().dueForLanguage(language.id, 200L,
             listOf(pack.id, "pack-dholuo-greetings"))
-        assertEquals(8, due.size)
+        assertEquals(12, due.size)
         assertTrue(due.all { it.packId == pack.id && it.audioAsset == null })
         assertEquals("Mhoro", due.first().answer)
-        assertEquals(8, due.map { it.id }.distinct().size)
+        assertEquals(12, due.map { it.id }.distinct().size)
         val edited = due.first().copy(prompt = "My personal greeting prompt")
         db.phraseDao().upsertAll(listOf(edited))
         db.attemptDao().insert(AttemptEntity(phraseId = edited.id, confidence = ConfidenceLevel.GOT_IT,
@@ -64,10 +67,10 @@ class DataPersistenceTest {
 
         SeedData.seedIfEmpty(db)
 
-        assertEquals(8, db.phraseDao().countForPack(pack.id))
+        assertEquals(12, db.phraseDao().countForPack(pack.id))
         assertEquals(edited, db.phraseDao().getById(edited.id))
         assertEquals(1, db.attemptDao().capabilityCount(language.id))
-        assertEquals(7, db.attemptDao().dueForLanguage(language.id, 200L, listOf(pack.id)).size)
+        assertEquals(11, db.attemptDao().dueForLanguage(language.id, 200L, listOf(pack.id)).size)
     }
 
     @Test fun shonaStarterReusesLearnerCreatedLanguage() = runBlocking {
@@ -83,8 +86,38 @@ class DataPersistenceTest {
 
         assertEquals(1, db.languageDao().getAll().count { it.name == "Shona" })
         assertEquals(language.id, db.packDao().getById("pack-shona-greetings")!!.languageId)
-        assertEquals(8, db.phraseDao().countForPack("pack-shona-greetings"))
+        assertEquals(12, db.phraseDao().countForPack("pack-shona-greetings"))
         assertEquals(phrase, db.phraseDao().getById(phrase.id))
+    }
+
+    @Test fun reseedingRenamesOldThemeButNeverSellsStarterSamples() = runBlocking {
+        db.languageDao().insertMissing(listOf(LanguageEntity("lang-dholuo", "Dholuo", false)))
+        db.packDao().insertMissing(listOf(PackEntity("pack-dholuo-directions", "lang-dholuo", "Directions", 5, false)))
+        SeedData.seedIfEmpty(db)
+        assertEquals("Meeting people", db.packDao().getById("pack-dholuo-directions")!!.theme)
+        // Older installs seeded some starter sets as locked; reseeding opens them.
+        assertTrue(db.packDao().getById("pack-dholuo-directions")!!.isFree)
+        assertTrue(db.phraseDao().countForPack("pack-swahili-market") > 0)
+        assertFalse(ContentAccess.hasPremiumContent(db))
+    }
+
+    @Test fun reseedingAttachesRealRecordingsButNeverOverwritesEdits() = runBlocking {
+        db.languageDao().insertMissing(listOf(LanguageEntity("lang-amharic", "Amharic", false)))
+        db.packDao().insertMissing(listOf(PackEntity("pack-amharic-numbers", "lang-amharic", "Numbers & time", 4, true)))
+        // An older install: same phrases, seeded before any audio existed; one was edited.
+        db.phraseDao().insertMissing(listOf(
+            PhraseEntity("phrase-amharic-numbers-01", "pack-amharic-numbers", "One", "And (አንድ)", audioAsset = null),
+            PhraseEntity("phrase-amharic-numbers-02", "pack-amharic-numbers", "Two", "My own spelling", audioAsset = null),
+        ))
+
+        SeedData.seedIfEmpty(db)
+
+        assertEquals("audio/seed/phrase-amharic-numbers-01.wav", db.phraseDao().getById("phrase-amharic-numbers-01")!!.audioAsset)
+        assertNull(db.phraseDao().getById("phrase-amharic-numbers-02")!!.audioAsset)
+        assertEquals("audio/seed/phrase-swahili-greetings-03.wav", db.phraseDao().getById("phrase-swahili-greetings-03")!!.audioAsset)
+        assertNull(db.phraseDao().getById("phrase-dholuo-hello")?.audioAsset)
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        SeedAudio.clips.forEach { clip -> context.assets.openFd(clip.assetPath).use { assertTrue(it.length > 1_000) } }
     }
 
     @Test fun latestTieIsDeterministicAndLockedPacksNeverEnterDueQueue() = runBlocking {
@@ -96,7 +129,7 @@ class DataPersistenceTest {
         val locked = PhraseEntity(packId = "pack-dholuo-market", prompt = "Locked", answer = "Locked", audioAsset = null)
         db.phraseDao().insertMissing(listOf(locked))
         val due = db.attemptDao().dueForLanguage("lang-dholuo", 200, listOf(pack))
-        assertEquals(2, due.size)
+        assertEquals(8, due.size)
         assertFalse(due.any { it.id == phrase.id || it.id == locked.id })
         assertEquals(1, db.attemptDao().capabilityCount("lang-dholuo"))
     }
