@@ -126,9 +126,9 @@ fun InviteScreen(phrase: PhraseEntity?, languageName: String, onBack: () -> Unit
                 try {
                     PhraseCardSharing.openShareSheet(context, ready.card)
                 } catch (_: ActivityNotFoundException) {
-                    shareError = "No sharing app is available on this device. The reward has not changed."
+                    shareError = "No sharing app is available on this device."
                 } catch (_: SecurityException) {
-                    shareError = "The device could not open this image for sharing. The reward has not changed."
+                    shareError = "The device could not open this image for sharing."
                 }
             } else {
                 shareError = "Wait for your phrase card to finish, then try again."
@@ -230,13 +230,12 @@ private fun InviteContent(
                 ) {
                     shareError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                     Text(
-                        if (rewarded) "Your Market pack is unlocked."
-                        else "Open the share sheet. Unlock Market.",
+                        if (rewarded) "Thank you for passing a word on."
+                        else "Share a word with someone who'd like it.",
                         style = MaterialTheme.typography.titleMedium,
                     )
                     Text(
-                        "Opening the share sheet unlocks the Dholuo Market pack on this device, " +
-                            "even if you cancel without sending. We cannot verify delivery or a friend's install.",
+                        "Sharing is free and unlocks nothing. Every starter set is already open to you.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

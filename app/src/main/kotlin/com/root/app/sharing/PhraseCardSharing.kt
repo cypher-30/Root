@@ -86,7 +86,7 @@ object PhraseCardSharing {
             ?: throw PhraseCardException("The source credits for this phrase are unavailable.")
         val manifest = ContentJson.decodeFromString<PackManifest>(revision.manifestJson)
         if (manifest.publication != PublicationStatus.PUBLISHED || manifest.credits.isEmpty()) {
-            throw PhraseCardException("This development content is not approved for public sharing.")
+            throw PhraseCardException("This phrase hasn't been approved for public sharing yet.")
         }
         return manifest.credits.joinToString("\n") {
             listOfNotNull(it.text, it.license, it.sourceUrl).joinToString(" / ")

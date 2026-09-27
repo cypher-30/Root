@@ -47,7 +47,7 @@ private val onboardingSteps = listOf(
     OnboardingStep(
         eyebrow = "WELCOME TO ROOT",
         title = "A quiet space for recall.",
-        description = "Root is designed for intentional learning. No streak counters, no daily notifications, no artificial urgency—just quiet, honest practice.",
+        description = "No streak counters, no daily notifications, no artificial urgency. Just quiet, honest practice.",
         pathProgress = 0.35f,
         pageType = OnboardingPageType.WELCOME,
     ),

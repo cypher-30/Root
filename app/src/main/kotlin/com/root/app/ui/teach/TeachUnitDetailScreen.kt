@@ -73,7 +73,6 @@ fun TeachUnitDetailScreen(
                 item {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onBack) { Icon(RootIcons.Back, contentDescription = "Back") }
-                        ReviewBadge(pack.development)
                     }
                     Spacer(Modifier.height(24.dp))
                     Text(pack.title, style = RootType.editorialTitle)
@@ -85,14 +84,6 @@ fun TeachUnitDetailScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    if (pack.development) {
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            "Development content: not yet native-speaker reviewed. Some audio may be unavailable.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    }
                     Spacer(Modifier.height(12.dp))
                     UnitInstallControls(pack, onDownload, onCancel, onUninstall, onRetry, onUpdate)
                     if (onReviewPhrases != null || onPlayReels != null) {

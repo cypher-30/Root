@@ -7,7 +7,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 
-/** A local thank-you for opening Android's share sheet, never a verified referral. */
+/** A local record that the share sheet was opened, never a verified referral.
+ *  Sharing unlocks nothing today: [REWARD_PACK_ID] (Dholuo Market) is now a free
+ *  starter set. The record is kept so a future thank-you can honour past sharers
+ *  without the app promising content that doesn't exist yet. */
 object ReferralPrefs {
     private const val PREFS_NAME = "root_referral_prefs"
     private const val KEY_SHARE_OPENED = "share_sheet_opened"
