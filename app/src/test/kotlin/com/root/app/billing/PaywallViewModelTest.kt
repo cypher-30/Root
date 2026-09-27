@@ -46,9 +46,10 @@ class PaywallViewModelTest {
     private fun fakePackage(
         id: String,
         productType: com.revenuecat.purchases.ProductType = com.revenuecat.purchases.ProductType.INAPP,
+        productId: String = PremiumPlan.ALL_LANGUAGES_PRODUCT,
     ): Package {
         val product = object : StoreProduct {
-            override val id = "$id-product"
+            override val id = productId
             override val type = productType
             override val price = Price("$1.99", 1_990_000L, "USD")
             override val name = id
@@ -58,12 +59,12 @@ class PaywallViewModelTest {
             override val subscriptionOptions: SubscriptionOptions? = null
             override val defaultOption: SubscriptionOption? = null
             override val purchasingData = object : PurchasingData {
-                override val productId = "$id-product"
+                override val productId = productId
                 override val productType = productType
             }
             override val presentedOfferingIdentifier: String? = null
             override val presentedOfferingContext: PresentedOfferingContext? = null
-            override val sku = "$id-product"
+            override val sku = productId
             override fun copyWithOfferingId(offeringId: String) = this
             override fun copyWithPresentedOfferingContext(offeringContext: PresentedOfferingContext?) = this
         }
@@ -158,14 +159,55 @@ class PaywallViewModelTest {
         }
     }
 
-    private fun viewModel(gateway: FakeGateway, configured: Boolean = true, premiumContent: Boolean = true) =
-        PaywallViewModel(application, gateway, isConfigured = { configured }, premiumContentAvailable = { premiumContent })
+    private fun viewModel(
+        gateway: FakeGateway,
+        configured: Boolean = true,
+        contentLanguages: Set<String> = setOf("dholuo"),
+        languageName: String? = "Dholuo",
+    ) = PaywallViewModel(application, languageName, gateway, isConfigured = { configured }, premiumContentLanguages = { contentLanguages })
+
+    private val dholuoPlan get() = fakePackage("dholuo", productId = "root_premium_dholuo")
+
+    @Test
+    fun offersThisLanguageFirstThenTheBundleAndHidesOtherProducts() {
+        val gateway = FakeGateway()
+        gateway.offeringsResult = Outcome.Ok(
+            fakeOfferings(listOf(
+                fakePackage("lifetime"),
+                fakePackage("shona", productId = "root_premium_shona"),
+                fakePackage("mystery", productId = "some_other_product"),
+                dholuoPlan,
+            )),
+        )
+        val ready = viewModel(gateway, contentLanguages = setOf("dholuo", "shona")).state.value as PaywallState.Ready
+        assertEquals(listOf("dholuo", "lifetime"), ready.packages.map { it.identifier })
+        assertEquals(null, ready.notice)
+    }
+
+    @Test
+    fun aLanguageWithoutPremiumPacksIsOnlyOfferedTheBundle() {
+        val gateway = FakeGateway()
+        gateway.offeringsResult = Outcome.Ok(fakeOfferings(listOf(fakePackage("lifetime"), dholuoPlan)))
+        val ready = viewModel(gateway, contentLanguages = setOf("shona")).state.value as PaywallState.Ready
+        assertEquals(listOf("lifetime"), ready.packages.map { it.identifier })
+        assertEquals("Dholuo has no premium packs yet, so only the all-languages plan is offered.", ready.notice)
+    }
+
+    @Test
+    fun plansAreRecognisedByProductId() {
+        assertEquals(PremiumPlan.AllLanguages, PremiumPlan.of("root_premium_all"))
+        assertEquals(PremiumPlan.Language("dholuo"), PremiumPlan.of("root_premium_dholuo"))
+        assertEquals(PremiumPlan.Language("amharic"), PremiumPlan.of("root_premium_amharic:base"))
+        assertEquals(null, PremiumPlan.of("root_premium_"))
+        assertEquals(null, PremiumPlan.of("lifetime"))
+        assertEquals("root_premium_dholuo", PremiumPlan.productIdFor("Dholuo"))
+    }
 
     @Test
     fun nothingIsSoldWithoutPremiumContent() {
         val gateway = FakeGateway()
         gateway.offeringsResult = Outcome.Ok(fakeOfferings(listOf(fakePackage("lifetime"))))
-        val vm = viewModel(gateway, premiumContent = false)
+        val vm = viewModel(gateway, contentLanguages = emptySet())
         assertEquals(PaywallState.NothingToUnlock, vm.state.value)
     }
 

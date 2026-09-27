@@ -11,6 +11,7 @@ import com.root.app.data.PracticeQueueEntryEntity
 import com.root.app.data.PracticeReviewedDetail
 import com.root.app.data.PracticeSessionEntity
 import com.root.app.data.PracticeSessionStatus
+import com.root.app.data.PremiumAccess
 import com.root.app.data.QueueEntryState
 import com.root.app.data.Scheduler
 import com.root.app.data.ManagedContentAccess
@@ -88,7 +89,7 @@ sealed interface PracticeRateResult {
  */
 class PracticeRepository(
     private val db: AppDatabase,
-    private val premium: () -> Boolean,
+    private val premium: () -> PremiumAccess,
     private val rewardUnlocked: () -> Boolean,
 ) {
     private val dao = db.practiceDao()

@@ -50,6 +50,8 @@ import com.revenuecat.purchases.models.Period
 import com.root.app.BuildConfig
 import com.root.app.billing.PaywallState
 import com.root.app.billing.PaywallViewModel
+import com.root.app.billing.PremiumOffer
+import com.root.app.billing.PremiumPlan
 import com.root.app.ui.icon.RootIcons
 import com.root.app.ui.theme.RootTheme
 import com.root.app.ui.theme.RootType
@@ -61,8 +63,8 @@ import com.root.app.ui.theme.RootType
  * handled in [PaywallContent] below.
  */
 @Composable
-fun PaywallScreen(onUnlocked: () -> Unit, onBack: () -> Unit = {}) {
-    val model: PaywallViewModel = viewModel()
+fun PaywallScreen(languageName: String?, onUnlocked: () -> Unit, onBack: () -> Unit = {}) {
+    val model: PaywallViewModel = viewModel(key = "paywall-$languageName", factory = PaywallViewModel.factory(languageName))
     val state by model.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val unlockedCallback by rememberUpdatedState(onUnlocked)
@@ -71,6 +73,7 @@ fun PaywallScreen(onUnlocked: () -> Unit, onBack: () -> Unit = {}) {
     }
     PaywallContent(
         state = state,
+        languageName = languageName,
         onBack = onBack,
         onPurchase = { model.purchase(context.findActivity(), it) },
         onRestore = model::restore,
@@ -87,6 +90,7 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
 @Composable
 private fun PaywallContent(
     state: PaywallState,
+    languageName: String?,
     onBack: () -> Unit,
     onPurchase: (Package) -> Unit = {},
     onRestore: () -> Unit = {},
@@ -113,22 +117,36 @@ private fun PaywallContent(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     IconButton(onClick = onBack) { Icon(RootIcons.Back, "Back") }
-                    Text("ROOT / THE FULL COLLECTION", style = MaterialTheme.typography.labelSmall)
+                    Text("ROOT PREMIUM", style = MaterialTheme.typography.labelSmall)
                 }
                 Spacer(Modifier.height(36.dp))
                 Text("More words.\nCloser to home.", style = RootType.heroAnswer)
                 Spacer(Modifier.height(20.dp))
                 Text(
-                    "Make room for more of your language.",
+                    "Premium pays native speakers to review and record deeper sets. " +
+                        "Everything you use today stays free.",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(32.dp))
+                Text("WHAT PREMIUM INCLUDES", style = RootType.label, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(4.dp))
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                Benefit("Every available pack", "Open the premium phrases and languages in the collection.")
-                Benefit("A practice that stays yours", "Your saved words and practice history remain on this device.")
-                Benefit("No account for your daily words", "Core practice works offline. The store needs a connection.")
+                PremiumOffer.included.forEach { (title, detail) -> Benefit(title, detail) }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Spacer(Modifier.height(20.dp))
+                Text("ALWAYS FREE", style = RootType.label, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    PremiumOffer.alwaysFree,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                // Once the store returns a real plan, its localized price replaces this.
+                if (packages.isEmpty() && state !is PaywallState.Unlocked) {
+                    Spacer(Modifier.height(28.dp))
+                    PlannedPrices(languageName)
+                }
                 Spacer(Modifier.height(28.dp))
                 Column(
                     Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
@@ -145,16 +163,16 @@ private fun PaywallContent(
                             )
                         }
                         PaywallState.NothingToUnlock -> {
-                            Text("Premium packs aren't ready yet.", style = RootType.editorialTitle)
+                            Text("Premium isn't ready yet.", style = RootType.editorialTitle)
                             Text(
-                                "Nothing is for sale until reviewed premium phrases are in the app. " +
-                                    "Keep practicing the free collection and your own words.",
+                                "No premium pack has finished native-speaker review and recording, so nothing is for sale. " +
+                                    "Packs appear here only once they're in the app.",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                         PaywallState.Unlocked -> {
-                            Text("The collection is yours.", style = RootType.editorialTitle)
-                            Text("Premium access is active.")
+                            Text("Premium is yours.", style = RootType.editorialTitle)
+                            Text(if (languageName != null) "Premium for $languageName is active." else "Premium for every language is active.")
                         }
                         is PaywallState.Error -> {
                             Text(state.message, color = MaterialTheme.colorScheme.error)
@@ -177,6 +195,7 @@ private fun PaywallContent(
                     }
                 }
                 packages.forEach { plan ->
+                    val kind = PremiumPlan.of(plan) ?: return@forEach
                     Spacer(Modifier.height(12.dp))
                     Surface(
                         shape = RoundedCornerShape(6.dp),
@@ -187,15 +206,13 @@ private fun PaywallContent(
                             Modifier.fillMaxWidth().padding(20.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
-                            Text(plan.product.title, style = MaterialTheme.typography.titleMedium)
+                            Text(PremiumOffer.planTitle(kind, languageName), style = MaterialTheme.typography.titleMedium)
                             Text(plan.priceLabel(), style = RootType.editorialTitle)
-                            if (plan.product.description.isNotBlank()) {
-                                Text(
-                                    plan.product.description,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
+                            Text(
+                                PremiumOffer.planDetail(kind, languageName),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                             Text(
                                 "One-time purchase, not a subscription. Confirm the final charge in the store.",
                                 style = MaterialTheme.typography.bodySmall,
@@ -233,8 +250,8 @@ private fun PaywallContent(
                 ) { Text(if (state is PaywallState.Unlocked) "Back to your words" else "Keep the free collection") }
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    "Coming-soon packs stay unavailable until their phrases are ready. " +
-                        "Premium does not promise content that is not here yet.",
+                    "You only ever pay for packs that are already in the app. " +
+                        "The list above describes what Premium is for, not a release date.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -285,6 +302,38 @@ private fun Benefit(title: String, detail: String) {
 }
 
 @Composable
+private fun PlannedPrices(languageName: String?) {
+    Surface(
+        shape = RoundedCornerShape(6.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("PLANNED PRICES", style = RootType.label, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            PlannedPriceRow(if (languageName != null) "$languageName only" else "One language", PremiumOffer.plannedLanguagePrice)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            PlannedPriceRow("All languages", PremiumOffer.plannedAllLanguagesPrice)
+            Text(
+                PremiumOffer.plannedPriceNote,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlannedPriceRow(title: String, price: String) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text("once", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Text(price, style = RootType.editorialTitle)
+    }
+}
+
+@Composable
 private fun LoadingMessage(message: String) {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
         CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
@@ -309,5 +358,5 @@ private fun Package.priceLabel(): String {
 @Preview(name = "Paywall / charcoal", showBackground = true, uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun PaywallPreview() {
-    RootTheme { PaywallContent(state = PaywallState.NotConfigured, onBack = {}) }
+    RootTheme { PaywallContent(state = PaywallState.NotConfigured, languageName = "Dholuo", onBack = {}) }
 }

@@ -46,11 +46,16 @@ class EntitlementStoreTest {
         EntitlementStore.resetForTest()
     }
 
-    private fun customerInfo(active: Boolean, requestDate: Date, expiration: Date? = null): CustomerInfo {
+    private fun customerInfo(
+        active: Boolean,
+        requestDate: Date,
+        expiration: Date? = null,
+        entitlementIds: List<String> = listOf(BillingConfiguration.ENTITLEMENT_ID),
+    ): CustomerInfo {
         val entitlements = if (active) {
-            mapOf(
-                BillingConfiguration.ENTITLEMENT_ID to EntitlementInfo(
-                    BillingConfiguration.ENTITLEMENT_ID,
+            entitlementIds.associateWith { id ->
+                EntitlementInfo(
+                    id,
                     true,
                     true,
                     PeriodType.NORMAL,
@@ -66,8 +71,8 @@ class EntitlementStoreTest {
                     OwnershipType.PURCHASED,
                     JSONObject(),
                     VerificationResult.NOT_REQUESTED,
-                ),
-            )
+                )
+            }
         } else {
             emptyMap()
         }
@@ -89,22 +94,22 @@ class EntitlementStoreTest {
     fun revocationDeactivatesPreviouslyActivePremium() {
         val store = EntitlementStore(application)
         store.recordCustomerInfo(customerInfo(active = true, requestDate = Date(1_000)))
-        assertTrue(store.premium.value)
+        assertTrue(store.access.value.allLanguages)
 
         store.recordCustomerInfo(customerInfo(active = false, requestDate = Date(2_000)))
-        assertFalse("A later, revoked response must deactivate premium", store.premium.value)
+        assertFalse("A later, revoked response must deactivate premium", store.access.value.allLanguages)
     }
 
     @Test
     fun staleCallbackArrivingAfterANewerOneIsIgnored() {
         val store = EntitlementStore(application)
         store.recordCustomerInfo(customerInfo(active = true, requestDate = Date(5_000)))
-        assertTrue(store.premium.value)
+        assertTrue(store.access.value.allLanguages)
 
         // Simulates a delayed getCustomerInfoWith() response for an older request landing
         // after the update listener already applied a newer one.
         store.recordCustomerInfo(customerInfo(active = false, requestDate = Date(1_000)))
-        assertTrue("A stale, older response must not regress already-applied state", store.premium.value)
+        assertTrue("A stale, older response must not regress already-applied state", store.access.value.allLanguages)
     }
 
     @Test
@@ -113,7 +118,35 @@ class EntitlementStoreTest {
         store.recordCustomerInfo(customerInfo(active = true, requestDate = Date(5_000)))
         store.recordCustomerInfo(customerInfo(active = false, requestDate = Date(1_000))) // stale, ignored
         store.recordCustomerInfo(customerInfo(active = false, requestDate = Date(9_000))) // genuinely newer
-        assertFalse("A genuinely newer response must still apply", store.premium.value)
+        assertFalse("A genuinely newer response must still apply", store.access.value.allLanguages)
+    }
+
+    @Test
+    fun singleLanguageEntitlementCoversOnlyThatLanguage() {
+        val store = EntitlementStore(application)
+        store.recordCustomerInfo(
+            customerInfo(active = true, requestDate = Date(1_000), entitlementIds = listOf("premium_dholuo", "unrelated")),
+        )
+        val access = store.access.value
+        assertFalse(access.allLanguages)
+        assertTrue(access.covers("Dholuo"))
+        assertFalse(access.covers("Shona"))
+        assertEquals(setOf("dholuo"), access.languageKeys)
+        // Reading back from the saved cache gives the same answer (only trusted with a usable key).
+        EntitlementStore.resetForTest()
+        val cached = EntitlementStore(application).current()
+        assertEquals(if (BillingConfiguration.hasUsableKey) access else com.root.app.data.PremiumAccess.NONE, cached)
+    }
+
+    @Test
+    fun olderSavedBundleFlagStillMeansEveryLanguage() {
+        application.getSharedPreferences(
+            "root_entitlements_${com.root.app.BuildConfig.REVENUECAT_API_KEY.hashCode()}",
+            Context.MODE_PRIVATE,
+        ).edit().putBoolean("premium", true).putLong("expiration", 0L).commit()
+        val access = EntitlementStore(application).current()
+        // Without a usable key nothing is trusted; with one, the old flag is the bundle.
+        assertEquals(if (BillingConfiguration.hasUsableKey) com.root.app.data.PremiumAccess.ALL else com.root.app.data.PremiumAccess.NONE, access)
     }
 
     @Test

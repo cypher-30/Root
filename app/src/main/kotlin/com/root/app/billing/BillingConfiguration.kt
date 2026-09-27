@@ -9,12 +9,14 @@ import com.root.app.BuildConfig
 
 /**
  * Supply ROOT_REVENUECAT_API_KEY as a Gradle property, not a source-code credential.
- * The dashboard must publish a current offering whose products grant "premium".
+ * The dashboard's current offering holds one-time products named as in [PremiumPlan]:
+ * `root_premium_all` grants "premium" (every language) and `root_premium_<key>`
+ * grants "premium_<key>" (one language). See docs/PREMIUM.md.
  * Test Store requires Android SDK 9.9.0 or newer and is restricted to debug builds.
  * A blank/placeholder build remains usable for offline practice, but cannot prove a purchase.
  */
 object BillingConfiguration {
-    const val ENTITLEMENT_ID = "premium"
+    const val ENTITLEMENT_ID = com.root.app.data.PremiumAccess.ALL_LANGUAGES_ENTITLEMENT
 
     val hasUsableKey: Boolean
         get() {

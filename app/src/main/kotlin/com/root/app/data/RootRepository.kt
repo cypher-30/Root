@@ -26,7 +26,7 @@ class RootRepository(context: Context) {
     val practice: PracticeRepository by lazy {
         PracticeRepository(
             db = db,
-            premium = { access.isPremium() },
+            premium = { access.current() },
             rewardUnlocked = { ReferralPrefs.hasUnlockedReward(this.context) },
         )
     }
@@ -117,7 +117,7 @@ class RootRepository(context: Context) {
     /** Locked pack metadata may be listed; its phrase text is never returned. */
     suspend fun phrases(packId: String): List<PhraseEntity> {
         val pack = requireNotNull(db.packDao().getById(packId)) { "Unknown pack: $packId" }
-        return if (canAccess(pack, access.isPremium())) {
+        return if (canAccess(pack, access.current())) {
             db.phraseDao().getForPack(packId)
         } else {
             emptyList()
@@ -130,7 +130,7 @@ class RootRepository(context: Context) {
         val phrase = db.phraseDao().getById(id) ?: return null
         if (!ManagedContentAccess.isEligible(db.contentDao().getManagedPhrase(id))) return null
         val pack = requireNotNull(db.packDao().getById(phrase.packId)) { "Phrase pack is missing." }
-        return phrase.takeIf { canAccess(pack, access.isPremium()) }
+        return phrase.takeIf { canAccess(pack, access.current()) }
     }
 
     suspend fun capabilityCount(languageId: String): Int =
@@ -146,7 +146,7 @@ class RootRepository(context: Context) {
         db.challengeDao().getById(id)?.let { return@withTransaction it }
         // The old app only had Dholuo and used unscoped random challenge IDs.
         val legacy = if (languageId == "lang-dholuo") db.challengeDao().getLegacyForWeek(weekStart) else null
-        val unlockedIds = unlockedPackIds(languageId, access.isPremium())
+        val unlockedIds = unlockedPackIds(languageId, access.current())
         val theme = db.attemptDao().mostRecentlyPracticedTheme(languageId, unlockedIds)
             ?: packs(languageId).firstOrNull { it.id in unlockedIds }?.theme
             ?: "Your words"
@@ -480,10 +480,10 @@ class RootRepository(context: Context) {
         return resolved
     }
 
-    private suspend fun unlockedPackIds(languageId: String, premium: Boolean): List<String> =
+    private suspend fun unlockedPackIds(languageId: String, premium: PremiumAccess): List<String> =
         ContentAccess.unlockedPackIds(db, languageId, premium, ReferralPrefs.hasUnlockedReward(context))
 
-    private suspend fun canAccess(pack: PackEntity, premium: Boolean): Boolean {
+    private suspend fun canAccess(pack: PackEntity, premium: PremiumAccess): Boolean {
         val language = requireNotNull(db.languageDao().getById(pack.languageId)) { "Pack language is missing." }
         return db.contentDao().getInstalledPack(pack.id)?.status != InstalledPackStatus.RETIRED &&
             ContentAccess.canAccess(language, pack, premium, ReferralPrefs.hasUnlockedReward(context))

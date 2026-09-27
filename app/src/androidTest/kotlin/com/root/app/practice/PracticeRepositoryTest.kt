@@ -7,6 +7,7 @@ import com.root.app.data.ConfidenceLevel
 import com.root.app.data.LanguageEntity
 import com.root.app.data.PackEntity
 import com.root.app.data.PhraseEntity
+import com.root.app.data.PremiumAccess
 import com.root.app.data.PracticeEndReason
 import com.root.app.data.PracticeSessionStatus
 import kotlinx.coroutines.runBlocking
@@ -37,7 +38,7 @@ class PracticeRepositoryTest {
         db = Room.inMemoryDatabaseBuilder(
             InstrumentationRegistry.getInstrumentation().targetContext, AppDatabase::class.java,
         ).build()
-        repo = PracticeRepository(db, premium = { premium }, rewardUnlocked = { reward })
+        repo = PracticeRepository(db, premium = { if (premium) PremiumAccess.ALL else PremiumAccess.NONE }, rewardUnlocked = { reward })
     }
 
     @After fun close() { db.close() }

@@ -6,20 +6,22 @@ import com.revenuecat.purchases.CustomerInfo
 import com.revenuecat.purchases.Purchases
 import com.revenuecat.purchases.getCustomerInfoWith
 import com.revenuecat.purchases.interfaces.UpdatedCustomerInfoListener
+import com.root.app.data.PremiumAccess
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** Every facade shares one process-wide state; UI and repository access use the same truth. */
+/** Every facade shares one process-wide state; UI and repository access use the same truth.
+ *  Tracks every active Root entitlement: the all-languages bundle and each single language. */
 class EntitlementStore(context: Context) {
     private val backing = shared(context.applicationContext)
 
-    val premium: StateFlow<Boolean> = backing.premium.asStateFlow()
+    val access: StateFlow<PremiumAccess> = backing.access.asStateFlow()
     val refreshError: StateFlow<String?> = backing.error.asStateFlow()
 
-    fun isPremium(): Boolean = backing.cachedAccess()
+    fun current(): PremiumAccess = backing.cachedAccess()
 
-    fun refresh(onChanged: (Boolean) -> Unit = {}) {
+    fun refresh(onChanged: (PremiumAccess) -> Unit = {}) {
         if (!BillingConfiguration.isReady) {
             onChanged(backing.cachedAccess())
             return
@@ -33,7 +35,7 @@ class EntitlementStore(context: Context) {
             },
             onSuccess = { info ->
                 recordCustomerInfo(info)
-                onChanged(isPremium())
+                onChanged(current())
             },
         )
     }
@@ -46,7 +48,7 @@ class EntitlementStore(context: Context) {
             "root_entitlements_${com.root.app.BuildConfig.REVENUECAT_API_KEY.hashCode()}",
             Context.MODE_PRIVATE,
         )
-        val premium = MutableStateFlow(false)
+        val access = MutableStateFlow(PremiumAccess.NONE)
         val error = MutableStateFlow<String?>(null)
         private var connected = false
 
@@ -55,13 +57,26 @@ class EntitlementStore(context: Context) {
             connect()
         }
 
+        /** Saved as "entitlementId|expirationMillis" (0 = lifetime). Older builds saved
+         *  a single "premium" flag, which was the all-languages entitlement. */
+        private fun savedEntitlements(): Map<String, Long> {
+            val saved = prefs.getStringSet(KEY_ENTITLEMENTS, null)
+            if (saved == null) {
+                return if (prefs.getBoolean("premium", false)) {
+                    mapOf(PremiumAccess.ALL_LANGUAGES_ENTITLEMENT to prefs.getLong("expiration", 0L))
+                } else emptyMap()
+            }
+            return saved.mapNotNull { entry ->
+                val id = entry.substringBeforeLast('|')
+                entry.substringAfterLast('|', "").toLongOrNull()?.let { id to it }
+            }.toMap()
+        }
+
         @Synchronized
-        fun cachedAccess(): Boolean {
-            val expiration = prefs.getLong("expiration", 0L)
-            val active = BillingConfiguration.hasUsableKey &&
-                prefs.getBoolean("premium", false) &&
-                isWithinExpiration(expiration)
-            premium.value = active
+        fun cachedAccess(): PremiumAccess {
+            val active = if (!BillingConfiguration.hasUsableKey) PremiumAccess.NONE
+            else PremiumAccess.fromEntitlements(savedEntitlements().filterValues { isWithinExpiration(it) }.keys)
+            access.value = active
             return active
         }
 
@@ -82,19 +97,20 @@ class EntitlementStore(context: Context) {
             val incomingRequestDate = info.requestDate.time
             val lastAppliedRequestDate = prefs.getLong("requestDate", 0L)
             if (incomingRequestDate < lastAppliedRequestDate) return
-            val entitlement = info.entitlements[BillingConfiguration.ENTITLEMENT_ID]
-            val active = entitlement?.isActive == true
+            val active = info.entitlements.active.filterKeys { PremiumAccess.isRootEntitlement(it) }
             prefs.edit()
-                .putBoolean("premium", active)
-                .putLong("expiration", entitlement?.expirationDate?.time ?: 0L)
+                .putStringSet(KEY_ENTITLEMENTS, active.map { (id, e) -> "$id|${e.expirationDate?.time ?: 0L}" }.toSet())
+                .remove("premium")
+                .remove("expiration")
                 .putLong("requestDate", incomingRequestDate)
                 .apply()
             error.value = null
-            premium.value = active
+            access.value = PremiumAccess.fromEntitlements(active.keys)
         }
     }
 
     companion object {
+        private const val KEY_ENTITLEMENTS = "entitlements"
         @Volatile private var instance: Backing? = null
 
         private fun shared(context: Context): Backing =

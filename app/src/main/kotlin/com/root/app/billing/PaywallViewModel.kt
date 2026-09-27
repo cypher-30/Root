@@ -3,7 +3,10 @@ package com.root.app.billing
 import android.app.Activity
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.revenuecat.purchases.CustomerInfo
 import com.revenuecat.purchases.Offerings
 import com.revenuecat.purchases.Package
@@ -17,6 +20,7 @@ import com.revenuecat.purchases.purchaseWith
 import com.revenuecat.purchases.restorePurchasesWith
 import com.root.app.data.AppDatabase
 import com.root.app.data.ContentAccess
+import com.root.app.data.PremiumAccess
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -76,12 +80,14 @@ sealed interface PaywallState {
 
 class PaywallViewModel @JvmOverloads constructor(
     application: Application,
+    /** The language the learner opened the paywall from; its single-language plan is offered. */
+    private val languageName: String? = null,
     private val gateway: PurchasesGateway = RevenueCatGateway,
     // Split out from BillingConfiguration.isReady so tests can drive the full state
     // machine without a real, configured RevenueCat SDK instance.
     private val isConfigured: () -> Boolean = { BillingConfiguration.isReady },
-    private val premiumContentAvailable: suspend () -> Boolean = {
-        ContentAccess.hasPremiumContent(AppDatabase.get(application))
+    private val premiumContentLanguages: suspend () -> Set<String> = {
+        ContentAccess.premiumContentLanguageKeys(AppDatabase.get(application))
     },
 ) : AndroidViewModel(application) {
     private val access = EntitlementStore(application)
@@ -90,11 +96,18 @@ class PaywallViewModel @JvmOverloads constructor(
     // Cached so purchase()/restore() can validate a selected package is still one
     // that was actually offered, instead of trusting whatever the UI passes back.
     private var packages = emptyList<Package>()
+    private var sellableLanguages = emptySet<String>()
+    private val languageKey = languageName?.let(PremiumAccess::languageKey)
+
+    /** Unlocked means this paywall's purpose is met: the current language (or,
+     *  opened without one, every language) is covered. */
+    private fun owned(current: PremiumAccess = access.current()) =
+        if (languageName != null) current.covers(languageName) else current.allLanguages
 
     init {
         viewModelScope.launch {
-            access.premium.collect { active ->
-                if (active) mutableState.value = PaywallState.Unlocked
+            access.access.collect { current ->
+                if (owned(current)) mutableState.value = PaywallState.Unlocked
                 else if (mutableState.value is PaywallState.Unlocked) load()
             }
         }
@@ -103,7 +116,7 @@ class PaywallViewModel @JvmOverloads constructor(
 
     fun load() {
         if (busy()) return
-        if (access.isPremium()) {
+        if (owned()) {
             mutableState.value = PaywallState.Unlocked
             return
         }
@@ -114,40 +127,63 @@ class PaywallViewModel @JvmOverloads constructor(
         mutableState.value = PaywallState.Loading
         access.refresh()
         viewModelScope.launch {
-            val sellable = try {
-                premiumContentAvailable()
+            sellableLanguages = try {
+                premiumContentLanguages()
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
-                false
+                emptySet()
             }
             when {
-                access.isPremium() -> mutableState.value = PaywallState.Unlocked
-                !sellable -> mutableState.value = PaywallState.NothingToUnlock
+                owned() -> mutableState.value = PaywallState.Unlocked
+                sellableLanguages.isEmpty() -> mutableState.value = PaywallState.NothingToUnlock
                 else -> loadOfferings()
             }
         }
     }
 
+    /** Only plans that open real content are shown: this language's plan when it has
+     *  premium packs, and the all-languages bundle when any language does. */
+    private fun offered(all: List<Package>): List<Package> {
+        val current = access.current()
+        return all
+            .filter { it.product.type != ProductType.SUBS }
+            .mapNotNull { pkg -> PremiumPlan.of(pkg)?.let { it to pkg } }
+            .filter { (plan, _) ->
+                when (plan) {
+                    PremiumPlan.AllLanguages -> !current.allLanguages
+                    is PremiumPlan.Language -> plan.key == languageKey && plan.key in sellableLanguages &&
+                        plan.key !in current.languageKeys
+                }
+            }
+            .sortedBy { (plan, _) -> if (plan is PremiumPlan.Language) 0 else 1 }
+            .distinctBy { (plan, _) -> plan }
+            .map { it.second }
+    }
+
+    private fun languageNotice(): String? =
+        if (languageName != null && languageKey !in sellableLanguages) {
+            "$languageName has no premium packs yet, so only the all-languages plan is offered."
+        } else null
+
     private fun loadOfferings() {
         gateway.getOfferings(
             onError = {
-                if (!access.isPremium()) {
+                if (!owned()) {
                     mutableState.value = PaywallState.Error(
                         "Plans could not be loaded. Check your connection and try again.",
                     )
                 }
             },
             onSuccess = { offerings ->
-                // This launch sells a one-time unlock only; never surface a subscription.
-                packages = offerings.current?.availablePackages.orEmpty()
-                    .filter { it.product.type != ProductType.SUBS }
+                // One-time purchases only; never surface a subscription or an unknown product.
+                packages = offered(offerings.current?.availablePackages.orEmpty())
                 mutableState.value = when {
-                    access.isPremium() -> PaywallState.Unlocked
+                    owned() -> PaywallState.Unlocked
                     packages.isEmpty() -> PaywallState.Error(
-                        "The one-time unlock isn't available from the store yet. Free practice is still available.",
+                        "Premium isn't available from the store yet. Free practice is still available.",
                     )
-                    else -> PaywallState.Ready(packages)
+                    else -> PaywallState.Ready(packages, languageNotice())
                 }
             },
         )
@@ -175,7 +211,7 @@ class PaywallViewModel @JvmOverloads constructor(
             activity = activity,
             selected = selected,
             onError = { _, cancelled ->
-                mutableState.value = if (access.isPremium()) PaywallState.Unlocked
+                mutableState.value = if (owned()) PaywallState.Unlocked
                 else if (cancelled) PaywallState.Ready(packages, "Purchase cancelled. Nothing changed.")
                 else PaywallState.Error(
                     "The purchase could not be completed. If you were charged, restore purchases before trying again.",
@@ -184,7 +220,7 @@ class PaywallViewModel @JvmOverloads constructor(
             },
             onSuccess = { _, info ->
                 access.recordCustomerInfo(info)
-                mutableState.value = if (access.isPremium()) PaywallState.Unlocked
+                mutableState.value = if (owned()) PaywallState.Unlocked
                 else PaywallState.Error(
                     "The store completed the purchase, but premium access is not active. " +
                         "Try restoring purchases. The store configuration may need attention.",
@@ -203,7 +239,7 @@ class PaywallViewModel @JvmOverloads constructor(
         mutableState.value = PaywallState.Restoring(packages)
         gateway.restore(
             onError = {
-                mutableState.value = if (access.isPremium()) PaywallState.Unlocked
+                mutableState.value = if (owned()) PaywallState.Unlocked
                 else PaywallState.Error(
                     "Purchases could not be restored. Check your connection and store account, then try again.",
                     packages,
@@ -211,13 +247,27 @@ class PaywallViewModel @JvmOverloads constructor(
             },
             onSuccess = { info ->
                 access.recordCustomerInfo(info)
-                mutableState.value = if (access.isPremium()) PaywallState.Unlocked
-                else PaywallState.Ready(packages, "No active premium purchase was found for this store account.")
+                mutableState.value = when {
+                    owned() -> PaywallState.Unlocked
+                    access.current().ownsAnything -> PaywallState.Ready(
+                        packages,
+                        "Your other premium purchases were restored. ${languageName ?: "Every language"} isn't included in them.",
+                    )
+                    else -> PaywallState.Ready(packages, "No active premium purchase was found for this store account.")
+                }
             },
         )
     }
 
     private fun busy() = mutableState.value is PaywallState.Purchasing ||
         mutableState.value is PaywallState.Restoring
+
+    companion object {
+        fun factory(languageName: String?): ViewModelProvider.Factory = viewModelFactory {
+            initializer {
+                PaywallViewModel(this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as Application, languageName)
+            }
+        }
+    }
 }
 
