@@ -143,6 +143,31 @@ interface PracticeMarkDao {
     suspend fun getForPhrase(phraseId: String): PracticeMarkEntity?
 }
 
+@Dao
+interface SavedPhraseDao {
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun save(saved: SavedPhraseEntity)
+
+    @Query("DELETE FROM saved_phrases WHERE phrase_id = :phraseId")
+    suspend fun remove(phraseId: String)
+
+    /** Saved, still-live phrases for one language, newest first. */
+    @Query(
+        """
+        SELECT p.* FROM saved_phrases s
+        JOIN phrases p ON p.id = s.phrase_id
+        JOIN packs k ON k.id = p.pack_id
+        WHERE k.language_id = :languageId
+          AND NOT EXISTS (SELECT 1 FROM managed_phrases m WHERE m.phrase_id = p.id AND m.retired = 1)
+        ORDER BY s.saved_at DESC, p.id
+        """
+    )
+    fun observeForLanguage(languageId: String): Flow<List<PhraseEntity>>
+
+    @Query("SELECT phrase_id FROM saved_phrases")
+    fun observeIds(): Flow<List<String>>
+}
+
 
 /** DAO for [ContributionDraftEntity] — see that entity's doc for why a
  *  contribution draft is durable rather than screen-level saved state. */

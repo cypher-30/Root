@@ -38,7 +38,7 @@ data class PackEntity(
     @ColumnInfo(name = "language_id") val languageId: String,
     val theme: String,         // "Greetings", "Family", "Market", ...
     val sortOrder: Int,
-    val isFree: Boolean,       // true for the first 1-2 packs per language
+    val isFree: Boolean,       // every bundled starter set is free; paid packs are reviewed premium content
     @ColumnInfo(name = "updated_at") val updatedAt: Long = System.currentTimeMillis(),
 )
 
@@ -277,6 +277,25 @@ data class PersonalNoteEntity(
 data class PracticeMarkEntity(
     @PrimaryKey @ColumnInfo(name = "phrase_id") val phraseId: String,
     @ColumnInfo(name = "marked_at") val markedAt: Long = System.currentTimeMillis(),
+)
+
+/** A phrase the learner bookmarked in Explore for their notebook. Only a
+ *  reference: it never touches recall scheduling, practice marks, or the
+ *  phrase itself, and it disappears with the phrase. */
+@Entity(
+    tableName = "saved_phrases",
+    foreignKeys = [
+        ForeignKey(
+            entity = PhraseEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["phrase_id"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+)
+data class SavedPhraseEntity(
+    @PrimaryKey @ColumnInfo(name = "phrase_id") val phraseId: String,
+    @ColumnInfo(name = "saved_at") val savedAt: Long = System.currentTimeMillis(),
 )
 
 
