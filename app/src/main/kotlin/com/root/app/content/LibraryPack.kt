@@ -18,6 +18,10 @@ data class LibraryPack(
     val development: Boolean,
     val status: LibraryStatus,
     val error: String?,
+    /** Room language this unit installs into, once known (installed at least once). */
+    val languageId: String? = null,
+    /** Genuine recordings shipped with this unit; zero means nothing to listen to yet. */
+    val audioCount: Int = 0,
 )
 
 /** Best-effort on-disk usage summary — see [ContentLibrary.storageUsage]. */

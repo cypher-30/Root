@@ -412,6 +412,22 @@ loading). A real hosted publish/download/rollback smoke test against an
 actual Supabase project remains an open, explicit blocker for whoever
 supplies project credentials — this is not silently skipped or faked.
 
+## Showcase units (debug builds, never public)
+
+`tools/content/scripts/build_showcase_units.py` writes seven more units to
+`content/editorial/showcase/` (Shona and Amharic meeting people, Swahili
+meeting people and market, Dholuo family and market, Amharic café), so every
+language has two Learn units. Each has three lessons: a guided conversation,
+a pattern workshop and a listening story, the last two recommending the
+conversation first. Every target-language line is a `SeedCatalog` starter
+answer (checked by `tools/content/tests/test_showcase_units.py`); English
+narration and explanations were written for Root. Listening steps carry
+`audioAssetId: null` with an `unavailableReason` and are optional, so the
+stories can be read but are never counted as heard. Manifests stay
+`publication: "development"`, so release packaging and the public catalog
+reject them. `EditorialContractTest` validates each one with
+`ContentValidator`.
+
 ## Shona pilot (development-only, never public)
 
 `content/editorial/shona_pilot/` (private editorial authoring registry:
@@ -457,7 +473,7 @@ cd tools/content
 python -m unittest discover -s tests -v
 ```
 
-As of this writing: **147 tests, all passing** — covering canonical JSON,
+As of this writing: **153 tests, all passing** — covering canonical JSON,
 all 13 JSON Schemas against 14 valid/invalid fixtures, the source
 registry/gates (including the `listening` activity's null-audio
 publication-status gate), reports/quarantine/idempotency, safe archive

@@ -10,7 +10,7 @@ native-speaker-reviewed Shona unit is still pending.
 - `phrases.json` — 8 short Shona greeting/courtesy phrases (internal editorial
   authoring record: id/revision/targetText/knownLanguageCode/meaning/
   provenance), identical in substance to the phrases already shipped in the
-  Android app's `SeedData.kt` / `assets/content_sources.txt` starter pack,
+  Android app's `SeedCatalog.kt` / `assets/content_sources.txt` starter pack,
   each carrying an honest `provenance` record. The wire manifest's slim
   `ManagedPhrase` shape (`prompt`/`meaning`/`credits`) is derived from this
   record by `build_shona_pilot.py`, never hand-duplicated.

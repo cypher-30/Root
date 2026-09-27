@@ -1,11 +1,10 @@
-"""Author the DEVELOPMENT-ONLY Shona pilot editorial unit and build its manifest.
+"""Author the Shona starter unit ("Greetings and courtesies") and build its manifest.
 
 This script writes the private editorial authoring registry
 (content/editorial/shona_pilot/{phrases,lessons}.json) plus the built,
 manifest-only, deterministic pack_builder output at
-content/editorial/shona-pilot.json -- the single file the parent packages
-via a debug-only Gradle Copy task into the app's content/shona-pilot.json
-debug asset. It intentionally does NOT claim publication-readiness: see
+content/editorial/shona-pilot.json -- packaged with the other bundled
+units by the debug/validation Gradle Copy task into the app's content/ assets. It intentionally does NOT claim publication-readiness: see
 README.md in the shona_pilot/ directory and tests/test_shona_pilot.py, which
 assert the pipeline's own gates correctly refuse to treat this content as
 publishable.
@@ -181,9 +180,9 @@ LESSON_CONVERSATION = {
 
 LESSON_LISTENING = {
     "id": "shona-pilot-lesson-listening",
-    "revision": 1,
-    "title": "Listening Practice (Audio Unavailable)",
-    "objective": "Listening practice for the six greeting/courtesy phrases above (currently blocked: no authentic recording available).",
+    "revision": 2,
+    "title": "Listen: greetings through the day",
+    "objective": "Hear the greetings and courtesies from the first lesson spoken by a real speaker, then pick out the word for Welcome.",
     "format": "listening",
     "prerequisiteLessonIds": ["shona-pilot-lesson-greetings"],
     "linkedPhraseIds": [p["id"] for p in AUTHORED_PHRASES],
@@ -230,7 +229,7 @@ LESSON_LISTENING = {
 
 LESSON_PATTERN_WORKSHOP = {
     "id": "shona-pilot-lesson-pattern",
-    "revision": 1,
+    "revision": 2,
     "title": "Address Pattern Workshop",
     "objective": "Notice how two of these courtesy phrases change when addressing more than one person, then construct both forms.",
     "format": "pattern_workshop",
@@ -247,7 +246,10 @@ LESSON_PATTERN_WORKSHOP = {
                 "general grammar rule for other Shona words, which would need separate native-speaker "
                 "confirmation."
             ),
-            "examples": ["shona-pilot-hello-sg", "shona-pilot-hello-pl", "shona-pilot-thanks-sg", "shona-pilot-thanks-pl"],
+            "examples": [
+                "Mhoro (Hello, one person) → Mhoroi (Hello, more than one person)",
+                "Waita zvako (Thank you, one person) → Maita zvenyu (Thank you, more than one person)",
+            ],
         },
         {
             "id": "construct-guided-1",
@@ -287,10 +289,10 @@ AUTHORED_LESSONS = [LESSON_CONVERSATION, LESSON_LISTENING, LESSON_PATTERN_WORKSH
 def main():
     result = build_manifest(
         pack_id="pack.shona.pilot.dev",
-        version=1,
+        version=2,
         language={"id": "sn", "code": "sn", "name": "Shona"},
-        title="Shona Pilot (Development Only)",
-        objective="Development-only prototype: greetings/courtesies exchange, contextual reply, blocked listening, and a narrow address-pattern workshop.",
+        title="Greetings and courtesies",
+        objective="Greet a neighbour through the day, answer naturally, listen for the greetings, and see how two courtesies change for a group.",
         publication_status="development",
         phrases=WIRE_PHRASES,
         lessons=AUTHORED_LESSONS,
@@ -310,7 +312,7 @@ def main():
     # Manifest-only build output, separate from the private editorial
     # authoring registry above: this is the single file the parent copies
     # (debug-only Gradle Copy task) into the app's content/shona-pilot.json
-    # debug asset. No publication claim is made by writing this file.
+    # asset. No publication claim is made by writing this file.
     MANIFEST_OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     MANIFEST_OUTPUT_PATH.write_bytes(result.manifest_bytes)
     print("Wrote", MANIFEST_OUTPUT_PATH, "sha256=" + result.manifest_sha256, "bytes=" + str(len(result.manifest_bytes)))

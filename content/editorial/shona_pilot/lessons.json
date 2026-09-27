@@ -120,9 +120,9 @@
   },
   {
     "id": "shona-pilot-lesson-listening",
-    "revision": 1,
-    "title": "Listening Practice (Audio Unavailable)",
-    "objective": "Listening practice for the six greeting/courtesy phrases above (currently blocked: no authentic recording available).",
+    "revision": 2,
+    "title": "Listen: greetings through the day",
+    "objective": "Hear the greetings and courtesies from the first lesson spoken by a real speaker, then pick out the word for Welcome.",
     "format": "listening",
     "prerequisiteLessonIds": [
       "shona-pilot-lesson-greetings"
@@ -179,7 +179,7 @@
   },
   {
     "id": "shona-pilot-lesson-pattern",
-    "revision": 1,
+    "revision": 2,
     "title": "Address Pattern Workshop",
     "objective": "Notice how two of these courtesy phrases change when addressing more than one person, then construct both forms.",
     "format": "pattern_workshop",
@@ -198,10 +198,8 @@
         "kind": "pattern_explanation",
         "explanation": "Two of this pack's checked phrase pairs change when you address more than one person: Mhoro becomes Mhoroi, and Waita zvako becomes Maita zvenyu. This workshop only demonstrates the pattern for these two already-checked pairs; it is not a general grammar rule for other Shona words, which would need separate native-speaker confirmation.",
         "examples": [
-          "shona-pilot-hello-sg",
-          "shona-pilot-hello-pl",
-          "shona-pilot-thanks-sg",
-          "shona-pilot-thanks-pl"
+          "Mhoro (Hello, one person) → Mhoroi (Hello, more than one person)",
+          "Waita zvako (Thank you, one person) → Maita zvenyu (Thank you, more than one person)"
         ]
       },
       {

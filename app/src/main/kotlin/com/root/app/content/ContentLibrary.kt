@@ -118,6 +118,8 @@ class ContentLibrary internal constructor(
                     pointer?.currentVersion?.takeIf { ready },
                     (entry?.publication ?: manifest!!.publication) == PublicationStatus.DEVELOPMENT,
                     status, job?.errorMessage,
+                    languageId = revision?.languageId,
+                    audioCount = entry?.audioCount ?: manifest!!.assets.size,
                 )
             }
         }
@@ -154,12 +156,10 @@ class ContentLibrary internal constructor(
     suspend fun download(packId: String) = withContext(Dispatchers.IO) {
         requestMutex.withLock {
         val entry = catalogState.value?.entries?.singleOrNull { it.id == packId }
-        if (entry == null && BuildConfig.DEBUG &&
-            context.assets.list("content")?.contains("shona-pilot.json") == true) {
-            val bytes = context.assets.open("content/shona-pilot.json").use { it.readBytes() }
-            val bundled = decodeManifest(bytes, allowDevelopment = true)
-            if (bundled.id == packId) {
-                installBundledDevelopment(bytes)
+        if (entry == null && BuildConfig.DEBUG) {
+            val bundled = bundledManifests().firstOrNull { it.second.id == packId }
+            if (bundled != null) {
+                installBundledDevelopment(bundled.first)
                 return@withLock
             }
         }
@@ -379,6 +379,7 @@ class ContentLibrary internal constructor(
             db.packDao().insertMissing(listOf(PackEntity(
                 id = manifest.id, languageId = languageId, theme = manifest.title, sortOrder = 100, isFree = true,
             )))
+            db.packDao().updateTheme(manifest.id, manifest.title)
             dao.setPackPhrasesRetired(manifest.id, true, System.currentTimeMillis())
             manifest.phrases.forEach { phrase ->
                 val old = db.phraseDao().getById(phrase.id)
@@ -426,6 +427,8 @@ class ContentLibrary internal constructor(
         val seededId = when (language.code.lowercase()) {
             "sn", "sn-zw" -> db.packDao().getById("pack-shona-greetings")?.languageId
             "luo", "luo-ke" -> db.packDao().getById("pack-dholuo-greetings")?.languageId
+            "sw", "sw-ke", "sw-tz" -> db.packDao().getById("pack-swahili-greetings")?.languageId
+            "am", "am-et" -> db.packDao().getById("pack-amharic-greetings")?.languageId
             else -> null
         }
         if (seededId != null) return seededId
@@ -444,17 +447,35 @@ class ContentLibrary internal constructor(
     }
 
     private suspend fun installDevelopmentStarter() {
-        val source = "content/shona-pilot.json"
-        if (context.assets.list("content")?.contains("shona-pilot.json") != true) return
-        val bytes = context.assets.open(source).use { stream ->
-            val output = java.io.ByteArrayOutputStream()
-            ContentTransport.copyBounded(stream, output, ContentTransport.MAX_MANIFEST_BYTES)
-            output.toByteArray()
+        for ((bytes, manifest) in bundledManifests()) {
+            val installed = dao.getInstalledPack(manifest.id)
+            // A unit the learner removed stays removed; they can add it back from Learn.
+            if (installed?.status == InstalledPackStatus.RETIRED) continue
+            if (installed != null && installed.currentVersion >= manifest.version) continue
+            try {
+                installBundledDevelopment(bytes)
+            } catch (error: Exception) {
+                if (error is CancellationException) throw error
+                android.util.Log.w("RootContent", "Skipping bundled unit ${manifest.id}", error)
+            }
         }
-        val manifest = decodeManifest(bytes, allowDevelopment = true)
-        if (dao.getInstalledPack(manifest.id) != null) return
-        installBundledDevelopment(bytes)
     }
+
+    /** Every valid manifest bundled under assets/content/, with its bytes. */
+    private fun bundledManifests(): List<Pair<ByteArray, PackManifest>> =
+        context.assets.list("content").orEmpty().filter { it.endsWith(".json") }.sorted().mapNotNull { name ->
+            try {
+                val bytes = context.assets.open("content/$name").use { stream ->
+                    val output = java.io.ByteArrayOutputStream()
+                    ContentTransport.copyBounded(stream, output, ContentTransport.MAX_MANIFEST_BYTES)
+                    output.toByteArray()
+                }
+                bytes to decodeManifest(bytes, allowDevelopment = true)
+            } catch (error: Exception) {
+                android.util.Log.w("RootContent", "Ignoring unreadable bundled manifest $name", error)
+                null
+            }
+        }
 
     internal suspend fun installBundledDevelopment(bytes: ByteArray) = withContext(Dispatchers.IO) {
         check(BuildConfig.DEBUG) { "Development packs are not supported by release builds" }

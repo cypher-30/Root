@@ -25,4 +25,35 @@ class EditorialContractTest {
         assertTrue(manifest.assets.isEmpty())
         assertTrue(listening.all { it.audioAssetId == null })
     }
+
+    @Test fun everyShowcaseUnitIsValidAndHonestAboutAudio() {
+        val ids = listOf(
+            "pack.shona.meeting", "pack.swahili.meeting", "pack.swahili.market", "pack.dholuo.family",
+            "pack.dholuo.market", "pack.amharic.meeting", "pack.amharic.cafe",
+        )
+        ids.forEach { id ->
+            val bytes = requireNotNull(javaClass.classLoader!!.getResourceAsStream("showcase/$id.json")) {
+                "Showcase unit $id is missing"
+            }.use { it.readBytes() }
+            val manifest = ContentJson.decodeFromString<PackManifest>(bytes.toString(Charsets.UTF_8))
+            assertEquals(id, manifest.id)
+            assertEquals("$id validates", ValidationResult.Valid, ContentValidator.validate(manifest, bytes.size.toLong()))
+            assertEquals(
+                listOf(LessonFormat.GUIDED_CONVERSATION, LessonFormat.PATTERN_WORKSHOP, LessonFormat.LISTENING),
+                manifest.lessons.map { it.format },
+            )
+            assertTrue(manifest.assets.isEmpty())
+            manifest.lessons.forEach { lesson ->
+                lesson.activities.filterIsInstance<Activity.Listening>().forEach { listening ->
+                    assertNull(listening.audioAssetId)
+                    assertFalse("${listening.id} explains missing audio", listening.unavailableReason.isNullOrBlank())
+                    assertFalse("${listening.id} is optional", listening.id in lesson.requiredActivityIds)
+                }
+            }
+            val text = bytes.toString(Charsets.UTF_8).lowercase()
+            listOf("prototype", "placeholder", "lorem", "development only").forEach {
+                assertFalse("$id mentions $it", text.contains(it))
+            }
+        }
+    }
 }

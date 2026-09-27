@@ -127,14 +127,16 @@ ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
 
-// Only this public-safe development manifest is bundled, and only in debug.
+// Only these public-safe starter manifests are bundled, and only in debug/validation.
 // Raw corpora and editorial permission records are never Android asset sources.
 val prepareDevelopmentContent by tasks.registering(Copy::class) {
     from(rootProject.file("content/editorial/shona-pilot.json"))
+    from(rootProject.file("content/editorial/showcase")) { include("*.json") }
     into(layout.buildDirectory.dir("generated/contentAssets/debug/content"))
 }
 val prepareValidationContent by tasks.registering(Copy::class) {
     from(rootProject.file("content/editorial/shona-pilot.json"))
+    from(rootProject.file("content/editorial/showcase")) { include("*.json") }
     into(layout.buildDirectory.dir("generated/contentAssets/validation/content"))
 }
 android.sourceSets.getByName("debug").assets.srcDir(layout.buildDirectory.dir("generated/contentAssets/debug").get().asFile)

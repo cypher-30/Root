@@ -371,9 +371,14 @@ Behavior guaranteed by the implementation (see `LessonRunnerTest.kt`):
   activity that already has a recorded event is always `ASSISTED`, regardless
   of correctness; only a genuinely first, unassisted response can be `CHECKED`.
 - **Pause/leave and Restart**: `Pause` durably parks an `ACTIVE` run; leaving
-  a lesson mid-run is expected to call it. `Restart` always creates a **new**
-  run — it never reopens/reuses a prior run — and marks any previously open
-  run's `supersededByRunId`, preserving (not erasing) its events.
+  a lesson mid-run is expected to call it (a completed run is never paused).
+  With no open run, `BeginOrResume` returns the latest `COMPLETED` run at the
+  lesson's current revision instead of starting a new one, so reopening a
+  finished lesson shows its completion. `Restart` (the learner's "Review
+  again") always creates a **new** run — it never reopens/reuses a prior run —
+  and marks any previously open run's `supersededByRunId`, preserving (not
+  erasing) its events. `LessonProgressRules` keeps a lesson `COMPLETED` while
+  a review run is open.
 - **Completion, not a score**: `Advance` at the final step completes the run
   only once every `requiredActivityIds` has a recorded event (an
   acknowledgement/response — not necessarily a *correct* one); optional
