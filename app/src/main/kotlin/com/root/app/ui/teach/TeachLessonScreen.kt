@@ -206,7 +206,7 @@ private fun SpeakingPromptContent(step: Activity.SpeakingPrompt, onSelfAssessed:
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(step.prompt, style = MaterialTheme.typography.bodyLarge)
         Text(
-            "Optional. Speaking is self-assessed only — Root never scores pronunciation or automatically rates recall from it.",
+            "Optional. Speaking is self-assessed only. Root never scores pronunciation or automatically rates recall from it.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -251,8 +251,8 @@ private fun ListeningContent(
         when (source) {
             is LessonAudioSource.Unavailable -> Text(
                 step.unavailableReason
-                    ?: "Audio unavailable. This lesson needs a real speaker recording that hasn't been sourced/reviewed yet — " +
-                        "it can't be marked complete without it.",
+                    ?: "This step needs a recording by a real speaker, and none has been added yet. " +
+                        "The lesson can't be marked complete without it.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.semantics { contentDescription = "Required audio unavailable" },
@@ -275,7 +275,7 @@ private fun ListeningContent(
             if (assisted) {
                 step.transcript?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
                 step.translation?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                Text("Transcript shown — this attempt is recorded as assisted.", style = MaterialTheme.typography.labelSmall,
+                Text("Transcript shown. This attempt is recorded as assisted.", style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
                 TextButton(onClick = { onReveal(step.id) }) { Text("Show transcript (marks this attempt assisted)") }
@@ -294,7 +294,7 @@ private fun ListeningContent(
                     OutlinedButton(
                         onClick = { onAcknowledgeUnavailable(step.id) },
                         shape = MaterialTheme.shapes.small,
-                    ) { Text("I understand — no recording available yet") }
+                    ) { Text("I understand, no recording available yet") }
                 }
             } else {
                 Text(
@@ -400,10 +400,10 @@ private fun LessonCompleteContent(
     onBack: () -> Unit,
 ) {
     Column(columnModifier.verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Lesson practiced.", style = RootType.editorialTitle)
+        Text("Lesson completed.", style = RootType.editorialTitle)
         Text(
             "You completed ${run.requiredCompletedCount} of ${run.requiredTotalCount} required step(s) in \"${lesson.title}\". " +
-                "This reflects what was practiced, not a fluency or mastery score.",
+                "It stays marked Completed in Learn. This reflects what was practiced, not a fluency or mastery score.",
             style = MaterialTheme.typography.bodyMedium,
         )
         val assistedCount = run.assistanceUsedActivityIds.size
@@ -413,8 +413,8 @@ private fun LessonCompleteContent(
         }
         Spacer(Modifier.height(12.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = onRestart, shape = MaterialTheme.shapes.small) { Text("Restart (new attempt)") }
-            Button(onClick = onBack, shape = MaterialTheme.shapes.small) { Text("Done") }
+            OutlinedButton(onClick = onRestart, shape = MaterialTheme.shapes.small) { Text("Review again") }
+            Button(onClick = onBack, shape = MaterialTheme.shapes.small) { Text("Back to Learn") }
         }
     }
 }

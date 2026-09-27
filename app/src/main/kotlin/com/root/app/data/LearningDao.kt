@@ -28,6 +28,37 @@ interface LearningDao {
     @Query("SELECT * FROM lesson_runs WHERE lesson_id = :lessonId ORDER BY started_at DESC")
     suspend fun runsForLesson(lessonId: String): List<LessonRunEntity>
 
+    /** The newest completed run of one lesson at one content revision — what an
+     *  ordinary reopen shows instead of silently starting a fresh attempt. */
+    @Query(
+        """
+        SELECT * FROM lesson_runs
+        WHERE pack_id = :packId AND lesson_id = :lessonId AND status = 'COMPLETED' AND lesson_revision = :lessonRevision
+        ORDER BY completed_at DESC, started_at DESC LIMIT 1
+        """
+    )
+    suspend fun latestCompletedRun(packId: String, lessonId: String, lessonRevision: Int): LessonRunEntity?
+
+    @Query("SELECT * FROM lesson_runs WHERE pack_id = :packId")
+    suspend fun runsForPack(packId: String): List<LessonRunEntity>
+
+    /** Emits whenever any lesson run changes, so Learn progress stays live. */
+    @Query("SELECT * FROM lesson_runs")
+    fun observeAllRuns(): kotlinx.coroutines.flow.Flow<List<LessonRunEntity>>
+
+    /** The most recent non-superseded run for one lesson within one pack,
+     *  regardless of status — read-only projection for the Learn path's
+     *  Start/Resume/Completed display (see [com.root.app.learning.LessonRunner.progressForPack]).
+     *  Superseded rows are excluded since a newer run already replaced them. */
+    @Query(
+        """
+        SELECT * FROM lesson_runs
+        WHERE pack_id = :packId AND lesson_id = :lessonId AND superseded_by_run_id IS NULL
+        ORDER BY started_at DESC LIMIT 1
+        """
+    )
+    suspend fun latestRun(packId: String, lessonId: String): LessonRunEntity?
+
     @Query(
         """
         UPDATE lesson_runs SET status = :status, current_step_index = :currentStepIndex,

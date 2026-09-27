@@ -15,6 +15,7 @@ import com.root.app.content.Lesson
 import com.root.app.content.LibraryPack
 import com.root.app.content.PackManifest
 import com.root.app.data.AppDatabase
+import com.root.app.learning.LessonProgressSummary
 import com.root.app.learning.LessonRunner
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.launchIn
@@ -53,13 +54,13 @@ class ContentViewModel(
         private set
     var error by mutableStateOf<String?>(null)
         private set
-    /** Lesson ids with a currently-open (ACTIVE/PAUSED) run, per
-     *  [LessonRunner.openRunState] — read-only, never fabricates a run. Refreshed
-     *  whenever [loadDetail] runs; drives the catalog's Resume-vs-Start label
-     *  without this ViewModel keeping its own runId cache. */
-    var resumableLessonIds by mutableStateOf(emptySet<String>())
-        private set
     var detailStates by mutableStateOf(emptyMap<String, UnitDetailState>())
+        private set
+    /** unitId -> (lessonId -> progress); populated by [loadDetail], the same
+     *  point the unit's lessons themselves become known, and recomputed
+     *  whenever any lesson run changes. Never fabricated ahead of a real
+     *  [LessonRunner.progressForPack] read. */
+    var lessonProgress by mutableStateOf(emptyMap<String, Map<String, LessonProgressSummary>>())
         private set
 
     fun detailState(unitId: String): UnitDetailState = detailStates[unitId] ?: UnitDetailState.LOADING
@@ -69,7 +70,14 @@ class ContentViewModel(
             val previousLessons = rows.associate { it.pack.id to it.lessons }
             rows = packs.map { pack -> TeachUnitRow(pack, previousLessons[pack.id].orEmpty()) }
             loading = false
+            // Load every installed unit's lessons so Learn shows real status
+            // without each unit having to be opened first.
+            packs.filter { it.installedVersion != null && previousLessons[it.id].isNullOrEmpty() }
+                .forEach { loadDetail(it.id) }
         }.launchIn(viewModelScope)
+        AppDatabase.get(application).learningDao().observeAllRuns()
+            .onEach { refreshProgress() }
+            .launchIn(viewModelScope)
         viewModelScope.launch {
             try {
                 // initialize() installs the debug-only development starter pack
@@ -110,13 +118,7 @@ class ContentViewModel(
                 return@launch
             }
             rows = rows.map { if (it.pack.id == unitId) it.copy(lessons = manifest.lessons) else it }
-            val resumableInUnit = manifest.lessons
-                .filter { runner.openRunState(unitId, it.id) != null }
-                .map { it.id }
-                .toSet()
-            // Merge in (don't drop) any other unit's already-known resumable
-            // lessons — this only refreshes the unit just opened.
-            resumableLessonIds = (resumableLessonIds.filterNot { id -> manifest.lessons.any { it.id == id } }.toSet()) + resumableInUnit
+            lessonProgress = lessonProgress + (unitId to runner.progressForPack(unitId, manifest.lessons))
             detailStates = detailStates + (unitId to UnitDetailState.READY)
         } catch (e: CancellationException) {
             throw e
@@ -146,6 +148,7 @@ class ContentViewModel(
             library.uninstall(unitId)
             rows = rows.map { if (it.pack.id == unitId) it.copy(lessons = emptyList()) else it }
             detailStates = detailStates - unitId
+            lessonProgress = lessonProgress - unitId
         } catch (e: Exception) {
             Log.w("ContentViewModel", "uninstall($unitId) failed", e)
             error = "Couldn't remove this unit. Please try again."
@@ -161,6 +164,21 @@ class ContentViewModel(
     fun clearError() { error = null }
 
     fun row(unitId: String): TeachUnitRow? = rows.firstOrNull { it.pack.id == unitId }
+
+    /** Per-lesson progress for [unitId], or empty until [loadDetail] has run. */
+    fun progressFor(unitId: String): Map<String, LessonProgressSummary> = lessonProgress[unitId].orEmpty()
+
+    private suspend fun refreshProgress() {
+        rows.filter { it.lessons.isNotEmpty() }.forEach { row ->
+            try {
+                lessonProgress = lessonProgress + (row.pack.id to runner.progressForPack(row.pack.id, row.lessons))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w("ContentViewModel", "progress refresh for ${row.pack.id} failed", e)
+            }
+        }
+    }
 
     /** The currently installed manifest for [unitId], if this unit is installed
      *  and ready. Used by navigation-owned UI such as reels that needs the

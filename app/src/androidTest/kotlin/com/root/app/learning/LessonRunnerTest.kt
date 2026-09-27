@@ -117,6 +117,31 @@ class LessonRunnerTest {
         assertEquals(0, db.attemptDao().capabilityCount("lang-1"))
     }
 
+    @Test fun reopeningACompletedLessonShowsItsCompletionUntilReviewAgain() = runBlocking {
+        val begin = runner.execute(LearningCommand.BeginOrResume("cmd-begin", packId, 1, lessonId)) as CommandResult.Applied
+        val runId = begin.state.runId
+        runner.execute(LearningCommand.SubmitResponse("cmd-1", runId, "act-1", ActivityResponse.Acknowledged))
+        runner.execute(LearningCommand.Advance("cmd-adv-1", runId, "act-1"))
+        runner.execute(LearningCommand.SubmitResponse("cmd-2", runId, "act-2", ActivityResponse.Choice("c1")))
+        runner.execute(LearningCommand.Advance("cmd-adv-2", runId, "act-2"))
+        runner.execute(LearningCommand.SubmitResponse("cmd-3", runId, "act-3", ActivityResponse.OrderedTokens(listOf("t1", "t2"))))
+        runner.execute(LearningCommand.Advance("cmd-adv-3", runId, "act-3"))
+
+        // Leaving and entering again returns the finished run, not a fresh one.
+        val reopened = runner.execute(LearningCommand.BeginOrResume("cmd-reopen", packId, 1, lessonId)) as CommandResult.Applied
+        assertEquals(runId, reopened.state.runId)
+        assertTrue(reopened.state.completed)
+        assertEquals(LessonProgress.COMPLETED, runner.progressForPack(packId, manifest(1).lessons)[lessonId]?.progress)
+
+        // Only an explicit review starts a new attempt, and completion stays.
+        val review = runner.execute(LearningCommand.Restart("cmd-review", packId, 1, lessonId)) as CommandResult.Applied
+        assertNotEquals(runId, review.state.runId)
+        assertFalse(review.state.completed)
+        val summary = runner.progressForPack(packId, manifest(1).lessons)[lessonId]!!
+        assertEquals(LessonProgress.COMPLETED, summary.progress)
+        assertTrue(summary.hasOpenRun)
+    }
+
     @Test fun duplicateCommandIdSamePayloadIsAlreadyApplied() = runBlocking {
         val first = runner.execute(LearningCommand.BeginOrResume("cmd-x", packId, 1, lessonId))
         val replay = runner.execute(LearningCommand.BeginOrResume("cmd-x", packId, 1, lessonId))

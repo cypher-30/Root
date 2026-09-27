@@ -19,6 +19,37 @@ import com.root.app.data.LessonRunStatus
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 
+/** Non-fabricated, display-only lesson status for the Learn tab's visible
+ *  path — see [LessonRunner.progressForPack]. Never blocks access to any
+ *  other lesson; the path is a recommended order, not a locked sequence. */
+enum class LessonProgress { NOT_STARTED, IN_PROGRESS, COMPLETED, COMPLETED_EARLIER_REVISION, UNAVAILABLE }
+
+/** A lesson's path status plus whether a review attempt is currently open. */
+data class LessonProgressSummary(val progress: LessonProgress, val hasOpenRun: Boolean)
+
+/**
+ * Pure display rules for one lesson's runs (all revisions, one pack):
+ * completion at the current revision is durable and outranks an open review;
+ * an open run is otherwise in progress; completion of an earlier revision is
+ * shown as such (never promoted); runs ended as UNAVAILABLE by a removed unit
+ * count as not started, so re-adding the unit starts cleanly.
+ */
+object LessonProgressRules {
+    fun summarize(currentRevision: Int, runs: List<LessonRunEntity>): LessonProgressSummary {
+        val open = runs.any {
+            (it.status == LessonRunStatus.ACTIVE || it.status == LessonRunStatus.PAUSED) && it.supersededByRunId == null
+        }
+        val completed = runs.filter { it.status == LessonRunStatus.COMPLETED }
+        val progress = when {
+            completed.any { it.lessonRevision == currentRevision } -> LessonProgress.COMPLETED
+            open -> LessonProgress.IN_PROGRESS
+            completed.isNotEmpty() -> LessonProgress.COMPLETED_EARLIER_REVISION
+            else -> LessonProgress.NOT_STARTED
+        }
+        return LessonProgressSummary(progress, open)
+    }
+}
+
 /** Resolves a pinned (packId, packVersion) to its [Lesson] content. Kept as an
  *  interface so pure/unit tests can supply fixtures without Room. */
 fun interface LessonContentSource {
@@ -123,6 +154,19 @@ class LessonRunner(
         return buildState(run)
     }
 
+    /** Read-only, per-lesson progress for the Learn tab's visible path —
+     *  issues no command and creates no run. See [LessonProgressRules]: a
+     *  lesson completed under an *earlier* revision is reported as
+     *  [LessonProgress.COMPLETED_EARLIER_REVISION], never silently promoted,
+     *  and completion of the current revision stays COMPLETED while a review
+     *  attempt is open. */
+    suspend fun progressForPack(packId: String, lessons: List<Lesson>): Map<String, LessonProgressSummary> {
+        val runs = learningDao.runsForPack(packId).groupBy { it.lessonId }
+        return lessons.associate { lesson ->
+            lesson.id to LessonProgressRules.summarize(lesson.revision, runs[lesson.id].orEmpty())
+        }
+    }
+
     private fun runIdFromCommand(command: LearningCommand): String = when (command) {
         is LearningCommand.SubmitResponse -> command.runId
         is LearningCommand.RevealSupport -> command.runId
@@ -164,6 +208,12 @@ class LessonRunner(
         }
         val lesson = contentSource.loadLesson(cmd.packId, cmd.packVersion, cmd.lessonId)
             ?: return CommandResult.Rejected(RejectionReason.LESSON_NOT_FOUND, "lesson '${cmd.lessonId}' not found in pack ${cmd.packId}@${cmd.packVersion}")
+        // Reopening a finished lesson shows that finished run; only an explicit
+        // Restart ("Review again") starts a new attempt. A lesson finished only
+        // at an earlier revision starts fresh so updated content is really done.
+        learningDao.latestCompletedRun(cmd.packId, cmd.lessonId, lesson.revision)?.let { completed ->
+            return CommandResult.Applied(buildState(completed))
+        }
         val run = LessonRunEntity(
             lessonId = cmd.lessonId,
             packId = cmd.packId,

@@ -93,10 +93,9 @@ class LessonViewModel(
         this@LessonViewModel.lesson = lesson
         try {
             // BeginOrResume resumes the exact open run for this lesson if one
-            // already exists (the runner checks for an open run before ever
-            // creating a new one) — safe/idempotent to issue every time this
-            // screen opens, so process death/reopen always lands on the exact
-            // revision/step/assistance/status previously reached.
+            // already exists, shows the finished run if the lesson was already
+            // completed at this revision, and only otherwise starts a new run —
+            // safe to issue every time this screen opens.
             applyResult(runner.execute(LearningCommand.BeginOrResume(newCommandId(), packId, packVersion, lessonId)))
         } catch (e: Exception) {
             error = "Couldn't open this lesson. Please try again."
@@ -114,9 +113,11 @@ class LessonViewModel(
     }
 
     /** Called when the learner navigates away (back press, process
-     *  backgrounding) — never called as part of normal completion. */
+     *  backgrounding) — never called as part of normal completion. A finished
+     *  run is left as it is so it keeps showing as completed. */
     fun pause() = viewModelScope.launch {
         val id = runId ?: return@launch
+        if (run?.completed == true) return@launch
         try { applyResult(runner.execute(LearningCommand.Pause(newCommandId(), id))) } catch (_: Exception) { /* best-effort */ }
     }
 
