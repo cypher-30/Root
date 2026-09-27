@@ -28,12 +28,13 @@ All Kotlin lives under `app/src/main/kotlin/com/root/app/`.
 | `learning/` | Transactional lesson commands, revision-pinned runs, response evaluation and learning evidence separate from recall |
 | `billing/` | RevenueCat configuration guard, shared entitlement cache (`EntitlementStore`), paywall state machine (`PaywallViewModel`), and `PurchasesGateway` (a testability seam around the `Purchases.sharedInstance` singleton so the state machine can be exercised with a fake in a Robolectric unit test) |
 | `audio/` | `RootAudioSession`: recording/playback lifecycle, permission handling, file ownership; `WaveformDecoder`/`WaveformCache` (bounded, off-main-thread peak-amplitude decoding with a hash+revision-keyed disk cache). Interaction sounds: `RootSoundCue` catalogue and `RootSoundPolicy` quiet rules (`RootSound.kt`), the pure one-stream `RootSoundEngine`, the SoundPool/audio-focus adapter `RootSoundPlayer`, `SoundMoments` (which domain results earn a cue), and `RootAudioCoordinator`, which gives Root's speech playback/recording priority over cues |
-| `reels/` | `ReelsPlayer`: pure Kotlin (no Android dependency), single-pass, manifest-ordered playback state machine over a list of clips — never autoplays, never loops, skips missing clips; the real `MediaPlayer`-backed adapter and an actual Reels screen/manifest/credits UI are not yet built on top of it |
-| `overview/` | `OverviewRecommendations` (pure, deterministic recommendation engine — always the same order, every unavailable recommendation carries an explicit reason instead of being silently hidden) and `OnboardingGate` (skip/complete persist identically; re-offered only on a version bump). Rendered by `ui/OnboardingScreen.kt` and `ui/RecommendationsScreen.kt` |
+| `reels/` | `ReelsPlayer`: pure Kotlin (no Android dependency), single-pass, manifest-ordered playback state machine over a list of clips — never autoplays, never loops, skips missing clips; `MediaPlayer`-backed adapter and `ui/ReelsScreen.kt` play back a unit's recordings, reached from the Learn tab's "Listen · Reels" shortcut and from a unit's detail screen |
+| `overview/` | `OverviewRecommendations` (pure, deterministic recommendation engine — always the same order, every unavailable recommendation carries an explicit reason instead of being silently hidden) and `OnboardingGate` (skip/complete persist identically; re-offered only on a version bump). Recommendations render inline in Practice's completion state (`ui/OverviewRecommendationList.kt`) |
 | `archive/` | `ArchiveViewModel`/`ArchiveScreen` ("Your words"): search, edit, and permanently delete personally-contributed phrases; consent for a recorded speaker is required and stored in `PhraseConsentEntity` |
 | `sharing/` | PNG phrase-card rendering (`PhraseCardRenderer`) and FileProvider-backed sharing (`PhraseCardSharing`) |
 | `widget/` | `RootWidget`: Glance home-screen widget showing the next due phrase |
-| `ui/` | Screens (`PracticeScreen`, `PacksScreen`, `PaywallScreen`, `InviteScreen`, `ContributeScreen`, `SessionCompleteScreen`, `DesignStudyScreen`) |
+| `explore/` | `ExploreContent`: bundled Situations guides, Stories & culture pieces and notebook suggestions for each language, referencing canonical seeded phrase IDs (no second copy of phrase text or audio) |
+| `ui/` | Screens (`PracticeScreen`, `PaywallScreen`, `InviteScreen`, `ContributeScreen`, `SessionCompleteScreen`, `ProfileScreen` (the only language picker), `ExploreScreen` (Situations, Stories & culture, My notebook)); `ui/navigation/` holds the four-tab shell (`RootDestination`, `RootBottomBar`, `RootTabHeader`); `ui/teach/LearnPathScreen.kt` is the Learn tab, with remove-only Manage |
 | `ui/theme/` | Color scheme, typography, shapes, paper-grain surface |
 | `ui/root/`, `ui/brand/`, `ui/icon/` | Shared root-branch geometry, wordmark, and line-icon set |
 | `ui/launch/`, `ui/motion/` | Launch sequence and shared animation/haptic constants |
@@ -91,11 +92,12 @@ All Kotlin lives under `app/src/main/kotlin/com/root/app/`.
   and old data survived — Room throws on any schema mismatch, so a clean reopen is
   the main correctness signal.
 
-The database is now version 8. The v3-to-v4 migration adds content versions,
+The database is now version 9. The v3-to-v4 migration adds content versions,
 installed pointers/jobs, managed-phrase mappings, media references, and lesson
 runs/events/command receipts. Later migrations add recording consent (v5);
 consent scope, personal notes, contribution drafts, and media-file facts (v6);
-practice marks (v7); and a draft's typed language name (v8, `Migration7To8Test`). Existing phrase IDs and attempts are not replaced.
+practice marks (v7); a draft's typed language name (v8, `Migration7To8Test`); and
+the Explore notebook's `saved_phrases` bookmarks (v9, `Migration8To9Test`). Existing phrase IDs and attempts are not replaced.
 Migration fixtures for older databases must use legacy-only DAOs, not new queries
 that reference tables absent from their historical schema.
 
@@ -106,8 +108,11 @@ availability. Failed updates do not change the installed pointer. Filesystem ren
 and Room commit are separate operations: immutable files are made ready first,
 then the database pointer is committed, with interrupted requests exposed for retry.
 
-Teaching's Back action pauses an unfinished run; explicit Restart creates new
-evidence without deleting old runs. This differs intentionally from phrase
+Teaching's Back action pauses an unfinished run. A completed run is returned as-is
+when the lesson is opened again (`BeginOrResume` never starts a fresh attempt over
+a completion at the same revision); explicit Review again (`Restart`) creates new
+evidence without deleting old runs, and `LessonProgressRules` keeps the lesson
+Completed meanwhile. This differs intentionally from phrase
 practice's existing Stop/Close behavior. Hints/transcript reveals are persisted
 before display, and repeated/assisted responses do not become independent success.
 Use the shared contracts in [TEACHING_CONTRACTS.md](TEACHING_CONTRACTS.md).

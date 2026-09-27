@@ -19,7 +19,9 @@ from code alone.
   device. Root goes online only to download packs or complete a purchase.
 - Tests: `RootExperienceTest` (steps and skip), `OnboardingGateTest`.
 
-### Recommendations (`ui/RecommendationsScreen.kt`)
+### Recommendations (`ui/OverviewRecommendationList.kt`, `overview/OverviewRecommendations.kt`)
+- Rendered inline in Practice's session-complete state (the old standalone
+  `RecommendationsScreen` was removed).
 - Six kinds, always in the same order. Each item is either available or shown
   disabled with its reason. Items are never hidden silently.
 - Refreshes when the app resumes and whenever a contribution draft is saved,
@@ -74,16 +76,21 @@ from code alone.
   accessible label names its phrase. Deleting asks for confirmation.
 
 ### Paywall (`ui/PaywallScreen.kt`, `billing/PaywallViewModel.kt`)
-- Sells a **one-time unlock only**. Subscription packages from the store are
-  filtered out.
+- Sells **one-time unlocks only**: one language (`root_premium_<key>`) or every
+  language (`root_premium_all`). Subscription packages and unrecognised products
+  from the store are filtered out. A language's plan is offered only when that
+  language has premium packs.
+- The screen lists what Premium includes and what stays free, from
+  `billing/PremiumOffer.kt` (defined in `docs/PREMIUM.md`).
 - If no reviewed premium phrases are installed (`ContentAccess.hasPremiumContent`),
-  the paywall shows *Premium packs aren't ready yet.* and offers nothing for sale.
+  the paywall shows *Premium isn't ready yet.* and offers nothing for sale.
   Restore purchases still works.
 - The screen explains that restoring purchases brings back premium access only.
   It cannot bring back your own words, recordings, or practice history.
 - Privacy, Terms, and Support links appear when `ROOT_PRIVACY_POLICY_URL`,
   `ROOT_TERMS_URL`, and `ROOT_SUPPORT_URL` are set (HTTPS only).
-- Tests: `PaywallViewModelTest` (includes no-content and subscription filtering).
+- Tests: `PaywallViewModelTest` (includes no-content and subscription filtering),
+  `PremiumOfferTest` (copy describes content, never limits or streaks).
 
 ### Widget (`widget/RootWidget.kt`)
 - Shows the next due phrase and opens practice when tapped.

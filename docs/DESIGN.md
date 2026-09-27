@@ -2,9 +2,10 @@
 
 ## The argument
 
-Root is a session, not a place. The first due phrase is already on the home screen.
+Root is a session, not a place. The first due phrase is already on the Practice tab.
 An editorial hierarchy replaces the dashboard: the practiced language has the largest
-type, controls recede, and secondary destinations stay in an overflow sheet.
+type, controls recede, and the app is organized into four always-visible tabs
+(Practice, Learn, Explore, Profile) instead of a single screen plus an overflow menu.
 
 This is a working Android Compose prototype. Light and dark use the same components
 and connected navigation. There is no separate Figma deliverable.
@@ -87,37 +88,69 @@ The **same coordinates** are used for:
 3. Accumulated in-session recall, shown through a growing root path.
 
 The adaptive icon preserves safe-zone margins and includes a monochrome layer.
-The design study shows the mark at 24, 48, and 96 dp, a full wordmark, and launch
-keyframes. Compose brand previews also include 192 dp.
+Compose brand previews cover the mark at 24, 48, 96, and 192 dp, the full wordmark,
+and the launch keyframes.
 
 UI icons use the same square-capped, thin line vocabulary. There are no emoji,
 filled multicolor icons, streak counters, achievement badges, or confetti.
 
 ## Connected flow
 
+Root's information architecture follows Jakob's Law: four always-visible bottom
+tabs, matching the pattern learners already know from other apps, rather than a
+single screen whose secondary destinations were hidden behind an overflow menu.
+
 ```text
-Launch → home recall deck → reveal → rating → next card → quiet completion
+Practice tab
+  Launch → recall deck → reveal → rating → next card → quiet completion
              │                              │
              │                    Missed returns once to the tail
              │
-             └─ overflow
-                 ├─ packs → selected eligible pack / content paywall
-                 ├─ unlock more words → paywall / restore
-                 ├─ teach someone one word → PNG → system share sheet
-                 ├─ add a word → optional reference recording → deck
-                 ├─ language → selected language / add your own
-                 ├─ System / Light / Dark
-                 └─ design study → replay launch
+             └─ teach someone one word → PNG → system share sheet
+
+Learn tab
+  Per-installed-language lesson path (Duolingo-style, but never hard-locked):
+  units in sequence, each showing its lessons as a connected path of nodes
+  (Start / Continue / Completed / Completed since updated / Needs a real
+  recording to finish / Unavailable). Completion is durable: reopening a
+  finished lesson shows its summary, and only Review again starts a new
+  attempt, during which the Completed badge stays.
+  Nothing is gated behind finishing the one before it.
+    ├─ manage a unit → remove it (completion is kept if it is added back)
+    ├─ a unit not on the path → Add to my path
+    ├─ listen · reels → only for units that ship real recordings
+    └─ empty state → jump to Explore
+
+Explore tab
+  Browsing rather than a path, scoped to the active language. Three
+  sections, each with its own on-device search:
+    ├─ Situations → each phrase set with a short description; open sets show
+    │    every phrase with Save, plus Practice this set; premium sets show
+    │    only their size and "About Premium" (every starter set is free)
+    ├─ Stories & culture → two short scenes told with free starter phrases,
+    │    and two culture notes that cite their source
+    └─ My notebook → saved phrases, your words (archive), add a word of your
+         own, open drafts
+  There is no language control here; Profile holds the only picker.
+
+Profile tab (also reachable via a header icon from Practice/Learn/Explore)
+    ├─ System / Light / Dark (Paper & Ink, at the top)
+    ├─ on-device progress summary
+    ├─ how Root works → onboarding walkthrough
+    ├─ Root Premium → paywall / restore
+    └─ language → selected language / add your own
 ```
 
 The weekly challenge lives beneath the deck and in completion, not in a competing
 dashboard. It asks for one real-world conversation use, then draws a quiet check.
-The widget opens practice directly.
+The widget opens Practice directly.
 
-Home and practice are one continuous surface, not two copies of the same queue.
-An unavailable/empty pack says so. Nothing due is different from a failed data load
+Practice is one continuous surface, not two copies of the same queue. An
+unavailable/empty pack says so. Nothing due is different from a failed data load
 and different from finishing a session. The completion state offers closure and a
-manual check for due words, not an obligation to keep practicing.
+manual check for due words, not an obligation to keep practicing. The session's
+growth feedback ("A little closer.") is shown on completion and in Profile, not on
+every active recall card, so the card itself stays focused on one word at a time.
 
 ## Motion and haptic annotations
 
@@ -252,11 +285,12 @@ screen/app leaves the foreground, and limits duration. Contribution includes a c
 reminder. Prompt, answer, language, and optional voice are saved locally; adding your
 own language does not require a content purchase.
 
-**Content dependency:** the repository supplies three unreviewed Dholuo samples and
-eight source-checked Shona greetings, but no authentic reference recordings.
-Both starter packs are free; the existing language picker exposes them without a
-separate navigation flow. Shona provenance ships in `assets/content_sources.txt`
-and is linked in the README. Native-speaker approval remains pending for both.
+**Content dependency:** the repository supplies 39–40 source-checked starter phrases
+for each of Dholuo, Shona, Swahili, and Amharic. Six Swahili/Amharic phrases play
+unmodified Lingua Libre recordings (`SeedAudio`, `assets/audio/seed/`), credited under
+"Play reference"; no other phrase has a reference recording. Provenance ships in
+`assets/content_sources.txt` and is linked in the
+README. Native-speaker approval remains pending for all of it.
 Missing audio is explicit; there is no fabricated reference voice.
 
 ## Content access and sharing
@@ -266,15 +300,19 @@ sessions. Premium purchases and restores update shared entitlement state. Offlin
 practice can use previously cached entitlement state, but an unconfigured preview
 cannot grant a real purchase. Personal phrases remain free.
 
-The paywall sells content, not more attempts or removal of learning pressure. Actual
-product names/prices come from RevenueCat. Without configuration, explanatory preview
-copy replaces a fake checkout. Additional curated languages and empty packs must be
-supplied before those items are sold.
+The paywall sells content, not more attempts or removal of learning pressure. It
+lists what Premium includes and what always stays free (`billing/PremiumOffer.kt`,
+defined in [PREMIUM.md](PREMIUM.md)). Premium is sold per language (US$4.99) or for
+every language (US$9.99), both one-time; the paywall offers the current language's
+plan first, then the bundle. Actual prices come from RevenueCat, and plans are named
+from their product IDs. Until the store returns a plan, the planned prices are shown,
+labelled as planned, in place of a fake checkout.
+Premium packs must be reviewed, recorded, and installed before anything is sold.
 
 The share card is a real PNG: large serif phrase, quieter meaning, language, Root mark.
 Only the generated cache directory is exposed through `FileProvider`; the intent grants
-temporary read access. A local reward follows successful share-sheet launch, not verified
-delivery. Cancellation also keeps that reward, and the user is told this in advance.
+temporary read access. Sharing unlocks nothing, and the screen says so; the app only
+records locally that the share sheet was opened.
 
 ## Persistence and lifecycle
 
@@ -289,8 +327,9 @@ recreation, process death, or reopening the app resumes the same run instead of
 replaying an in-memory history. The active language and appearance persist locally.
 Audio lifecycle is separate from visual recomposition.
 
-Teaching uses separate revision-pinned lesson runs. Leaving a lesson pauses it;
-Restart keeps earlier evidence and begins a new run. Guided conversation,
+Teaching uses separate revision-pinned lesson runs. Leaving an unfinished lesson
+pauses it; a completed lesson stays completed and reopens to its summary. Review
+again keeps earlier evidence and begins a new run. Guided conversation,
 listening/comprehension and pattern construction share the same runner. Completing
 required steps is not a pronunciation score, a recall rating, or a proficiency
 certificate. Hints, revealed transcripts and retries remain assisted evidence.
@@ -322,7 +361,7 @@ Inspect on a running device:
 - No double rating, no endless retry, saved-state recreation, and offline reopening.
 - Small width and large font; no hidden outcome controls; TalkBack labels/actions.
 - Packs, language change, own phrase save, microphone denial, record/replay/delete.
-- Share PNG readability and URI permissions; reward granted without claiming delivery.
+- Share PNG readability and URI permissions; sharing claims neither delivery nor an unlock.
 - Weekly done persistence; session closure; widget appearance, refresh, and tap target.
 - Configured Test Store purchase, failure, cancellation, restore, and cached offline
   access. This final integration requires the project's real dashboard configuration.
@@ -378,7 +417,7 @@ provider is registered, uses eligible due content, and refreshes with app appear
 Local screenshots are evidence, not reviewed language-content marketing assets.
 
 Not represented as completed: native-speaker approval, licensed reference recordings
-for the bundled samples, populated paid/reward packs, a real configured Test Store
+for the bundled samples, populated premium packs, a real configured Test Store
 transaction, physical-device haptic feel, and API-26 runtime/device inspection. The
 API-26 code/resource paths are guarded and lint-checked; that is not a substitute for
 a low-API device pass. Glance uses the system serif because RemoteViews cannot share

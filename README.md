@@ -14,18 +14,30 @@ from offline practice.
 
 - A root-line mark, editorial wordmark, adaptive app icon, and restrained drawn-path
   launch sequence lasting 3.2 seconds, with brief seed and finished-mark pauses.
-- Home opens directly into a small recall deck. Reveal surfaces the word through
+- Four always-visible tabs — **Practice, Learn, Explore, Profile** — replace a single
+  screen plus an overflow menu, following Jakob's Law: navigation looks like the
+  bottom tab bars learners already know.
+- Practice opens directly into a small recall deck. Reveal surfaces the word through
   fade, upward drift, and soft-to-sharp focus.
 - **Missed / Close / Got it** buttons or left / up / right swipes. Missed cards return
   once within a session; repeated misses never trap you in an endless deck.
 - Roots grow only for distinct phrases rated **Got it**. The completion state invites
   a pause instead of awarding a score.
-- Secondary sheets lead to theme packs, language selection, content unlocks, an image
-  sharing card, and a form for your own words.
+- **Learn** shows each installed language's lesson path (Duolingo-style, never hard
+  -locked): units in sequence, each a connected path of lesson nodes with clear
+  Start / Continue / Completed status. A finished lesson stays Completed; opening it
+  shows its summary, and only **Review again** starts a new attempt. **Manage** on a
+  unit only removes it (your completion is kept if you add it back). A **Listen ·
+  Reels** shortcut appears only for units that ship real recordings.
+- **Explore** is for browsing rather than following a path, in three sections:
+  **Situations** (every phrase set with its phrases, a Save toggle, and Practice this
+  set), **Stories & culture** (short scenes told with starter phrases, plus sourced
+  culture notes), and **My notebook** (saved phrases, your own words, add a word,
+  open drafts). Search is on-device and scoped to the open section.
+- **Profile** (also reachable from a header icon on Practice/Learn/Explore) holds
+  practice progress, appearance, sound, sharing, and the app's only language picker.
 - A weekly conversation nudge, reference-audio playback, local voice recording and
-  comparison, and a home-screen widget.
-- **The design study** in the overflow shows icon sizes, launch keyframes, and motion /
-  haptic annotations. “Replay launch” makes the sequence inspectable.
+  comparison, an image sharing card, and a home-screen widget.
 - Original interaction sounds and a "Root growth" startup sound scored to the
   launch animation, on by default at 100 % in-app volume and quiet in
   silent/vibrate, Do Not Disturb, calls and during voice audio. **Profile → Sound**
@@ -53,7 +65,8 @@ Current production readiness and remaining launch gates:
 Output: `app\build\outputs\apk\debug\app-debug.apk`.
 
 No API key is needed to open the prototype, practice, contribute, record, share, or
-use the widget. Select **More options → Paper & ink** to choose System, Light, or Dark.
+use the widget. Open the **Profile** tab (or its header shortcut) → **Paper & ink** to
+choose System, Light, or Dark.
 
 ### Optional Test Store purchases
 
@@ -68,10 +81,14 @@ The old SDK pin could not support RevenueCat Test Store. Root now uses **9.9.0**
    ROOT_REVENUECAT_API_KEY=test_your_key_here
    ```
 
-3. Build a debug APK. The paywall uses the configured product's localized price,
-   purchase result, and entitlement. Restore is available. The launch product is a
-   one-time unlock; subscription packages are not shown. The paywall offers nothing
-   for sale until reviewed premium phrases are installed.
+3. Build a debug APK. The paywall uses the configured products' localized prices,
+   purchase result, and entitlements. Restore is available. Premium is a one-time
+   unlock for one language (`root_premium_<key>`, entitlement `premium_<key>`) or for
+   every language (`root_premium_all`, entitlement `premium`); subscription packages
+   are not shown. The paywall offers nothing for sale until reviewed premium phrases
+   are installed. Until the store returns a plan, it shows the planned prices
+   (US$4.99 for one language, US$9.99 for all, from `PremiumOffer`), labelled as
+   planned. See [docs/PREMIUM.md](docs/PREMIUM.md).
 
 Release builds read a separate `ROOT_REVENUECAT_RELEASE_API_KEY`, so a debug Test
 Store key is never packaged. `verifyReleaseConfiguration` runs before every release
@@ -87,30 +104,37 @@ initialization or a successful network response.
 
 ## Content: an important boundary
 
-Two languages are available now: **Dholuo** and **Shona**, each with a free Greetings
-pack. Choose **More options → Language → Shona** (or use Change language in Packs).
-Your active language and existing recall history are preserved when the app updates.
+Four languages are available now: **Dholuo, Shona, Swahili, and Amharic**. Each has
+five or six topic sets with 39–40 source-checked starter phrases in total, two Learn
+units of three lessons each, and two stories and two culture notes in Explore. Choose
+the language in **Profile → Language**; that is the only picker, and it switches
+Practice, Learn, and Explore together. Your active language and existing recall
+history are preserved when the app updates.
 
-Shona includes **eight source-checked starter phrases**: singular/plural greetings,
-welcome, morning/afternoon/evening greetings, and singular/plural thanks. Spelling and
-usage were checked against [Omniglot's Shona phrases](https://www.omniglot.com/language/phrases/shona.php),
-which credits Emma Thembani and Ernest Mdende. Source-checking is **not native-speaker
-approval**; dialect, register, and respectful usage still need review. Provenance also
-ships offline in `app\src\main\assets\content_sources.txt`.
+Every starter phrase was checked against a public reference (Wikivoyage, Omniglot,
+Wiktionary, or the public-domain FSI Amharic course). Source-checking is **not
+native-speaker approval**; dialect, register, and respectful usage still need review.
+Sources and licenses ship offline in `app\src\main\assets\content_sources.txt`.
+Every starter set is free. Premium is reserved for native-reviewed, recorded
+content; see [docs/PREMIUM.md](docs/PREMIUM.md) for what it includes and its price.
 
-The bundled Dholuo greetings remain **three unreviewed development samples**. Its other
-catalog packs are shells and say “Coming soon.” This implementation does not turn
-those samples into native-speaker-reviewed teaching content. Do not present them as
-reviewed material in a public demo or sale.
-
-No genuine reference recordings were supplied. Root does not fabricate a Dholuo or Shona
-voice or substitute English text-to-speech. Missing audio is handled explicitly.
+Six starter phrases play real recordings: Swahili "Karibu" and Amharic የት (where),
+አንድ, ሁለት, ሶስት and አምስት (one, two, three, five). They are unmodified Lingua Libre
+clips from Wikimedia Commons (CC BY-SA 4.0), bundled in `app\src\main\assets\audio\seed\`
+and matched in `SeedAudio.kt` only where the recorded word is exactly the answer.
+The speaker and licence are shown under **Play reference**. Lingua Libre speakers
+are volunteers, so these clips aren't described as native-reviewed. Dholuo and Shona
+have no matching recordings, and no lesson has audio yet.
+Root does not fabricate a voice or
+substitute text-to-speech. Missing audio is handled explicitly: listening steps say
+a real recording is needed, and a lesson whose required step needs audio is labelled
+“needs a real recording to finish” instead of being marked complete.
 Use **Add a word of your own** to save a phrase and an optional reference recording;
 get the speaker's permission first. Learner comparison recordings stay separate.
 User-authored content is free, including a language you add yourself.
 
 Before content launch: curate licensed phrases, obtain native-speaker review, record
-or license pronunciation audio, and populate the paid/reward packs. Do not sell empty
+or license pronunciation audio, and build the first premium pack. Do not sell empty
 catalog entries. The original Kencorpus curation project remains a separate content
 deliverable, not something the visual prototype silently claims to have completed.
 
@@ -122,11 +146,15 @@ and pattern workshops use the same activity model. Teaching events stay separate
 from recall ratings: completing a lesson never automatically records **Got it** or
 claims speaking proficiency.
 
-Debug builds include a **development-only Shona unit**. Its dialogue and pattern
-activities demonstrate the flow; native-speaker review and authentic matching audio
-are still outstanding. Listening with no recording stays explicitly unavailable,
-not completed through a transcript-only substitute. Development packs are excluded
-from release assets and made unavailable if a release replaces a debug install.
+Debug builds bundle eight Learn units: the Shona greetings unit plus seven showcase
+units (Shona and Amharic meeting people, Swahili meeting people and market, Dholuo
+family and market, Amharic café), generated by
+`tools\content\scripts\build_showcase_units.py`. Their lines come only from the
+source-checked starter phrases; native-speaker review and authentic audio are still
+outstanding. Listening with no recording stays explicitly unavailable, not completed
+through a transcript-only substitute. These packs are marked unpublished in their
+manifests, excluded from release assets, and made unavailable if a release replaces a
+debug install.
 
 The content toolchain supports KenCorpus, FLEURS, Common Voice, and Tatoeba source
 formats. An importer is not an approved curriculum: text, translations, explanations,
@@ -157,10 +185,10 @@ Public packs must be free; protected paid delivery and account sync are not impl
 **Teach someone one word** exports a PNG with the target phrase, its meaning, and the
 Root mark. Android's system share sheet receives a temporary, read-only content URI.
 
-Opening that share sheet unlocks the Market reward locally, even if the sheet is
-cancelled. The screen says so. Root cannot verify delivery, an install, or a friend's
-activity; it does not claim otherwise. A generation/launch failure does not earn the
-reward. Market content is still “Coming soon” until curated phrases are supplied.
+Sharing unlocks nothing; every starter set is already free, and the screen says so.
+Root cannot verify delivery, an install, or a friend's activity; it does not claim
+otherwise. It keeps a local record that the share sheet was opened, which a future
+thank-you could use; nothing advertises one.
 
 ## Local data and privacy
 
@@ -169,7 +197,7 @@ reward. Market content is still “Coming soon” until curated phrases are supp
 - Fixed next-review intervals: **Missed: four hours; Close: one day; Got it: four days**.
   Same-session retry is a separate, bounded queue rule.
 - Seeding is idempotent and preserves existing phrase IDs and learner history.
-- Active language, appearance, sound, and sharing reward are device-local preferences.
+- Active language, appearance, sound, and the has-shared record are device-local preferences.
 - Microphone permission is requested only for recording. Audio lives in app-internal
   storage; sharing a phrase card does not share your recordings.
 - Downloaded phrase exports include their required credits in the PNG itself.
@@ -196,8 +224,8 @@ current validation APKs; see the development guide for details and report paths.
 
 Unit coverage includes scheduler rules. Device tests cover the durable practice
 session engine (resume, paging, idempotent rating, one-retry rule, stop/close), the
-Room schema migration, reveal/rating accessibility, both themes, the design study,
-session closure, and connected navigation. Visual and real-purchase checks are described in
+Room schema migration, reveal/rating accessibility, both themes, session closure,
+and connected navigation. Visual and real-purchase checks are described in
 [DESIGN.md](docs/DESIGN.md#verification).
 
 ## Code map
