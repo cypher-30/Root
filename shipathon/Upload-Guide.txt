@@ -1,0 +1,99 @@
+ROOT - SHIPATON 2026 UPLOAD GUIDE (Next Gen award)
+=================================================
+
+Deadline: Wednesday 30 September 2026, 11:45pm PDT (Thursday 1 October, 9:45am in Nairobi).
+Rules: https://revenuecat-shipaton-2026.devpost.com/rules
+
+WHAT'S IN THIS FOLDER
+---------------------
+Root-Shipaton-Answers.pdf   Every form field, in order, with the text to paste.
+Root-Shipaton-Answers.txt   The same answers as plain text. If copying from the PDF
+                            adds odd line breaks, copy from this file instead.
+uploads\                    The 7 images to upload, numbered in upload order.
+captures\                   The raw app screenshots the images were made from.
+                            Don't upload these.
+
+THUMBNAIL AND TAGLINE (the earlier Devpost step)
+------------------------------------------------
+Keep what you already entered:
+- Thumbnail: ..\..\Motion\exports\root-thumbnail.jpg (1800x1200, 3:2, 0.19 MB).
+  It reads better at thumbnail size than any gallery image here: big wordmark,
+  one phone, and a real greeting from each language.
+- Tagline: "Reconnect with your family's language, a few words at a time. Calm,
+  offline recall practice for Dholuo, Shona, Swahili and Amharic. No streaks,
+  no scores." (154 characters)
+
+GALLERY IMAGES (upload in this order)
+-------------------------------------
+01-root-closer-to-home.png                1800x1200  hero: practice card, light and dark
+02-root-a-session-not-a-streak.png        1800x1200  practice and "Enough for today"
+03-root-a-path-never-a-locked-door.png    1800x1200  Learn path and a guided conversation
+04-root-real-voices-and-culture.png       1800x1200  real credited recordings and culture notes
+05-root-fair-by-design.png                1800x1200  planned prices and the language picker
+06-root-app-icon-1024.png                 1024x1024  required app icon, full and uncropped
+07-root-app-screenshot-1179x2556.png      1179x2556  required screenshot, no device frame
+
+All images are real screens from the current build (main @ 91f0b5f) on the
+Pixel 7 Pro emulator. The display was set to exactly 1179x2556, so the required
+screenshot is native, not stretched. The icon is drawn from the app's own
+launcher vector.
+
+GALLERY CAPTIONS (describe what each image shows; all under 140 characters)
+---------------------------------------------------------------------------
+01  The Practice card in light and dark themes: an Amharic greeting revealed, ready to rate as Missed, Close or Got it.
+02  Left: a practice prompt waiting to be recalled. Right: the end of a session, where a root has grown for 12 recalled phrases.
+03  The Amharic Learn path with one lesson marked Completed, and a guided conversation step set in a cafe in Addis Ababa.
+04  Explore: Amharic numbers with credited Lingua Libre recordings and Save buttons, next to culture notes on time and coffee.
+05  The Premium screen with planned one-time prices (US$4.99 for one language, US$9.99 for all) and the language picker.
+06  Root's app icon: the hand-drawn root mark on warm paper.
+07  The Practice tab in Amharic: the greeting Tena yisTilliñ revealed, with Missed, Close and Got it to rate your recall.
+
+WHAT ONLY YOU CAN FILL IN
+-------------------------
+[ ] Video demo link: public YouTube or Vimeo, under 2 minutes (see below).
+[ ] Student email: a real academic address.
+[ ] RevenueCat project ID: dashboard > Project settings. The ID only, never an API key.
+[ ] Sponsor employee question: answer truthfully for everyone on the team.
+[ ] Minor entrant checkbox: tick only if it's true. The consent-form link in the
+    form (forms.gle/i7pUyFT2y7LE9qGK9) differs from the one in the rules
+    (forms.gle/Gx2Cr4X8WPk9V1q77). If anyone on the team is under 18, confirm
+    with the organizers which form to use.
+[ ] Growth Fund: your choice.
+
+CHECK BEFORE YOU SUBMIT
+-----------------------
+1. RevenueCat purchase requirement: this is the biggest risk. The rules say a
+   project "must ... use the RevenueCat SDK to power at least one in-app or web
+   purchase". Root has RevenueCat integrated, but by design it sells nothing until
+   a native-reviewed premium pack exists. That means no purchase can be shown
+   today. The rules also say Next Gen is judged on the video and the repository,
+   so this may be fine. Ask in the Shipaton Discord (or email the organizers)
+   before the deadline rather than guessing. The notes for the judges already
+   explain this honestly.
+2. Repository link: main was fast-forwarded to the current build (91f0b5f),
+   so the answers link the repository root: https://github.com/cypher-30/Root
+   The MIT license is detected by GitHub (checked).
+3. The story is about 1,000 words. Devpost showed no limit in the form you
+   copied; if it complains, cut "Accomplishments" first.
+
+VIDEO (under 2 minutes, on a real phone)
+----------------------------------------
+Two 1:55 films are already built in ..\..\Motion (read Motion\README.md). Only
+rehearsal cuts exist so far, taken on the emulator and stamped "not for
+submission". Capture the real phone footage, rebuild, and upload the main film
+("A little closer") to YouTube or Vimeo as Public (the rules say "publicly visible").
+If you record a simple demo instead, this flow fits in about 1:50:
+0:00  Launch: the root-line animation and startup sound.
+0:10  The why, in one line: "Distance from home shouldn't become distance from
+      your language."
+0:20  Practice: "Take a breath...", reveal, rate Got it, the root grows.
+0:40  Learn: open a unit, play a guided conversation, finish it, go back.
+      It stays Completed.
+1:00  Explore: Situations > Numbers & time, play a real credited recording,
+      save it; open My notebook.
+1:15  Stories & culture: "Ethiopian time".
+1:25  Profile > Language: switch to Swahili; Practice, Learn and Explore all follow.
+1:35  Root Premium: per-language planned prices, "Premium isn't ready yet",
+      Restore. Say plainly why nothing is for sale yet.
+1:50  End on the Root mark.
+Only use music you have the rights to, or none; the app's own sounds are enough.
