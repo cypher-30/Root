@@ -9,6 +9,21 @@ a destination:** open on a word, bring it to mind, rate your recall, and leave.
 build: Premium runs on the RevenueCat Test Store (sandbox, no real money), or enter the
 code `SHIPATON2026` on the Premium screen. Not on Google Play.
 
+![Root: a little closer to your words](docs/images/root-banner.jpg)
+
+## See it
+
+Real screens from an Android phone (OPPO CPH2159), across Amharic, Dholuo and Shona:
+
+| First run | Practice (Amharic) | Add a language | Premium set, opened (Shona) |
+|---|---|---|---|
+| ![Choose the language that is yours](docs/images/01-first-run-choose-language.png) | ![A word to bring to mind, then Missed, Close or Got it](docs/images/02-practice-amharic.png) | ![Your languages: tap to switch, or add one](docs/images/03-add-a-language.png) | ![Heart words in Shona, after a RevenueCat Test Store purchase](docs/images/04-premium-set-opened.png) |
+
+| | |
+|---|---|
+| ![Closer to home](shipathon/uploads/01-root-closer-to-home.png) | ![A session, not a streak](shipathon/uploads/02-root-a-session-not-a-streak.png) |
+| ![A path, never a locked door](shipathon/uploads/03-root-a-path-never-a-locked-door.png) | ![Real voices and culture](shipathon/uploads/04-root-real-voices-and-culture.png) |
+
 Root is a native Android / Jetpack Compose prototype, not a collection of disconnected
 mockups. The same screens work in warm-paper light mode and warm-charcoal dark mode.
 Practice, contributed phrases, recordings, scheduling, and challenges live on-device.
