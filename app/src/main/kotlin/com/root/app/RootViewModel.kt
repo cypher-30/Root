@@ -73,6 +73,9 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
         private set
     var activeLanguage by mutableStateOf<LanguageEntity?>(null)
         private set
+    /** The learner's own languages (null before their first choice); see [com.root.app.data.MyLanguages]. */
+    var myLanguageIds by mutableStateOf<Set<String>?>(null)
+        private set
     var rows by mutableStateOf(emptyList<PackRow>())
         private set
     var current by mutableStateOf<PhraseEntity?>(null)
@@ -140,9 +143,22 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
      *  onboarding (see [RootRepository.recordOnboardingResponse] — both are
      *  recorded identically) and dismisses it for this and future launches
      *  until the version is bumped. */
-    fun respondToOnboarding() {
+    fun respondToOnboarding(chosen: LanguageEntity? = null) {
         repository.recordOnboardingResponse()
         showOnboarding = false
+        if (chosen != null) selectLanguage(chosen)
+    }
+
+    /** Takes [language] off the learner's list. The active language stays; nothing is deleted. */
+    fun removeLanguage(language: LanguageEntity) {
+        if (language.id == activeLanguage?.id) return
+        repository.removeMyLanguage(language.id)
+        myLanguageIds = repository.myLanguageIds()
+    }
+
+    private fun addMyLanguage(id: String) {
+        repository.addMyLanguage(id, alsoKeep = personalLanguageIds)
+        myLanguageIds = repository.myLanguageIds()
     }
 
     /** Re-opens the onboarding walkthrough overlay. */
@@ -207,6 +223,11 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
             refreshPersonalLanguages()
             activeLanguage = languages.firstOrNull { it.id == repository.activeLanguageId() } ?: languages.firstOrNull()
             activeLanguage?.let { repository.setActiveLanguage(it.id) }
+            // Learners from before "your languages" keep the language they were using, and their own.
+            if (repository.myLanguageIds() == null && repository.hasSeenOnboarding()) {
+                activeLanguage?.let { addMyLanguage(it.id) }
+            }
+            myLanguageIds = repository.myLanguageIds()
             refreshDetails()
             val language = activeLanguage
             val existingSession = sessionId
@@ -277,6 +298,7 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
     }
 
     fun selectLanguage(language: LanguageEntity) = viewModelScope.launch {
+        addMyLanguage(language.id)
         if (language.id == activeLanguage?.id) return@launch
         loading = true
         try {
@@ -339,6 +361,7 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
             val language = requireNotNull(repository.db.languageDao().getById(pack.languageId)) { "Language is unavailable" }
             repository.setActiveLanguage(language.id)
             activeLanguage = language
+            addMyLanguage(language.id)
             languages = repository.languages()
             sharePhrase = null
             refreshDetails()
@@ -499,7 +522,7 @@ class RootViewModel(application: Application, private val saved: SavedStateHandl
             languages = repository.languages()
             refreshPersonalLanguages()
             activeLanguage = languages.firstOrNull { it.name.equals(language.trim(), true) } ?: activeLanguage
-            activeLanguage?.let { repository.setActiveLanguage(it.id) }
+            activeLanguage?.let { repository.setActiveLanguage(it.id); addMyLanguage(it.id) }
             sharePhrase = null
             refreshDetails()
             startSessionInternal(null)

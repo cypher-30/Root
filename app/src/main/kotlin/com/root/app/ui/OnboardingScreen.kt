@@ -11,8 +11,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.Role
+import com.root.app.data.LanguageEntity
+import com.root.app.data.MyLanguages
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -71,15 +80,23 @@ private val onboardingSteps = listOf(
  * The full-screen onboarding walkthrough presented on initial launch (or when
  * the onboarding version is bumped). Walkthrough can be stepped through sequentially
  * or skipped at any moment; both call [onRespond] to record completion/skip identically.
+ * When [languages] are given, the last page asks which one to begin with, and
+ * [onRespond] receives it (null when skipped).
  */
 @Composable
 fun OnboardingScreen(
-    onRespond: () -> Unit,
+    onRespond: (LanguageEntity?) -> Unit,
     modifier: Modifier = Modifier,
+    languages: List<LanguageEntity> = emptyList(),
+    initialLanguageId: String? = null,
 ) {
-    val pagerState = rememberPagerState { onboardingSteps.size }
+    val pageCount = onboardingSteps.size + if (languages.isNotEmpty()) 1 else 0
+    val pagerState = rememberPagerState { pageCount }
     val coroutineScope = rememberCoroutineScope()
-    val isLastPage = pagerState.currentPage == (onboardingSteps.size - 1)
+    val isLastPage = pagerState.currentPage == (pageCount - 1)
+    var chosenId by rememberSaveable { mutableStateOf(initialLanguageId?.takeIf { id -> languages.any { it.id == id } }) }
+    val chosen = languages.firstOrNull { it.id == chosenId }
+    val needsChoice = isLastPage && languages.isNotEmpty() && chosen == null
     BackHandler(enabled = pagerState.currentPage > 0) {
         coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) }
     }
@@ -102,7 +119,7 @@ fun OnboardingScreen(
             ) {
                 RootMark(compact = true)
                 TextButton(
-                    onClick = onRespond,
+                    onClick = { onRespond(null) },
                     shape = MaterialTheme.shapes.small,
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                 ) {
@@ -121,7 +138,8 @@ fun OnboardingScreen(
                     .weight(1f)
                     .fillMaxWidth(),
             ) { page ->
-                OnboardingPage(step = onboardingSteps[page])
+                if (page < onboardingSteps.size) OnboardingPage(step = onboardingSteps[page])
+                else LanguageChoicePage(languages, chosenId) { chosenId = it }
             }
 
             // Bottom Navigation Controls
@@ -137,7 +155,7 @@ fun OnboardingScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    repeat(onboardingSteps.size) { index ->
+                    repeat(pageCount) { index ->
                         val active = pagerState.currentPage == index
                         Box(
                             modifier = Modifier
@@ -178,9 +196,10 @@ fun OnboardingScreen(
 
                     // Next / Begin practice button
                     Button(
+                        enabled = !needsChoice,
                         onClick = {
                             if (isLastPage) {
-                                onRespond()
+                                onRespond(chosen)
                             } else {
                                 coroutineScope.launch {
                                     pagerState.animateScrollToPage(pagerState.currentPage + 1)
@@ -195,7 +214,12 @@ fun OnboardingScreen(
                         contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
                     ) {
                         Text(
-                            text = if (isLastPage) "Begin practice" else "Next",
+                            text = when {
+                                !isLastPage -> "Next"
+                                chosen != null -> "Begin with ${chosen.name}"
+                                languages.isNotEmpty() -> "Choose a language"
+                                else -> "Begin practice"
+                            },
                             style = RootType.promptLarge.copy(fontSize = 16.sp, lineHeight = 20.sp),
                         )
                     }
@@ -345,6 +369,55 @@ private fun OnboardingPage(step: OnboardingStep) {
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+/** The last onboarding page: which language to begin with. More can be added in Profile. */
+@Composable
+private fun LanguageChoicePage(languages: List<LanguageEntity>, chosenId: String?, onChoose: (String) -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text("YOUR LANGUAGE", style = RootType.label, color = MaterialTheme.colorScheme.tertiary)
+        Text("Which language is yours?", style = RootType.editorialTitle, color = MaterialTheme.colorScheme.onSurface)
+        Text(
+            "Choose one to begin. You can add more languages, or one of your own, in Profile.",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(8.dp))
+        Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            languages.forEach { language ->
+                val selected = language.id == chosenId
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .selectable(selected = selected, role = Role.RadioButton) { onChoose(language.id) },
+                    shape = MaterialTheme.shapes.small,
+                    color = if (selected) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(
+                        if (selected) 2.dp else 1.dp,
+                        if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                    ),
+                ) {
+                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(language.name, style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                MyLanguages.about(language.name),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        if (selected) Icon(RootIcons.Check, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.tertiary)
+                    }
+                }
+            }
+        }
     }
 }
 

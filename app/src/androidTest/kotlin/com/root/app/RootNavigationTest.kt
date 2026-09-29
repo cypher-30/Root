@@ -29,7 +29,10 @@ class RootNavigationTest {
         compose.onNodeWithText("HOW PRACTICE WORKS").assertExists()
         compose.onNodeWithText("Next").performClick()
         compose.onNodeWithText("MAKE IT YOUR OWN").assertExists()
-        compose.onNodeWithText("Begin practice").performClick()
+        compose.onNodeWithText("Next").performClick()
+        compose.onNodeWithText("Which language is yours?").assertExists()
+        compose.onNodeWithText("Dholuo").performScrollTo().performClick()
+        compose.onNodeWithText("Begin with Dholuo").performClick()
 
         compose.waitUntil(15_000) {
             compose.onAllNodesWithContentDescription("Profile").fetchSemanticsNodes().isNotEmpty()

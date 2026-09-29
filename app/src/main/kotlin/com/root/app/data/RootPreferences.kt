@@ -40,6 +40,12 @@ class RootPreferences(context: Context) {
             preferences.edit().putInt("onboarding_completed_version", value).apply()
         }
 
+    /** The languages the learner chose (onboarding, Profile → Add a language), or
+     *  null before their first choice. The active language always counts as theirs. */
+    var myLanguageIds: Set<String>?
+        get() = preferences.getStringSet("my_language_ids", null)?.toSet()
+        set(value) { preferences.edit().putStringSet("my_language_ids", value?.toSet()).apply() }
+
     /** Interaction sounds are on by default; the learner can turn them off in Profile → Sound. */
     var soundEffectsEnabled: Boolean
         get() = preferences.getBoolean("sound_effects_enabled", com.root.app.audio.SoundSettings.DEFAULT_EFFECTS_ENABLED)
@@ -60,8 +66,9 @@ class RootPreferences(context: Context) {
         }
 
     companion object {
-        /** Bump when onboarding content changes meaningfully enough to re-offer it. */
-        const val ONBOARDING_CURRENT_VERSION = 1
+        /** Bump when onboarding content changes meaningfully enough to re-offer it.
+         *  2: onboarding ends by choosing your language. */
+        const val ONBOARDING_CURRENT_VERSION = 2
         const val DEFAULT_SOUND_VOLUME = com.root.app.audio.SoundSettings.DEFAULT_VOLUME
     }
 }

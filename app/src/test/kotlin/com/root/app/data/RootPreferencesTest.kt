@@ -67,6 +67,14 @@ class RootPreferencesTest {
     }
 
     @Test
+    fun `my languages start unset and persist`() {
+        assertEquals(null, preferences.myLanguageIds)
+        preferences.myLanguageIds = setOf("shona", "amharic")
+        assertEquals(setOf("shona", "amharic"),
+            RootPreferences(ApplicationProvider.getApplicationContext()).myLanguageIds)
+    }
+
+    @Test
     fun `sound volume rejects values outside zero to one`() {
         assertThrows(IllegalArgumentException::class.java) { preferences.soundVolume = -0.01f }
         assertThrows(IllegalArgumentException::class.java) { preferences.soundVolume = 1.01f }

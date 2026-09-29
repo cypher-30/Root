@@ -129,7 +129,11 @@ class MainActivity : ComponentActivity() {
                                 RootNavigation(vm, widgetRequest, onClose = { finish() })
                             }
                             if (vm.showOnboarding) {
-                                OnboardingScreen(onRespond = vm::respondToOnboarding)
+                                OnboardingScreen(
+                                    onRespond = vm::respondToOnboarding,
+                                    languages = vm.languages.filter { !it.isPremium || vm.premium.covers(it) },
+                                    initialLanguageId = if (vm.myLanguageIds != null) vm.activeLanguage?.id else null,
+                                )
                             }
                         }
                     }
@@ -605,28 +609,24 @@ private fun RootNavigation(vm: RootViewModel, widgetRequest: Int, onClose: () ->
         ModalBottomSheet(onDismissRequest = { languagePicker = false }, shape = MaterialTheme.shapes.large,
             containerColor = MaterialTheme.colorScheme.surface, dragHandle = null) {
             Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp)) {
-                Text("Your language, your words.", style = RootType.editorialTitle)
-                Text("Every language's starter sets are free, and so is adding your own words.",
-                    Modifier.padding(vertical = 12.dp), style = MaterialTheme.typography.bodyMedium)
-                vm.languages.forEach { language ->
+                val split = com.root.app.data.MyLanguages.split(vm.languages, vm.myLanguageIds, vm.activeLanguage?.id)
+                fun choose(language: com.root.app.data.LanguageEntity) {
                     val locked = language.isPremium && !vm.premium.covers(language)
-                    MenuEntry(language.name + if (locked) " · Locked" else "") {
-                        languagePicker = false
-                        if (locked && language.id !in vm.personalLanguageIds) openPaywall(language.name)
-                        else { vm.selectLanguage(language); goHome() }
-                    }
+                    languagePicker = false
+                    if (locked && language.id !in vm.personalLanguageIds) openPaywall(language.name)
+                    else { vm.selectLanguage(language); goHome() }
                 }
-                MenuEntry("Add a language and its first word") { languagePicker = false; openFreshContribute() }
-                TextButton(onClick = { languagePicker = false }) { Text("Back to practice") }
+                LanguageSheetContent(
+                    mine = split.mine,
+                    others = split.others,
+                    activeId = vm.activeLanguage?.id,
+                    isLocked = { it.isPremium && !vm.premium.covers(it) && it.id !in vm.personalLanguageIds },
+                    onChoose = ::choose,
+                    onRemove = vm::removeLanguage,
+                    onAddOwn = { languagePicker = false; openFreshContribute() },
+                    onClose = { languagePicker = false },
+                )
             }
         }
-    }
-}
-
-@Composable
-private fun MenuEntry(label: String, onClick: () -> Unit) {
-    TextButton(onClick = onClick, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-        shape = MaterialTheme.shapes.small, contentPadding = PaddingValues(vertical = 10.dp)) {
-        Text(label, modifier = Modifier.fillMaxWidth())
     }
 }

@@ -80,6 +80,23 @@ class RootRepository(context: Context) {
         preferences.activeLanguageId = id
     }
 
+    /** The learner's own languages, or null before they have chosen any. */
+    fun myLanguageIds(): Set<String>? = preferences.myLanguageIds
+
+    /** Adds [id] to the learner's languages. The very first choice (onboarding on a
+     *  fresh install) replaces the default language the app opened with. */
+    fun addMyLanguage(id: String, alsoKeep: Set<String> = emptySet()) {
+        preferences.myLanguageIds = (preferences.myLanguageIds ?: alsoKeep) + id
+    }
+
+    /** Removes [id] from the list only; its words and practice history stay on the device. */
+    fun removeMyLanguage(id: String) {
+        preferences.myLanguageIds = (preferences.myLanguageIds ?: emptySet()) - id
+    }
+
+    /** True once the learner has finished or skipped any version of onboarding. */
+    fun hasSeenOnboarding(): Boolean = preferences.onboardingCompletedVersion > 0
+
     fun getTheme(): String = preferences.theme
 
     fun setTheme(theme: String) {

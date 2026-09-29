@@ -85,6 +85,25 @@ class RootExperienceTest {
         assertTrue(responded)
     }
 
+    @Test fun onboardingEndsByChoosingALanguage() {
+        var chosen: com.root.app.data.LanguageEntity? = null
+        val languages = listOf(
+            com.root.app.data.LanguageEntity("dholuo", "Dholuo", false),
+            com.root.app.data.LanguageEntity("shona", "Shona", false),
+        )
+        compose.setContent {
+            RootTheme {
+                Surface { OnboardingScreen(onRespond = { chosen = it }, languages = languages) }
+            }
+        }
+        repeat(3) { compose.onNodeWithText("Next").performClick() }
+        compose.onNodeWithText("Which language is yours?").assertExists()
+        compose.onNodeWithText("Choose a language").assertIsNotEnabled()
+        compose.onNodeWithText("Shona").performScrollTo().performClick()
+        compose.onNodeWithText("Begin with Shona").performClick()
+        assertEquals("shona", chosen?.id)
+    }
+
     @Test fun onboardingScreenCanBeSkippedImmediately() {
         var responded = false
         compose.setContent {
