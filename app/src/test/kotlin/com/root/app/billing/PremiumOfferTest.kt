@@ -48,4 +48,11 @@ class PremiumOfferTest {
         listOf("planned", "not a subscription", "exact amount").forEach { assertTrue(it, it in note) }
         assertFalse("kenya" in note)
     }
+
+    @Test fun redeemCodeIgnoresCaseSpacesAndDashes() {
+        assertTrue(RedeemCode.isValid("SHIPATON2026"))
+        assertTrue(RedeemCode.isValid(" shipaton-2026 "))
+        assertFalse(RedeemCode.isValid("SHIPATON2025"))
+        assertFalse(RedeemCode.isValid(""))
+    }
 }

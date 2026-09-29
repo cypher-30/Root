@@ -25,6 +25,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -32,10 +33,20 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.testTag
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -66,10 +77,15 @@ import com.root.app.ui.theme.RootType
 fun PaywallScreen(languageName: String?, onUnlocked: () -> Unit, onBack: () -> Unit = {}) {
     val model: PaywallViewModel = viewModel(key = "paywall-$languageName", factory = PaywallViewModel.factory(languageName))
     val state by model.state.collectAsStateWithLifecycle()
+    val redeemed by model.redeemed.collectAsStateWithLifecycle()
+    val redeemError by model.redeemError.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val unlockedCallback by rememberUpdatedState(onUnlocked)
+    // Leave only when this visit unlocked premium; opened while owned, the screen stays so a code can be removed.
+    var sawLocked by remember { mutableStateOf(false) }
     LaunchedEffect(state is PaywallState.Unlocked) {
-        if (state is PaywallState.Unlocked) unlockedCallback()
+        if (state !is PaywallState.Unlocked) sawLocked = true
+        else if (sawLocked) unlockedCallback()
     }
     PaywallContent(
         state = state,
@@ -78,6 +94,10 @@ fun PaywallScreen(languageName: String?, onUnlocked: () -> Unit, onBack: () -> U
         onPurchase = { model.purchase(context.findActivity(), it) },
         onRestore = model::restore,
         onRetry = model::load,
+        redeemed = redeemed,
+        redeemError = redeemError,
+        onRedeem = model::redeem,
+        onRemoveCode = model::removeRedeemCode,
     )
 }
 
@@ -95,6 +115,10 @@ private fun PaywallContent(
     onPurchase: (Package) -> Unit = {},
     onRestore: () -> Unit = {},
     onRetry: () -> Unit = {},
+    redeemed: Boolean = false,
+    redeemError: String? = null,
+    onRedeem: (String) -> Unit = {},
+    onRemoveCode: () -> Unit = {},
 ) {
     val busy = state is PaywallState.Purchasing || state is PaywallState.Restoring
     val packages = when (state) {
@@ -172,7 +196,18 @@ private fun PaywallContent(
                         }
                         PaywallState.Unlocked -> {
                             Text("Premium is yours.", style = RootType.editorialTitle)
-                            Text(if (languageName != null) "Premium for $languageName is active." else "Premium for every language is active.")
+                            Text(
+                                when {
+                                    redeemed -> "Every premium set is open with a showcase code on this device."
+                                    languageName != null -> "Premium for $languageName is active."
+                                    else -> "Premium for every language is active."
+                                },
+                            )
+                            if (redeemed) {
+                                OutlinedButton(onClick = onRemoveCode, shape = RoundedCornerShape(4.dp)) {
+                                    Text("Remove code")
+                                }
+                            }
                         }
                         is PaywallState.Error -> {
                             Text(state.message, color = MaterialTheme.colorScheme.error)
@@ -234,6 +269,10 @@ private fun PaywallContent(
                         }
                     }
                 }
+                if (state !is PaywallState.Unlocked) {
+                    Spacer(Modifier.height(24.dp))
+                    RedeemCodeField(enabled = !busy, error = redeemError, onRedeem = onRedeem)
+                }
                 Spacer(Modifier.height(16.dp))
                 if (state !is PaywallState.NotConfigured && state !is PaywallState.Unlocked) {
                     TextButton(
@@ -265,6 +304,33 @@ private fun PaywallContent(
                 Spacer(Modifier.height(28.dp))
             }
         }
+    }
+}
+
+/** A showcase code (see [com.root.app.billing.RedeemCode]) for judges and demos. */
+@Composable
+private fun RedeemCodeField(enabled: Boolean, error: String?, onRedeem: (String) -> Unit) {
+    var code by rememberSaveable { mutableStateOf("") }
+    val focus = LocalFocusManager.current
+    fun submit() { focus.clearFocus(); onRedeem(code) }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("HAVE A CODE?", style = RootType.label, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = code,
+                onValueChange = { code = it },
+                label = { Text("Redeem code") },
+                singleLine = true,
+                isError = error != null,
+                enabled = enabled,
+                shape = MaterialTheme.shapes.small,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { submit() }),
+                modifier = Modifier.weight(1f).testTag("redeem-code"),
+            )
+            OutlinedButton(onClick = { submit() }, enabled = enabled, shape = RoundedCornerShape(4.dp)) { Text("Redeem") }
+        }
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
     }
 }
 

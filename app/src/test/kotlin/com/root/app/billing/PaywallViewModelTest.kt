@@ -24,7 +24,9 @@ import com.revenuecat.purchases.models.StoreTransaction
 import com.revenuecat.purchases.models.SubscriptionOption
 import com.revenuecat.purchases.models.SubscriptionOptions
 import org.json.JSONObject
+import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -42,6 +44,37 @@ import java.util.Date
 @Config(sdk = [34])
 class PaywallViewModelTest {
     private val application = ApplicationProvider.getApplicationContext<android.app.Application>()
+
+    @After fun resetEntitlements() = EntitlementStore.resetForTest()
+
+    @Test
+    fun theShowcaseCodeUnlocksEverythingWithoutAStoreAndCanBeRemoved() {
+        val vm = viewModel(FakeGateway(), configured = false)
+        assertEquals(PaywallState.NotConfigured, vm.state.value)
+        vm.redeem(" shipaton-2026 ")
+        assertEquals(PaywallState.Unlocked, vm.state.value)
+        assertTrue(vm.redeemed.value)
+        assertEquals(null, vm.redeemError.value)
+        assertTrue(EntitlementStore(application).current().allLanguages)
+
+        vm.removeRedeemCode()
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+        assertFalse(vm.redeemed.value)
+        assertFalse(EntitlementStore(application).current().ownsAnything)
+        assertEquals(PaywallState.NotConfigured, vm.state.value)
+    }
+
+    @Test
+    fun aWrongCodeUnlocksNothing() {
+        val gateway = FakeGateway()
+        gateway.offeringsResult = Outcome.Ok(fakeOfferings(listOf(dholuoPlan)))
+        val vm = viewModel(gateway)
+        vm.redeem("SHIPATON2025")
+        assertTrue(vm.state.value is PaywallState.Ready)
+        assertEquals("That code isn't valid. Check it and try again.", vm.redeemError.value)
+        assertFalse(vm.redeemed.value)
+        assertFalse(EntitlementStore(application).current().ownsAnything)
+    }
 
     private fun fakePackage(
         id: String,

@@ -18,6 +18,8 @@ class EntitlementStore(context: Context) {
 
     val access: StateFlow<PremiumAccess> = backing.access.asStateFlow()
     val refreshError: StateFlow<String?> = backing.error.asStateFlow()
+    /** True while a [RedeemCode] is active on this device. */
+    val redeemed: StateFlow<Boolean> = backing.redeemed.asStateFlow()
 
     fun current(): PremiumAccess = backing.cachedAccess()
 
@@ -42,14 +44,23 @@ class EntitlementStore(context: Context) {
 
     fun recordCustomerInfo(info: CustomerInfo) = backing.update(info)
 
+    /** Grants every language when [code] is valid; returns false otherwise. */
+    fun redeem(code: String): Boolean = RedeemCode.isValid(code).also { if (it) backing.setRedeemed(true) }
+
+    /** Removes the code. Store purchases are untouched. */
+    fun removeRedeemCode() = backing.setRedeemed(false)
+
     private class Backing(context: Context) {
         // Do not carry a Test Store entitlement into a differently configured production app.
         private val prefs = context.getSharedPreferences(
             "root_entitlements_${com.root.app.BuildConfig.REVENUECAT_API_KEY.hashCode()}",
             Context.MODE_PRIVATE,
         )
+        // Kept apart from store entitlements so a code works without any RevenueCat key.
+        private val codePrefs = context.getSharedPreferences("root_redeem_code", Context.MODE_PRIVATE)
         val access = MutableStateFlow(PremiumAccess.NONE)
         val error = MutableStateFlow<String?>(null)
+        val redeemed = MutableStateFlow(codePrefs.getBoolean(KEY_REDEEMED, false))
         private var connected = false
 
         init {
@@ -74,10 +85,20 @@ class EntitlementStore(context: Context) {
 
         @Synchronized
         fun cachedAccess(): PremiumAccess {
-            val active = if (!BillingConfiguration.hasUsableKey) PremiumAccess.NONE
+            val store = if (!BillingConfiguration.hasUsableKey) PremiumAccess.NONE
             else PremiumAccess.fromEntitlements(savedEntitlements().filterValues { isWithinExpiration(it) }.keys)
+            val active = withCode(store)
             access.value = active
             return active
+        }
+
+        private fun withCode(store: PremiumAccess) = if (redeemed.value) store.copy(allLanguages = true) else store
+
+        @Synchronized
+        fun setRedeemed(value: Boolean) {
+            codePrefs.edit().putBoolean(KEY_REDEEMED, value).apply()
+            redeemed.value = value
+            cachedAccess()
         }
 
         @Synchronized
@@ -105,12 +126,13 @@ class EntitlementStore(context: Context) {
                 .putLong("requestDate", incomingRequestDate)
                 .apply()
             error.value = null
-            access.value = PremiumAccess.fromEntitlements(active.keys)
+            access.value = withCode(PremiumAccess.fromEntitlements(active.keys))
         }
     }
 
     companion object {
         private const val KEY_ENTITLEMENTS = "entitlements"
+        private const val KEY_REDEEMED = "showcase_code_redeemed"
         @Volatile private var instance: Backing? = null
 
         private fun shared(context: Context): Backing =

@@ -93,6 +93,10 @@ class PaywallViewModel @JvmOverloads constructor(
     private val access = EntitlementStore(application)
     private val mutableState = MutableStateFlow<PaywallState>(PaywallState.Loading)
     val state = mutableState.asStateFlow()
+    /** True when the current access came from a [RedeemCode], so the screen can offer to remove it. */
+    val redeemed = access.redeemed
+    private val mutableRedeemError = MutableStateFlow<String?>(null)
+    val redeemError = mutableRedeemError.asStateFlow()
     // Cached so purchase()/restore() can validate a selected package is still one
     // that was actually offered, instead of trusting whatever the UI passes back.
     private var packages = emptyList<Package>()
@@ -257,6 +261,27 @@ class PaywallViewModel @JvmOverloads constructor(
                 }
             },
         )
+    }
+
+    /** Works without a store connection: judges and demos can open every premium set. */
+    fun redeem(code: String) {
+        if (busy()) return
+        if (code.isBlank()) {
+            mutableRedeemError.value = "Enter a code first."
+            return
+        }
+        if (access.redeem(code)) {
+            mutableRedeemError.value = null
+            mutableState.value = PaywallState.Unlocked
+        } else {
+            mutableRedeemError.value = "That code isn't valid. Check it and try again."
+        }
+    }
+
+    /** The access collector in init reloads plans once premium is no longer owned. */
+    fun removeRedeemCode() {
+        access.removeRedeemCode()
+        mutableRedeemError.value = null
     }
 
     private fun busy() = mutableState.value is PaywallState.Purchasing ||
