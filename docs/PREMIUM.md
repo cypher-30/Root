@@ -5,37 +5,50 @@ This is the product decision for Root's paid tier. The paywall copy comes from
 
 ## The rule
 
-Premium pays for what costs real money to make: native-speaker review and
-recording. It never gates practice, how often you practise, or the starter sets.
-Premium is sold only while at least one finished premium pack is actually in
-the app (`ContentAccess.hasPremiumContent`), and a single language is sold
-only once that language has one (`ContentAccess.premiumContentLanguageKeys`).
+Premium is extra phrase sets per language. Every starter set, and everything
+you need to practise, stays free. Premium never gates practice, how often you
+practise, or your own words. A premium set is only sold once it's actually in
+the app (`ContentAccess.hasPremiumContent`), and a single language is sold only
+once that language has one (`ContentAccess.premiumContentLanguageKeys`).
 
 ## Always free
 
-- Every bundled starter set, in every language. Nothing in `SeedCatalog` is
-  locked. Older installs that seeded some sets as locked are opened by `SeedData`.
-- Daily practice and review, with no limits.
-- The starter Learn units and Explore (Situations, Stories & culture, My notebook).
+- Every starter set in every language (five or six sets, 39–40 phrases each).
+- Daily practice with no limits, the Learn units, and Explore's stories,
+  culture notes and your notebook.
 - Your own words and recordings, a language you add yourself, sharing a word
   card, and the widget.
 - Working offline, with no account.
 
 ## What Premium includes
 
-1. **Native voices.** Every premium phrase is reviewed by a named native speaker
-   and has a genuine recording, made with the speaker's consent and credit.
-2. **Deeper sets**, planned for every language in this order: talking with
-   elders (respect forms), family and home, food and cooking, ceremonies,
-   health, travel, and work.
-3. **Proverbs and longer stories.** Sayings, with what they mean and when to
-   use them, and longer spoken scenes than the free Explore stories.
-4. **Full Learn courses** that continue past the starter units.
-5. **Pay once, for one language or all.** Premium packs added later for what
-   you own are included.
+Two premium sets per language today, bundled in the app and shown in Explore
+with a lock until you own that language. Every phrase comes from the same public
+sources as the starter sets (see `app/src/main/assets/content_sources.txt`).
 
-Heritage learners usually want to talk with family, not order in a hotel.
-That's why "talking with elders" comes first.
+| Language | Premium sets | Source |
+| --- | --- | --- |
+| Dholuo | Body & health (10 phrases), Days of the week (10) | Wikivoyage Luo phrasebook |
+| Shona | Heart words (7), Keep talking (6) | Omniglot |
+| Swahili | Heart words (8), Keep talking (8) | Omniglot |
+| Amharic | Heart words (9), Keep talking (7) | Omniglot |
+
+Heart words are the things you say to family: I love you, long time no see,
+get well soon, and birthday and holiday wishes. Keep talking is what keeps a
+conversation going: do you understand, please say that again, speak slowly.
+
+Once unlocked, a premium set works like any other: it appears in Practice,
+Learn's topics and Explore, and its phrases can be saved to the notebook.
+Premium sets added later for a language you own are included at no extra cost.
+
+## Showcase code
+
+For the Shipaton judges and demos, the code **SHIPATON2026** (case, spaces and
+dashes ignored) opens every premium set on that device, the same way the
+all-languages purchase would. Enter it under **Have a code?** on the Premium
+screen; **Remove code** locks the sets again. It is stored locally
+(`billing/RedeemCode.kt`, `EntitlementStore`), works without a store
+connection, and is not a RevenueCat transaction.
 
 ## Price
 
@@ -69,12 +82,16 @@ ID, so a learner-created "Shona" and the seeded Shona share one purchase. The
 keeps working as the bundle. Products the app doesn't recognise, and
 subscriptions, are never shown.
 
-Set prices in the Play Console, where each product's per-country prices live.
-The amount charged always comes from the store. Until the store returns a plan
-(no store connection yet, or no premium pack for sale), the paywall shows
-`PremiumOffer.plannedLanguagePrice` and `plannedAllLanguagesPrice` under
-**Planned price**, so people know what to expect. Change those constants, this
-table, and the Play Console products together.
+Set prices in the Play Console (or the RevenueCat Test Store for the showcase).
+The amount charged always comes from the store: Google Play charges each person
+the price set for their Play account's country, in their currency, so the app
+never asks where you are. Until the store returns a plan, the paywall shows
+**Planned prices** for the phone's country (`PremiumOffer.plannedPrices`, using
+the SIM or network country from `DeviceCountry`, which needs no permission or
+location): the home-market price in Kenya, Zimbabwe and Ethiopia, the diaspora
+price everywhere else. Change those values, this table, and the store products
+together. The Test Store has one price per product, so the showcase sells at
+the diaspora price everywhere.
 
 **Why one-time and not a subscription.** Root is calm by design and has no
 streaks or pressure. A subscription only makes sense with a steady release
@@ -84,7 +101,7 @@ subscription once premium packs ship on a regular schedule.
 
 **Why per language.** Heritage learners usually want one language, the one
 their family speaks. A Dholuo learner shouldn't have to pay for Amharic, and
-each language's premium packs are paid for by that language's own learners.
+each language's premium sets are paid for by that language's own learners.
 The bundle is for families with more than one heritage language, and for
 supporters.
 
@@ -93,10 +110,10 @@ real quotes:
 
 - Google Play's service fee is 15% on the first US$1M a year, so one US$4.99
   sale nets about US$4.24, and one US$9.99 sale about US$8.49.
-- Suppose reviewing, recording, and editing a 40-phrase pack with a native
-  speaker costs US$150–300.
-- Then each pack needs about 35–70 single-language diaspora sales to cover its
-  cost. Home-market sales mostly widen access rather than fund packs.
+- Suppose curating, recording, and editing a new set with a native speaker
+  costs US$150–300.
+- Then each set needs about 35–70 single-language diaspora sales to cover its
+  cost. Home-market sales mostly widen access rather than fund new sets.
 
 ## Other shapes considered
 
@@ -105,7 +122,7 @@ real quotes:
 | One-time, all languages only (the first plan) | Simplest to explain | Each new pack costs money but earns nothing from earlier buyers; a Dholuo learner pays for Amharic too | Replaced; kept as the bundle |
 | **Per language, US$4.99 each, plus an all-languages bundle at US$9.99 (current)** | Fits heritage learners, who usually want one language; funds each language from its own learners | One store product and entitlement per language to set up | Built |
 | Annual "supporter" subscription, about US$19.99 a year | Recurring money pays recurring recording work | Needs a steady release schedule Root doesn't have; subscription pressure clashes with Root's calm tone | Revisit when packs ship regularly |
-| Everything free, with a "fund a speaker" tip | Most generous and honest while no premium content exists | Unpredictable income | Could run alongside, not instead |
+| Everything free, with a "fund a speaker" tip | Most generous | Unpredictable income | Could run alongside, not instead |
 
 Whatever the shape, the rules above don't change: starter sets and practice stay
 free, and nothing is sold before it's in the app.
@@ -118,24 +135,44 @@ The app still keeps the local "has shared" record (`ReferralPrefs`), so a future
 thank-you can include past sharers. The app does not advertise that until it
 exists.
 
-## Before the first sale
+## Selling it (RevenueCat Test Store for the showcase)
 
-A premium pack must pass the publication gate:
+Root isn't on Google Play yet. For the Shipaton showcase, purchases run through
+RevenueCat's **Test Store**, which the debug build's `test_` key already uses
+(Android SDK 9.9.0+). In the RevenueCat dashboard, under the Test Store app:
 
-- The text is rights-cleared.
-- A named native speaker has reviewed it and consented to credit.
-- Every phrase has a genuine recording with consent and credit.
-- It has a content manifest with provenance, installed with `isFree = false`.
+1. Create five one-time (non-consumable) products: `root_premium_all` at
+   US$9.99, and `root_premium_dholuo`, `root_premium_shona`,
+   `root_premium_swahili`, `root_premium_amharic` at US$4.99 each. Test Store
+   products can't be edited after creation, so check IDs and prices first.
+2. Attach `root_premium_all` to the entitlement `premium`, and each language
+   product to `premium_<key>` (create those four entitlements).
+3. Add all five products as packages to the current offering (`default`). The
+   app ignores the offering's subscription packages.
+4. On the phone, open a locked set's **See Premium**, buy, and choose the
+   successful outcome in RevenueCat's test sheet. Then check **Restore
+   purchases**, and try a cancelled purchase.
 
-Engineering gaps:
+Test Store purchases show as sandbox data in the dashboard and never charge
+money. The SDK refuses a Test Store key in release builds, and
+`verifyReleaseConfiguration` rejects one too.
 
-- `ContentLibrary` installs every downloaded or bundled manifest as free today,
-  and protected paid delivery isn't built. The first premium pack must either be
-  bundled in the APK as a paid pack, or wait for protected delivery.
-- In the Play Console, create the one-time products from the store setup table
-  above: `root_premium_all`, plus `root_premium_<key>` for each language that
-  has a premium pack. In RevenueCat, attach `root_premium_all` to the
-  entitlement `premium` and each language product to `premium_<key>`, and
-  publish them all in the current offering. Then run a Test Store purchase,
-  cancel, and restore for one language and for the bundle before any
-  real-money test.
+**Status (29 Sep 2026):** all five products, entitlements and packages exist in
+the `default` offering. It also still holds the older Monthly/Yearly/Lifetime
+packages, which the app filters out. Checked on a phone: the Swahili paywall
+lists only *Swahili only* (US$4.99) and *All languages* (US$9.99). A cancelled
+purchase returns quietly, and a failed one shows an error. A successful purchase
+unlocks Heart words and Keep talking through `premium_swahili`. Restore on
+Dholuo says Swahili was restored and Dholuo isn't included. The Test Store
+can't truly restore, so it returns the current customer.
+
+## Before a public release
+
+- A named native speaker reviews each premium set and consents to credit, and
+  premium phrases get genuine recordings with consent and credit.
+- Create the same products in the Play Console, connect Play to RevenueCat,
+  and use a production key (`ROOT_REVENUECAT_RELEASE_API_KEY`).
+- `ContentLibrary` installs every downloaded manifest as free today, and
+  protected paid delivery isn't built. New premium sets must be bundled in the
+  APK, as the current ones are, until it is.
+- Remove or rotate the showcase code.

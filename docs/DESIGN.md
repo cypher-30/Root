@@ -125,8 +125,8 @@ Explore tab
   Browsing rather than a path, scoped to the active language. Three
   sections, each with its own on-device search:
     ├─ Situations → each phrase set with a short description; open sets show
-    │    every phrase with Save, plus Practice this set; premium sets show
-    │    only their size and "About Premium" (every starter set is free)
+    │    every phrase with Save, plus Practice this set; premium sets (two per
+    │    language) show a lock, their size and "See Premium"
     ├─ Stories & culture → two short scenes told with free starter phrases,
     │    and two culture notes that cite their source
     └─ My notebook → saved phrases, your words (archive), add a word of your
@@ -138,8 +138,12 @@ Profile tab (also reachable via a header icon from Practice/Learn/Explore)
     ├─ on-device progress summary
     ├─ how Root works → onboarding walkthrough
     ├─ Root Premium → paywall / restore
-    └─ language → selected language / add your own
+    └─ language → your languages (switch or remove) / add a language / add
+         your own
 ```
+
+Onboarding ends by asking which language is yours, the way most language apps
+start; more can be added from Profile at any time.
 
 The weekly challenge lives beneath the deck and in completion, not in a competing
 dashboard. It asks for one real-world conversation use, then draws a quiet check.
@@ -307,7 +311,8 @@ every language (US$9.99), both one-time; the paywall offers the current language
 plan first, then the bundle. Actual prices come from RevenueCat, and plans are named
 from their product IDs. Until the store returns a plan, the planned prices are shown,
 labelled as planned, in place of a fake checkout.
-Premium packs must be reviewed, recorded, and installed before anything is sold.
+Premium sets are bundled in the app from the same public sources as the starter sets
+and installed locked; a purchase or the local showcase code opens them.
 
 The share card is a real PNG: large serif phrase, quieter meaning, language, Root mark.
 Only the generated cache directory is exposed through `FileProvider`; the intent grants
@@ -417,7 +422,7 @@ provider is registered, uses eligible due content, and refreshes with app appear
 Local screenshots are evidence, not reviewed language-content marketing assets.
 
 Not represented as completed: native-speaker approval, licensed reference recordings
-for the bundled samples, populated premium packs, a real configured Test Store
+for the bundled samples, native review of the premium sets, a real configured Test Store
 transaction, physical-device haptic feel, and API-26 runtime/device inspection. The
 API-26 code/resource paths are guarded and lint-checked; that is not a substitute for
 a low-API device pass. Glance uses the system serif because RemoteViews cannot share

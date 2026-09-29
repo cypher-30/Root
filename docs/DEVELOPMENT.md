@@ -22,11 +22,11 @@ All Kotlin lives under `app/src/main/kotlin/com/root/app/`.
 | Package | Responsibility |
 |---|---|
 | (root) | `MainActivity` (navigation/theme host), `RootApplication` (billing bootstrap), `RootViewModel` (all UI-facing state) |
-| `data/` | Room entities/DAOs/migrations, `RootRepository` (the one door into persistence), `Scheduler` (due-date rules), `ContentAccess` (pack unlock rules), `SeedData` (bundled starter content), preference wrappers |
+| `data/` | Room entities/DAOs/migrations, `RootRepository` (the one door into persistence), `Scheduler` (due-date rules), `ContentAccess` (pack unlock rules), `SeedData` (bundled starter content), `MyLanguages` (the learner's own language list), preference wrappers |
 | `practice/` | `PracticeRepository`: the durable, Room-backed practice session engine (queue paging, rating, resume, stop/close) |
 | `content/` | Serializable catalog/pack contracts, validation, bounded HTTPS transport, immutable pack files, WorkManager installs and availability |
 | `learning/` | Transactional lesson commands, revision-pinned runs, response evaluation and learning evidence separate from recall |
-| `billing/` | RevenueCat configuration guard, shared entitlement cache (`EntitlementStore`), paywall state machine (`PaywallViewModel`), and `PurchasesGateway` (a testability seam around the `Purchases.sharedInstance` singleton so the state machine can be exercised with a fake in a Robolectric unit test) |
+| `billing/` | RevenueCat configuration guard, shared entitlement cache (`EntitlementStore`), paywall state machine (`PaywallViewModel`), `PremiumOffer` (paywall copy, real premium sets, planned prices by country via `DeviceCountry`), `RedeemCode` (the SHIPATON2026 showcase code), and `PurchasesGateway` (a testability seam around the `Purchases.sharedInstance` singleton so the state machine can be exercised with a fake in a Robolectric unit test) |
 | `audio/` | `RootAudioSession`: recording/playback lifecycle, permission handling, file ownership; `WaveformDecoder`/`WaveformCache` (bounded, off-main-thread peak-amplitude decoding with a hash+revision-keyed disk cache). Interaction sounds: `RootSoundCue` catalogue and `RootSoundPolicy` quiet rules (`RootSound.kt`), the pure one-stream `RootSoundEngine`, the SoundPool/audio-focus adapter `RootSoundPlayer`, `SoundMoments` (which domain results earn a cue), and `RootAudioCoordinator`, which gives Root's speech playback/recording priority over cues |
 | `reels/` | `ReelsPlayer`: pure Kotlin (no Android dependency), single-pass, manifest-ordered playback state machine over a list of clips — never autoplays, never loops, skips missing clips; `MediaPlayer`-backed adapter and `ui/ReelsScreen.kt` play back a unit's recordings, reached from the Learn tab's "Listen · Reels" shortcut and from a unit's detail screen |
 | `overview/` | `OverviewRecommendations` (pure, deterministic recommendation engine — always the same order, every unavailable recommendation carries an explicit reason instead of being silently hidden) and `OnboardingGate` (skip/complete persist identically; re-offered only on a version bump). Recommendations render inline in Practice's completion state (`ui/OverviewRecommendationList.kt`) |
@@ -34,7 +34,7 @@ All Kotlin lives under `app/src/main/kotlin/com/root/app/`.
 | `sharing/` | PNG phrase-card rendering (`PhraseCardRenderer`) and FileProvider-backed sharing (`PhraseCardSharing`) |
 | `widget/` | `RootWidget`: Glance home-screen widget showing the next due phrase |
 | `explore/` | `ExploreContent`: bundled Situations guides, Stories & culture pieces and notebook suggestions for each language, referencing canonical seeded phrase IDs (no second copy of phrase text or audio) |
-| `ui/` | Screens (`PracticeScreen`, `PaywallScreen`, `InviteScreen`, `ContributeScreen`, `SessionCompleteScreen`, `ProfileScreen` (the only language picker), `ExploreScreen` (Situations, Stories & culture, My notebook)); `ui/navigation/` holds the four-tab shell (`RootDestination`, `RootBottomBar`, `RootTabHeader`); `ui/teach/LearnPathScreen.kt` is the Learn tab, with remove-only Manage |
+| `ui/` | Screens (`PracticeScreen`, `PaywallScreen`, `InviteScreen`, `ContributeScreen`, `SessionCompleteScreen`, `ProfileScreen` (the only language picker; its sheet is `LanguageSheet.kt`), `OnboardingScreen` (ends by choosing a language), `ExploreScreen` (Situations, Stories & culture, My notebook)); `ui/navigation/` holds the four-tab shell (`RootDestination`, `RootBottomBar`, `RootTabHeader`); `ui/teach/LearnPathScreen.kt` is the Learn tab, with remove-only Manage |
 | `ui/theme/` | Color scheme, typography, shapes, paper-grain surface |
 | `ui/root/`, `ui/brand/`, `ui/icon/` | Shared root-branch geometry, wordmark, and line-icon set |
 | `ui/launch/`, `ui/motion/` | Launch sequence and shared animation/haptic constants |
@@ -80,7 +80,8 @@ All Kotlin lives under `app/src/main/kotlin/com/root/app/`.
 - `ContentAccess.unlockedPackIds`/`canAccess` is the single access rule used by pack
   listings, the due queue, the widget, and `PracticeRepository`'s paging/revalidation.
   If you add a new content-gating concept, wire it through this helper rather than
-  duplicating checks.
+  duplicating checks. Seeded premium sets (`isFree = false` in `SeedCatalog`) are
+  inserted locked and opened by a purchase or the showcase code (`EntitlementStore`).
 - `AttemptDao`'s due/latest-attempt queries break millisecond ties using SQLite
   `rowid` (insertion order), since two attempts can share a timestamp in tests or on
   fast devices.

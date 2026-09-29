@@ -35,7 +35,8 @@ from offline practice.
   culture notes), and **My notebook** (saved phrases, your own words, add a word,
   open drafts). Search is on-device and scoped to the open section.
 - **Profile** (also reachable from a header icon on Practice/Learn/Explore) holds
-  practice progress, appearance, sound, sharing, and the app's only language picker.
+  practice progress, appearance, sound, sharing, and the app's only language picker:
+  **your languages** (picked at the end of onboarding) and **Add a language**.
 - A weekly conversation nudge, reference-audio playback, local voice recording and
   comparison, an image sharing card, and a home-screen widget.
 - Original interaction sounds and a "Root growth" startup sound scored to the
@@ -73,8 +74,10 @@ choose System, Light, or Dark.
 The old SDK pin could not support RevenueCat Test Store. Root now uses **9.9.0**, the
 [documented minimum Android version](https://www.revenuecat.com/docs/test-and-launch/sandbox/test-store).
 
-1. In your RevenueCat project, create a Test Store, an offering with a product/package,
-   and attach the product to entitlement **`premium`**.
+1. In your RevenueCat project, create a Test Store, the five one-time products and
+   entitlements listed in [docs/PREMIUM.md](docs/PREMIUM.md) (`root_premium_all` →
+   **`premium`**, `root_premium_<key>` → `premium_<key>`), and add them to the
+   current offering.
 2. Put its public SDK key in your **user-level**, untracked Gradle properties:
 
    ```properties
@@ -85,10 +88,17 @@ The old SDK pin could not support RevenueCat Test Store. Root now uses **9.9.0**
    purchase result, and entitlements. Restore is available. Premium is a one-time
    unlock for one language (`root_premium_<key>`, entitlement `premium_<key>`) or for
    every language (`root_premium_all`, entitlement `premium`); subscription packages
-   are not shown. The paywall offers nothing for sale until reviewed premium phrases
-   are installed. Until the store returns a plan, it shows the planned prices
-   (US$4.99 for one language, US$9.99 for all, from `PremiumOffer`), labelled as
-   planned. See [docs/PREMIUM.md](docs/PREMIUM.md).
+   are not shown. The paywall offers only the current language's plan and *All
+   languages*, even though the offering holds all five. A language's plan is offered
+   only when it has premium sets. Until the store returns a plan, it shows planned
+   prices for the phone's SIM/network country (`PremiumOffer.plannedPrices`: US$1.99
+   / US$3.99 in Kenya, Zimbabwe and Ethiopia, otherwise US$4.99 / US$9.99), labelled
+   as planned. The five Test Store products to create are listed in
+   [docs/PREMIUM.md](docs/PREMIUM.md).
+
+**Showcase code:** enter **SHIPATON2026** under *Have a code?* on the Premium screen
+to open every premium set on that device without a purchase (for judges and demos;
+*Remove code* locks them again). It is local only and is not a RevenueCat transaction.
 
 Release builds read a separate `ROOT_REVENUECAT_RELEASE_API_KEY`, so a debug Test
 Store key is never packaged. `verifyReleaseConfiguration` runs before every release
@@ -115,8 +125,10 @@ Every starter phrase was checked against a public reference (Wikivoyage, Omniglo
 Wiktionary, or the public-domain FSI Amharic course). Source-checking is **not
 native-speaker approval**; dialect, register, and respectful usage still need review.
 Sources and licenses ship offline in `app\src\main\assets\content_sources.txt`.
-Every starter set is free. Premium is reserved for native-reviewed, recorded
-content; see [docs/PREMIUM.md](docs/PREMIUM.md) for what it includes and its price.
+Every starter set is free. Premium adds two more sets per language from the same
+sources (Dholuo: Body & health, Days of the week; Shona, Swahili and Amharic: Heart
+words, Keep talking), shown locked in Explore until that language is unlocked. See
+[docs/PREMIUM.md](docs/PREMIUM.md) for what it includes and its price.
 
 Six starter phrases play real recordings: Swahili "Karibu" and Amharic የት (where),
 አንድ, ሁለት, ሶስት and አምስት (one, two, three, five). They are unmodified Lingua Libre
@@ -134,8 +146,8 @@ get the speaker's permission first. Learner comparison recordings stay separate.
 User-authored content is free, including a language you add yourself.
 
 Before content launch: curate licensed phrases, obtain native-speaker review, record
-or license pronunciation audio, and build the first premium pack. Do not sell empty
-catalog entries. The original Kencorpus curation project remains a separate content
+or license pronunciation audio, and have the premium sets reviewed too. Do not sell
+empty catalog entries. The original Kencorpus curation project remains a separate content
 deliverable, not something the visual prototype silently claims to have completed.
 
 ### Teaching and downloadable content

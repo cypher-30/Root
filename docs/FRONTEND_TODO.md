@@ -15,9 +15,23 @@ from code alone.
   `respondToOnboarding()` and are recorded identically (`overview/OnboardingGate.kt`).
 - System Back moves to the previous step. While onboarding is showing, the app
   underneath is hidden from screen readers.
+- The last page asks **Which language is yours?**, listing each language with where
+  it is spoken (`data/MyLanguages.about`). The finish button reads *Begin with
+  <language>* and stays disabled until one is chosen; Skip keeps the current one.
+  Version 2 of onboarding, so existing installs see it once.
 - Privacy copy: practice, your own words, and your recordings are kept on this
   device. Root goes online only to download packs or complete a purchase.
-- Tests: `RootExperienceTest` (steps and skip), `OnboardingGateTest`.
+- Tests: `RootExperienceTest` (steps, skip, choosing a language), `OnboardingGateTest`.
+
+### Your languages (Profile → Language sheet, `ui/LanguageSheet.kt`, `data/MyLanguages.kt`)
+- Cards list the learner's own languages (chosen in onboarding or added later, stored as
+  `RootPreferences.myLanguageIds`). The active one comes first as a highlighted card with a
+  check and *PRACTISING NOW*; the others read *Tap to switch* and have **Remove**.
+- **Remove** takes a language off the list only; its words and history stay.
+- **Add a language** lists the rest as cards with where each is spoken and a + (or a lock
+  for locked Premium languages), then *Add a language of your own, and its first word*.
+  Installs from before this keep their active language and any language they created.
+- Tests: `MyLanguagesTest`, `RootPreferencesTest`, `RootNavigationTest`.
 
 ### Recommendations (`ui/OverviewRecommendationList.kt`, `overview/OverviewRecommendations.kt`)
 - Rendered inline in Practice's session-complete state (the old standalone
@@ -79,18 +93,22 @@ from code alone.
 - Sells **one-time unlocks only**: one language (`root_premium_<key>`) or every
   language (`root_premium_all`). Subscription packages and unrecognised products
   from the store are filtered out. A language's plan is offered only when that
-  language has premium packs.
-- The screen lists what Premium includes and what stays free, from
-  `billing/PremiumOffer.kt` (defined in `docs/PREMIUM.md`).
-- If no reviewed premium phrases are installed (`ContentAccess.hasPremiumContent`),
-  the paywall shows *Premium isn't ready yet.* and offers nothing for sale.
+  language has premium sets (two per language are bundled locked in `SeedCatalog`).
+- The screen lists that language's actual premium sets with phrase counts, and what
+  stays free, from `billing/PremiumOffer.kt` (defined in `docs/PREMIUM.md`).
+- If a language has no premium sets (`ContentAccess.premiumContentLanguageKeys`),
+  the paywall says *No premium sets yet.* and offers nothing for sale.
   Restore purchases still works.
+- **Have a code?** accepts the showcase code `SHIPATON2026` (`billing/RedeemCode.kt`),
+  which opens every premium set locally like the all-languages plan, even with no
+  store; **Remove code** locks them again. Opening Premium while already unlocked
+  stays on the screen; it only returns automatically after a fresh unlock.
 - The screen explains that restoring purchases brings back premium access only.
   It cannot bring back your own words, recordings, or practice history.
 - Privacy, Terms, and Support links appear when `ROOT_PRIVACY_POLICY_URL`,
   `ROOT_TERMS_URL`, and `ROOT_SUPPORT_URL` are set (HTTPS only).
-- Tests: `PaywallViewModelTest` (includes no-content and subscription filtering),
-  `PremiumOfferTest` (copy describes content, never limits or streaks).
+- Tests: `PaywallViewModelTest` (no-content, subscription filtering, redeem and
+  remove code), `PremiumOfferTest` (copy describes content, never limits or streaks).
 
 ### Widget (`widget/RootWidget.kt`)
 - Shows the next due phrase and opens practice when tapped.
@@ -116,6 +134,6 @@ from code alone.
 | Gate | What's needed |
 |---|---|
 | Content approval | Exact free/premium launch inventory, native-speaker sign-off, rights-cleared text and genuine reference audio, credits. Without this, release has no starter content and premium stays unsellable. |
-| Store purchases | RevenueCat/Play configuration for a one-time non-consumable mapped to entitlement `premium`. First a Test Store purchase/cancel/restore pass, then a Play internal-track license-tester pass. No real-money purchase without separate approval. |
+| Store purchases | Test Store products, entitlements and `default` packages from `docs/PREMIUM.md` are created and phone-checked (purchase, cancel, failure, restore). Later: the same products on Play and an internal-track license-tester pass. No real-money purchase without separate approval. |
 | Free content hosting | Authorized catalog hosting (`ROOT_CONTENT_CATALOG_URL`) and verified download/update/failure/rollback, or downloads presented as unavailable. |
 | Distribution | App identity, signing/Play App Signing, privacy/terms/support URLs, Data Safety, content rating, listing, rollout plan. Version is still `0.1.0` (code 1). |
