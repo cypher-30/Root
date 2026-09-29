@@ -130,178 +130,181 @@ private fun PaywallContent(
     }
     Scaffold { padding ->
         Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
-            Column(
-                modifier = Modifier.widthIn(max = 640.dp).fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 24.dp, vertical = 12.dp),
-            ) {
+            Column(Modifier.widthIn(max = 640.dp).fillMaxSize()) {
+                // The header stays put while the offer scrolls, like the tab screens.
                 Row(
-                    Modifier.fillMaxWidth(),
+                    Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     IconButton(onClick = onBack) { Icon(RootIcons.Back, "Back") }
                     Text("ROOT PREMIUM", style = MaterialTheme.typography.labelSmall)
                 }
-                Spacer(Modifier.height(36.dp))
-                Text("More words.\nCloser to home.", style = RootType.heroAnswer)
-                Spacer(Modifier.height(20.dp))
-                Text(
-                    "Premium opens extra phrase sets in each language, like words for the people you love " +
-                        "and phrases that keep a conversation going. The starter sets stay free.",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(32.dp))
-                Text("WHAT PREMIUM INCLUDES", style = RootType.label, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(4.dp))
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                PremiumOffer.included(languageName).forEach { (title, detail) -> Benefit(title, detail) }
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                Spacer(Modifier.height(20.dp))
-                Text("ALWAYS FREE", style = RootType.label, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    PremiumOffer.alwaysFree,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                // Once the store returns a real plan, its localized price replaces this.
-                if (packages.isEmpty() && state !is PaywallState.Unlocked) {
-                    Spacer(Modifier.height(28.dp))
-                    PlannedPrices(languageName)
-                }
-                Spacer(Modifier.height(28.dp))
                 Column(
-                    Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth().weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 24.dp, vertical = 12.dp),
                 ) {
-                    when (state) {
-                        PaywallState.Loading -> LoadingMessage("Loading plans from the store")
-                        PaywallState.NotConfigured -> {
-                            Text("Purchases are not set up yet.", style = RootType.editorialTitle)
-                            Text(
-                                "This build has no configured store connection. Nothing can be purchased or unlocked here. " +
-                                    "You can keep practicing the free collection.",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        PaywallState.NothingToUnlock -> {
-                            Text("No premium sets yet.", style = RootType.editorialTitle)
-                            Text(
-                                "There are no premium sets in the app yet, so nothing is for sale. " +
-                                    "Sets appear here only once they're in the app.",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        PaywallState.Unlocked -> {
-                            Text("Premium is yours.", style = RootType.editorialTitle)
-                            Text(
-                                when {
-                                    redeemed -> "Every premium set is open with a showcase code on this device."
-                                    languageName != null -> "Premium for $languageName is active."
-                                    else -> "Premium for every language is active."
-                                },
-                            )
-                            if (redeemed) {
-                                OutlinedButton(onClick = onRemoveCode, shape = RoundedCornerShape(4.dp)) {
-                                    Text("Remove code")
+                    Spacer(Modifier.height(24.dp))
+                    Text("More words.\nCloser to home.", style = RootType.heroAnswer)
+                    Spacer(Modifier.height(20.dp))
+                    Text(
+                        "Premium opens extra phrase sets in each language, like words for the people you love " +
+                            "and phrases that keep a conversation going. The starter sets stay free.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(32.dp))
+                    Text("WHAT PREMIUM INCLUDES", style = RootType.label, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(4.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    PremiumOffer.included(languageName).forEach { (title, detail) -> Benefit(title, detail) }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    Spacer(Modifier.height(20.dp))
+                    Text("ALWAYS FREE", style = RootType.label, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        PremiumOffer.alwaysFree,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    // Once the store returns a real plan, its localized price replaces this.
+                    if (packages.isEmpty() && state !is PaywallState.Unlocked) {
+                        Spacer(Modifier.height(28.dp))
+                        PlannedPrices(languageName)
+                    }
+                    Spacer(Modifier.height(28.dp))
+                    Column(
+                        Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        when (state) {
+                            PaywallState.Loading -> LoadingMessage("Loading plans from the store")
+                            PaywallState.NotConfigured -> {
+                                Text("Purchases are not set up yet.", style = RootType.editorialTitle)
+                                Text(
+                                    "This build has no configured store connection. Nothing can be purchased or unlocked here. " +
+                                        "You can keep practicing the free collection.",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            PaywallState.NothingToUnlock -> {
+                                Text("No premium sets yet.", style = RootType.editorialTitle)
+                                Text(
+                                    "There are no premium sets in the app yet, so nothing is for sale. " +
+                                        "Sets appear here only once they're in the app.",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            PaywallState.Unlocked -> {
+                                Text("Premium is yours.", style = RootType.editorialTitle)
+                                Text(
+                                    when {
+                                        redeemed -> "Every premium set is open with a showcase code on this device."
+                                        languageName != null -> "Premium for $languageName is active."
+                                        else -> "Premium for every language is active."
+                                    },
+                                )
+                                if (redeemed) {
+                                    OutlinedButton(onClick = onRemoveCode, shape = RoundedCornerShape(4.dp)) {
+                                        Text("Remove code")
+                                    }
                                 }
                             }
-                        }
-                        is PaywallState.Error -> {
-                            Text(state.message, color = MaterialTheme.colorScheme.error)
-                            OutlinedButton(onClick = onRetry, shape = RoundedCornerShape(4.dp)) {
-                                Text("Reload plans")
-                            }
-                        }
-                        is PaywallState.Ready -> {
-                            state.notice?.let {
-                                Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            if (state.packages.isEmpty()) {
+                            is PaywallState.Error -> {
+                                Text(state.message, color = MaterialTheme.colorScheme.error)
                                 OutlinedButton(onClick = onRetry, shape = RoundedCornerShape(4.dp)) {
                                     Text("Reload plans")
                                 }
                             }
+                            is PaywallState.Ready -> {
+                                state.notice?.let {
+                                    Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                if (state.packages.isEmpty()) {
+                                    OutlinedButton(onClick = onRetry, shape = RoundedCornerShape(4.dp)) {
+                                        Text("Reload plans")
+                                    }
+                                }
+                            }
+                            is PaywallState.Restoring -> LoadingMessage("Restoring purchases")
+                            is PaywallState.Purchasing -> LoadingMessage("Waiting for the store")
                         }
-                        is PaywallState.Restoring -> LoadingMessage("Restoring purchases")
-                        is PaywallState.Purchasing -> LoadingMessage("Waiting for the store")
                     }
-                }
-                packages.forEach { plan ->
-                    val kind = PremiumPlan.of(plan) ?: return@forEach
-                    Spacer(Modifier.height(12.dp))
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerLow,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                    ) {
-                        Column(
-                            Modifier.fillMaxWidth().padding(20.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                    packages.forEach { plan ->
+                        val kind = PremiumPlan.of(plan) ?: return@forEach
+                        Spacer(Modifier.height(12.dp))
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                         ) {
-                            Text(PremiumOffer.planTitle(kind, languageName), style = MaterialTheme.typography.titleMedium)
-                            Text(plan.priceLabel(), style = RootType.editorialTitle)
-                            Text(
-                                PremiumOffer.planDetail(kind, languageName),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Text(
-                                "One-time purchase, not a subscription. Confirm the final charge in the store.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Button(
-                                onClick = { onPurchase(plan) },
-                                enabled = !busy,
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(4.dp),
-                                contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+                            Column(
+                                Modifier.fillMaxWidth().padding(20.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
                             ) {
+                                Text(PremiumOffer.planTitle(kind, languageName), style = MaterialTheme.typography.titleMedium)
+                                Text(plan.priceLabel(), style = RootType.editorialTitle)
                                 Text(
-                                    if (state is PaywallState.Purchasing && state.packageId == plan.identifier) {
-                                        "Opening store..."
-                                    } else "Continue with ${plan.product.price.formatted}",
+                                    PremiumOffer.planDetail(kind, languageName),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
+                                Text(
+                                    "One-time purchase, not a subscription. Confirm the final charge in the store.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Button(
+                                    onClick = { onPurchase(plan) },
+                                    enabled = !busy,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(4.dp),
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+                                ) {
+                                    Text(
+                                        if (state is PaywallState.Purchasing && state.packageId == plan.identifier) {
+                                            "Opening store..."
+                                        } else "Continue with ${plan.product.price.formatted}",
+                                    )
+                                }
                             }
                         }
                     }
-                }
-                if (state !is PaywallState.Unlocked) {
-                    Spacer(Modifier.height(24.dp))
-                    RedeemCodeField(enabled = !busy, error = redeemError, onRedeem = onRedeem)
-                }
-                Spacer(Modifier.height(16.dp))
-                if (state !is PaywallState.NotConfigured && state !is PaywallState.Unlocked) {
+                    if (state !is PaywallState.Unlocked) {
+                        Spacer(Modifier.height(24.dp))
+                        RedeemCodeField(enabled = !busy, error = redeemError, onRedeem = onRedeem)
+                    }
+                    Spacer(Modifier.height(16.dp))
+                    if (state !is PaywallState.NotConfigured && state !is PaywallState.Unlocked) {
+                        TextButton(
+                            onClick = onRestore,
+                            enabled = !busy && state !is PaywallState.Loading,
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text("Restore purchases") }
+                    }
                     TextButton(
-                        onClick = onRestore,
-                        enabled = !busy && state !is PaywallState.Loading,
+                        onClick = onBack,
                         shape = RoundedCornerShape(4.dp),
                         modifier = Modifier.fillMaxWidth(),
-                    ) { Text("Restore purchases") }
+                    ) { Text(if (state is PaywallState.Unlocked) "Back to your words" else "Keep the free collection") }
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "You only ever pay for sets that are already in the app.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Restoring purchases brings back premium access for your store account. " +
+                            "It can't bring back your own words, recordings, or practice history, which are kept only on this device.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    PolicyLinks()
+                    Spacer(Modifier.height(28.dp))
                 }
-                TextButton(
-                    onClick = onBack,
-                    shape = RoundedCornerShape(4.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text(if (state is PaywallState.Unlocked) "Back to your words" else "Keep the free collection") }
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    "You only ever pay for sets that are already in the app.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "Restoring purchases brings back premium access for your store account. " +
-                        "It can't bring back your own words, recordings, or practice history, which are kept only on this device.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                PolicyLinks()
-                Spacer(Modifier.height(28.dp))
             }
         }
     }
