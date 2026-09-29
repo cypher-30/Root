@@ -6,19 +6,26 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PremiumOfferTest {
-    @Test fun describesDeeperNativeContentNotAccessOrFrequency() {
-        val titles = PremiumOffer.included.map { it.first }
-        assertEquals(listOf("Native voices", "Deeper sets", "Proverbs and longer stories", "Full Learn courses",
-            "Pay once, for one language or all"), titles)
-        val all = PremiumOffer.included.joinToString(" ") { it.first + " " + it.second }.lowercase()
+    @Test fun describesRealSetsNotAccessOrFrequency() {
+        val rows = PremiumOffer.included("Swahili")
+        assertEquals(listOf("Swahili premium sets", "Practise them like any set", "New sets included",
+            "Pay once, for one language or all"), rows.map { it.first })
+        assertEquals("Heart words (8 phrases) and Keep talking (8 phrases).", rows.first().second)
+        val all = rows.joinToString(" ") { it.first + " " + it.second }.lowercase()
         listOf("unlimited", "streak", "hearts", "ad-free", "daily limit").forEach { assertFalse(it, it in all) }
         assertTrue("not a subscription" in all)
     }
 
-    @Test fun deeperSetsListsEveryPlannedTopic() {
-        val detail = PremiumOffer.included.first { it.first == "Deeper sets" }.second
-        assertEquals("Talking with elders, family and home, food and cooking, ceremonies, health, travel, and work.", detail)
-        PremiumOffer.plannedTopics.forEach { assertTrue(it, it.lowercase() in detail.lowercase()) }
+    @Test fun withoutALanguageEveryLanguagesSetsAreNamed() {
+        val row = PremiumOffer.included(null).first()
+        assertEquals("Premium sets in every language", row.first)
+        listOf("Dholuo: Body & health and Days of the week.", "Shona: Heart words and Keep talking.",
+            "Amharic: Heart words and Keep talking.").forEach { assertTrue(it, it in row.second) }
+        assertEquals(8, PremiumOffer.premiumSets().size)
+    }
+
+    @Test fun aLanguageWithoutPremiumSetsSaysSo() {
+        assertEquals("Kikuyu has no premium sets yet.", PremiumOffer.included("Kikuyu").first().second)
     }
 
     @Test fun starterSetsAndPracticeStayFree() {
@@ -38,6 +45,7 @@ class PremiumOfferTest {
         val doc = listOf(java.io.File("../docs/PREMIUM.md"), java.io.File("docs/PREMIUM.md")).first { it.isFile }.readText()
         assertTrue(doc.contains("**${PremiumOffer.plannedLanguagePrice} for one language, or ${PremiumOffer.plannedAllLanguagesPrice} for all of them**"))
         val note = PremiumOffer.plannedPriceNote.lowercase()
-        listOf("planned", "not a subscription", "nothing is for sale", "exact amount").forEach { assertTrue(it, it in note) }
+        listOf("planned", "not a subscription", "exact amount").forEach { assertTrue(it, it in note) }
+        assertFalse("kenya" in note)
     }
 }

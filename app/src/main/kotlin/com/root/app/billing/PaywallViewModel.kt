@@ -74,7 +74,7 @@ sealed interface PaywallState {
     data class Error(val message: String, val packages: List<Package> = emptyList()) : PaywallState
     data object Unlocked : PaywallState
     data object NotConfigured : PaywallState
-    /** No reviewed premium content is installed, so nothing may be sold yet. */
+    /** No premium set is installed, so nothing may be sold. */
     data object NothingToUnlock : PaywallState
 }
 
@@ -163,7 +163,7 @@ class PaywallViewModel @JvmOverloads constructor(
 
     private fun languageNotice(): String? =
         if (languageName != null && languageKey !in sellableLanguages) {
-            "$languageName has no premium packs yet, so only the all-languages plan is offered."
+            "$languageName has no premium sets yet, so only the all-languages plan is offered."
         } else null
 
     private fun loadOfferings() {

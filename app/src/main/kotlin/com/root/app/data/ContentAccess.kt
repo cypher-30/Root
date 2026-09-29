@@ -22,8 +22,7 @@ object ContentAccess {
         canAccess(language, pack, premium.covers(language), rewardUnlocked)
 
     /** True only when some premium plan would open at least one real,
-     *  still-eligible phrase. Purchases must never sell empty placeholders or
-     *  the unreviewed starter samples in [SeedCatalog]. */
+     *  still-eligible phrase. Purchases must never sell empty placeholders. */
     suspend fun hasPremiumContent(db: AppDatabase): Boolean = premiumContentLanguageKeys(db).isNotEmpty()
 
     /** [PremiumAccess.languageKey]s of the languages with sellable premium content.
@@ -32,7 +31,6 @@ object ContentAccess {
         db.languageDao().getAll().filter { language ->
             db.packDao().getForLanguage(language.id).any { pack ->
                 pack.id != userPackId(language.id) &&
-                    pack.id !in SeedCatalog.packIds &&
                     (language.isPremium || (!pack.isFree && pack.id != ReferralPrefs.REWARD_PACK_ID)) &&
                     db.contentDao().getInstalledPack(pack.id)?.status != InstalledPackStatus.RETIRED &&
                     db.phraseDao().countForPack(pack.id) > 0

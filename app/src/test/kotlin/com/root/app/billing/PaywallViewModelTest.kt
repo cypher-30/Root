@@ -190,7 +190,7 @@ class PaywallViewModelTest {
         gateway.offeringsResult = Outcome.Ok(fakeOfferings(listOf(fakePackage("lifetime"), dholuoPlan)))
         val ready = viewModel(gateway, contentLanguages = setOf("shona")).state.value as PaywallState.Ready
         assertEquals(listOf("lifetime"), ready.packages.map { it.identifier })
-        assertEquals("Dholuo has no premium packs yet, so only the all-languages plan is offered.", ready.notice)
+        assertEquals("Dholuo has no premium sets yet, so only the all-languages plan is offered.", ready.notice)
     }
 
     @Test

@@ -9,8 +9,8 @@ package com.root.app.data
  * review yet. A few phrases have real Lingua Libre recordings (see [SeedAudio]);
  * the rest have no reference audio rather than a synthetic or unrelated one.
  * Phrase and pack IDs are stable forever — learner history keys on them.
- * Every starter set is free. Premium is reserved for native-reviewed,
- * recorded content (see docs/PREMIUM.md), which these samples are not.
+ * Each language has free starter sets ([Pack.isFree]) and premium sets that
+ * open with that language's Premium or the all-languages bundle (see docs/PREMIUM.md).
  */
 object SeedCatalog {
     data class Language(val key: String, val defaultId: String, val name: String)
@@ -94,6 +94,30 @@ object SeedCatalog {
             p("phrase-dholuo-people-06", "I don't know", "Ok ang'eyo"),
             p("phrase-dholuo-people-07", "Help!", "Konya!"),
         )),
+        Pack("pack-dholuo-body", "dholuo", "Body & health", 10, false, SeedSource.WIKIVOYAGE_LUO, listOf(
+            p("phrase-dholuo-body-01", "What is wrong?", "Ang'o marach?"),
+            p("phrase-dholuo-body-02", "Please help me", "Akwayi"),
+            p("phrase-dholuo-body-03", "Head", "Wi"),
+            p("phrase-dholuo-body-04", "Eye", "Wang'"),
+            p("phrase-dholuo-body-05", "Ear", "It"),
+            p("phrase-dholuo-body-06", "Mouth", "Dhok"),
+            p("phrase-dholuo-body-07", "Tooth", "Lak"),
+            p("phrase-dholuo-body-08", "Stomach", "Ich"),
+            p("phrase-dholuo-body-09", "Leg", "Tielo"),
+            p("phrase-dholuo-body-10", "Knee", "Chong"),
+        )),
+        Pack("pack-dholuo-days", "dholuo", "Days of the week", 11, false, SeedSource.WIKIVOYAGE_LUO, listOf(
+            p("phrase-dholuo-days-01", "Sunday", "Chieng' Nyasaye"),
+            p("phrase-dholuo-days-02", "Monday", "Mok tich"),
+            p("phrase-dholuo-days-03", "Tuesday", "Tich ariyo"),
+            p("phrase-dholuo-days-04", "Wednesday", "Tich adek"),
+            p("phrase-dholuo-days-05", "Thursday", "Tich ang'wen"),
+            p("phrase-dholuo-days-06", "Friday", "Tich abich"),
+            p("phrase-dholuo-days-07", "Saturday", "Chieng' ngeso"),
+            p("phrase-dholuo-days-08", "Good afternoon", "Irio nade"),
+            p("phrase-dholuo-days-09", "Good night", "Otieno maber"),
+            p("phrase-dholuo-days-10", "Have a good day", "Bed gi odiochieng' maber"),
+        )),
 
         // ---- Shona ----
         Pack("pack-shona-greetings", "shona", "Greetings", 0, true, SeedSource.OMNIGLOT_SHONA, listOf(
@@ -145,6 +169,23 @@ object SeedCatalog {
             p("phrase-shona-numbers-05", "Ten", "Gumi"),
             p("phrase-shona-numbers-06", "Good night (one person)", "Urare zvakanaka"),
             p("phrase-shona-numbers-07", "Have a nice day (one person)", "Uve nezuva rakanaka"),
+        )),
+        Pack("pack-shona-heart", "shona", "Heart words", 10, false, SeedSource.OMNIGLOT_SHONA, listOf(
+            p("phrase-shona-heart-01", "I love you", "Ndinokuda"),
+            p("phrase-shona-heart-02", "Long time no see", "Ko, vemakore!"),
+            p("phrase-shona-heart-03", "Get well soon (one person)", "Ndinovimba kuti uchakurumidza kupora"),
+            p("phrase-shona-heart-04", "Good luck! (one person)", "Uve nemhanza yakanaka"),
+            p("phrase-shona-heart-05", "Happy birthday (one person)", "Uve nezuva rakanaka rekuzvarwa"),
+            p("phrase-shona-heart-06", "Merry Christmas (more than one person)", "Muve nekisimusi"),
+            p("phrase-shona-heart-07", "Happy New Year", "Goredzva zvakanaka"),
+        )),
+        Pack("pack-shona-talking", "shona", "Keep talking", 11, false, SeedSource.OMNIGLOT_SHONA, listOf(
+            p("phrase-shona-talking-01", "Do you understand?", "Munonzvisisa here?"),
+            p("phrase-shona-talking-02", "I understand", "Ndinonzvisisa"),
+            p("phrase-shona-talking-03", "I don't understand", "Handisi kunyaso nzwisisa"),
+            p("phrase-shona-talking-04", "Please write it down", "Ndinokumbirawo kuti muzvinyore pasi"),
+            p("phrase-shona-talking-05", "Do you speak …? (one person)", "Unotaura …?"),
+            p("phrase-shona-talking-06", "One language is never enough", "Rurimi rumwe haruzadzikisa mutauro"),
         )),
 
         // ---- Swahili ----
@@ -198,6 +239,26 @@ object SeedCatalog {
             p("phrase-swahili-numbers-05", "What time is it?", "Saa ngapi?"),
             p("phrase-swahili-numbers-06", "See you tomorrow", "Tutaonana kesho"),
         )),
+        Pack("pack-swahili-heart", "swahili", "Heart words", 10, false, SeedSource.OMNIGLOT_SWAHILI, listOf(
+            p("phrase-swahili-heart-01", "I love you", "Ninakupenda"),
+            p("phrase-swahili-heart-02", "Get well soon", "Ugua pole"),
+            p("phrase-swahili-heart-03", "Good luck!", "Kila la kheri!"),
+            p("phrase-swahili-heart-04", "Congratulations!", "Hongera!"),
+            p("phrase-swahili-heart-05", "Happy birthday", "Sikukuu njema ya kuzaliwa!"),
+            p("phrase-swahili-heart-06", "Merry Christmas", "Krismasi njema"),
+            p("phrase-swahili-heart-07", "Happy New Year", "Heri ya mwaka mpya"),
+            p("phrase-swahili-heart-08", "Sleep well", "Lala salama"),
+        )),
+        Pack("pack-swahili-talking", "swahili", "Keep talking", 11, false, SeedSource.OMNIGLOT_SWAHILI, listOf(
+            p("phrase-swahili-talking-01", "Do you understand?", "Unaelewa?"),
+            p("phrase-swahili-talking-02", "I understand", "Naelewa"),
+            p("phrase-swahili-talking-03", "I don't know", "Sijui"),
+            p("phrase-swahili-talking-04", "Please speak more slowly", "Tafadhali sema polepole"),
+            p("phrase-swahili-talking-05", "Can you write it down?", "Waweza kuiandika?"),
+            p("phrase-swahili-talking-06", "Do you speak Swahili?", "Unazungumza Kiswahili?"),
+            p("phrase-swahili-talking-07", "Yes, a little", "Ndiyo, kidogo tu"),
+            p("phrase-swahili-talking-08", "How do you say … in Swahili?", "Unasemaje … kwa Kiswahili?"),
+        )),
 
         // ---- Amharic (FSI transliteration for the original sets; Ge'ez script added for new ones) ----
         Pack("pack-amharic-greetings", "amharic", "Greetings", 0, true, SeedSource.FSI_OMNIGLOT_AMHARIC, listOf(
@@ -250,12 +311,30 @@ object SeedCatalog {
             p("phrase-amharic-numbers-06", "Have a nice day", "Melkam qen (መልካም ቀን)"),
             p("phrase-amharic-numbers-07", "Good night (to a man)", "Dehna eder (ደህና እደር)"),
         )),
+        Pack("pack-amharic-heart", "amharic", "Heart words", 10, false, SeedSource.OMNIGLOT_AMHARIC, listOf(
+            p("phrase-amharic-heart-01", "I love you (to a woman)", "Afeqrishalehu (አፈቅርሻለሁ)"),
+            p("phrase-amharic-heart-02", "I love you (to a man)", "Afeqrihalehu (አፈቅርሀለሁ)"),
+            p("phrase-amharic-heart-03", "Long time no see", "Rejjim gize ketelayayen (ረጂም ጊዜ ከተለያየን)"),
+            p("phrase-amharic-heart-04", "Get well soon (to a man)", "Mihretun yamTalih (ምህረቱን ያምጣልህ)"),
+            p("phrase-amharic-heart-05", "Good luck", "Melkam idil (መልካም እድል)"),
+            p("phrase-amharic-heart-06", "Congratulations!", "Enkwan des alewo! (እንኳን ደስ አለዎ!)"),
+            p("phrase-amharic-heart-07", "Happy birthday", "Melkam lidet (መልካም ልደት)"),
+            p("phrase-amharic-heart-08", "Merry Christmas", "Melkam Gena (መልካም ገና)"),
+            p("phrase-amharic-heart-09", "Happy Easter", "Melkam Fasika (መልካም ፋሲካ)"),
+        )),
+        Pack("pack-amharic-talking", "amharic", "Keep talking", 11, false, SeedSource.OMNIGLOT_AMHARIC, listOf(
+            p("phrase-amharic-talking-01", "Do you understand? (to a man)", "Gebah? (ገባሀ?)"),
+            p("phrase-amharic-talking-02", "I understand", "Gebagn (ገባኝ)"),
+            p("phrase-amharic-talking-03", "I don't know", "Alawqim (አላውቅም)"),
+            p("phrase-amharic-talking-04", "Please speak more slowly (to a man)", "Ebakih qes bileh tenager (እባክህ ቀስ ብለህ ተናገር)"),
+            p("phrase-amharic-talking-05", "Please say that again (to a man)", "Ebakih yalkewin digemilign (እባክህ ያልከዉን ድገምልኝ)"),
+            p("phrase-amharic-talking-06", "Yes, a little", "Awo, tinish (አዎ፣ ትንሽ)"),
+            p("phrase-amharic-talking-07", "How do you say … in Amharic?", "… be'Amarigna min yibbalal? (… በአማርኛ ምን ይባላል?)"),
+        )),
     )
 
     fun packsFor(languageKey: String): List<Pack> = packs.filter { it.languageKey == languageKey }
 
-    /** Starter packs are source-checked but not native-reviewed, so they are
-     *  never counted as something the premium unlock can be sold for. */
     val packIds: Set<String> = packs.mapTo(mutableSetOf()) { it.id }
 
     /** All phrases a fresh install shows for [languageKey], legacy Dholuo included. */
@@ -290,6 +369,14 @@ enum class SeedSource(val credit: String, val url: String, val license: String) 
     WIKIVOYAGE_SWAHILI(
         "Wikivoyage contributors, \"Swahili phrasebook\".",
         "https://en.wikivoyage.org/wiki/Swahili_phrasebook", "CC BY-SA 4.0",
+    ),
+    OMNIGLOT_SWAHILI(
+        "Omniglot, \"Useful Swahili phrases\".",
+        "https://www.omniglot.com/language/phrases/swahili.php", "Checked for accuracy; not license-cleared",
+    ),
+    OMNIGLOT_AMHARIC(
+        "Omniglot, \"Useful Amharic phrases\", romanized in Root's style. The birthday greeting's መልከም is spelled መልካም, as in Omniglot's other entries.",
+        "https://www.omniglot.com/language/phrases/amharic.php", "Checked for accuracy; not license-cleared",
     ),
     FSI_AMHARIC(
         "FSI Amharic Basic Course (Foreign Service Institute, 1964), a U.S. government work.",

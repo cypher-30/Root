@@ -306,11 +306,11 @@ private fun SituationCard(
             Spacer(Modifier.height(8.dp))
             if (!open) {
                 Text(
-                    "Part of this language's Premium: reviewed and recorded by native speakers.",
+                    "A premium set. Unlock it once with this language's Premium, and it joins your practice.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                TextButton(onClick = onUnlock) { Text("About Premium") }
+                TextButton(onClick = onUnlock) { Text("See Premium") }
             } else {
                 phrases.forEach { phrase ->
                     PhraseLine(phrase, saved = phrase.id in savedIds, onSetSaved = { onSetSaved(phrase.id, it) })

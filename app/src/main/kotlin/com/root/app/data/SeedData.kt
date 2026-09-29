@@ -3,8 +3,8 @@ package com.root.app.data
 import androidx.room.withTransaction
 
 /**
- * Installs [SeedCatalog] — source-checked starter phrases for Dholuo, Shona,
- * Swahili, and Amharic. Runs on every start and only adds what is missing, so
+ * Installs [SeedCatalog] — source-checked free and premium phrase sets for
+ * Dholuo, Shona, Swahili, and Amharic. Runs on every start and only adds what is missing, so
  * learner edits, retirements, and history are never overwritten.
  * Only phrases listed in [SeedAudio] get a reference recording; every other phrase
  * keeps null audio on purpose rather than a manufactured voice.
@@ -29,7 +29,8 @@ object SeedData {
             SeedCatalog.renamedThemes.forEach { (packId, names) ->
                 if (languagePacks.any { it.id == packId }) packs.renameTheme(packId, names.first, names.second)
             }
-            // Starter sets used to be partly locked; they are all free now, including on older installs.
+            // Starter sets used to be partly locked; the free ones are free now, including on older installs.
+            // Premium sets are inserted locked and are never widened here.
             packs.markFree(languagePacks.filter { it.isFree }.map { it.id })
 
             if (language == SeedCatalog.dholuo && phrases.countForPack("pack-dholuo-greetings") == 0) {

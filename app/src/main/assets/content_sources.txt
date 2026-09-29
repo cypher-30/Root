@@ -1,6 +1,6 @@
 Root content provenance
 
-Every starter phrase is a short everyday expression checked against the public
+Every phrase is a short everyday expression checked against the public
 reference named below. This is a small starter selection for each language,
 not an imported course, and not a claim to cover every dialect, register, or
 respectful form of address. English prompts say "one person" / "more than one
@@ -12,16 +12,19 @@ imported. Six starter phrases play a real recording (listed under "Reference
 recordings" below); every other phrase and every lesson has no audio rather
 than a synthetic voice.
 
-Dholuo (39 phrases: Greetings, Family, Market, Numbers, Food, Meeting people)
+Dholuo (59 phrases. Free: Greetings, Family, Market, Numbers, Food, Meeting
+people. Premium: Body & health, Days of the week)
 Wikivoyage contributors, "Luo phrasebook", CC BY-SA 4.0
 https://en.wikivoyage.org/wiki/Luo_phrasebook
 Spelling is normalized to the "dh" spelling used elsewhere in Root (the
 phrasebook writes, for example, "Ithi nade?" for "Idhi nade?"). The three
 original greetings (Amosi, Idhi nade?, Erokamano) were hand-entered earlier
-and are kept for existing learners' history.
+and are kept for existing learners' history. In the premium sets, day names
+are written with the phrasebook's own apostrophes (Chieng', ang'wen) and
+Nyasaye capitalized.
 
-Shona (40 phrases: Greetings, Meeting people, Food & market, Getting around,
-Numbers & time)
+Shona (53 phrases. Free: Greetings, Meeting people, Food & market, Getting
+around, Numbers & time. Premium: Heart words, Keep talking)
 Omniglot, "Useful Shona phrases", phrases contributed by Emma Thembani and
 Ernest Mdende; single food words checked against Wiktionary (CC BY-SA 4.0);
 numbers checked against Omniglot, "Numbers in Shona".
@@ -30,8 +33,8 @@ https://www.omniglot.com/language/numbers/shona.htm
 Omniglot content was checked for accuracy only; it is not license-cleared
 for redistribution beyond these short phrase pairs.
 
-Swahili (40 phrases: Greetings, Meeting people, Food & market, Getting
-around, Numbers & time)
+Swahili (56 phrases. Free: Greetings, Meeting people, Food & market, Getting
+around, Numbers & time. Premium: Heart words, Keep talking, from Omniglot)
 Omniglot, "Useful Swahili phrases" (credits Ylanne Sorrows, Rushomesa
 Remigius, Dwayne Panzeter, Corona Cermak, and EasySwahili), and Wikivoyage
 contributors, "Swahili phrasebook", CC BY-SA 4.0.
@@ -40,8 +43,10 @@ https://en.wikivoyage.org/wiki/Swahili_phrasebook
 Swahili has many regional varieties (Kenya, Tanzania, DRC and more); these
 are the sources' standard/coastal forms only.
 
-Amharic (40 phrases: Greetings, Directions, Meeting people, Food & market,
-Numbers & time)
+Amharic (56 phrases. Free: Greetings, Directions, Meeting people, Food &
+market, Numbers & time. Premium: Heart words, Keep talking, from Omniglot,
+romanized in Root's style with Ge'ez script in brackets; Omniglot's
+birthday greeting "መልከም" is spelled "መልካም" as in its other entries)
 FSI Amharic Basic Course, Units 1-2 (Basic Sentences), Serge Obolensky,
 Debebow Zelelie, Mulugeta Andualem, Foreign Service Institute, U.S.
 Department of State, 1964. A work of the U.S. federal government, with no

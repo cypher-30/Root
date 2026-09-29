@@ -41,7 +41,7 @@ class ExploreContentTest {
         }
     }
 
-    @Test fun situationBlurbsDescribeExactlyTheStarterPacks() {
+    @Test fun situationBlurbsDescribeEverySeededSet() {
         ExploreContent.byKey.forEach { (key, content) ->
             assertEquals("$key situations", SeedCatalog.packsFor(key).map { it.id }.toSet(), content.situations.keys)
         }

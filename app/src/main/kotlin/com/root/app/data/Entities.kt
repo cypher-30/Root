@@ -38,7 +38,7 @@ data class PackEntity(
     @ColumnInfo(name = "language_id") val languageId: String,
     val theme: String,         // "Greetings", "Family", "Market", ...
     val sortOrder: Int,
-    val isFree: Boolean,       // every bundled starter set is free; paid packs are reviewed premium content
+    val isFree: Boolean,       // starter sets are free; premium sets open with that language's Premium
     @ColumnInfo(name = "updated_at") val updatedAt: Long = System.currentTimeMillis(),
 )
 

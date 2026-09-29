@@ -30,6 +30,8 @@ object ExploreContent {
             "pack-swahili-market" to "Ask prices, order tea, ask for the bill, and turn things down politely.",
             "pack-swahili-directions" to "Left, right, straight on, and what to say when you're lost.",
             "pack-swahili-numbers" to "Count the basics, ask the time, and say see you tomorrow.",
+            "pack-swahili-heart" to "I love you, get well soon, happy birthday, and the wishes you send home.",
+            "pack-swahili-talking" to "Keep a conversation going: ask them to slow down, and how to say a word.",
         ),
         stories = listOf(
             Story(
@@ -85,6 +87,8 @@ object ExploreContent {
             "pack-shona-market" to "Prices, everyday food words, and wishing someone a good meal.",
             "pack-shona-directions" to "Find the toilet, call for help, and ask someone to slow down.",
             "pack-shona-numbers" to "Count to ten and wish someone a good day or a good night.",
+            "pack-shona-heart" to "I love you, long time no see, get well soon, and wishes for birthdays and holidays.",
+            "pack-shona-talking" to "Check you understood, ask for it written down, and ask what they speak.",
         ),
         stories = listOf(
             Story(
@@ -141,6 +145,8 @@ object ExploreContent {
             "pack-dholuo-numbers" to "Count from one to five, and ten.",
             "pack-dholuo-food" to "Fish, bananas, cassava, and more everyday food.",
             "pack-dholuo-directions" to "Swap names and home towns, and call for help.",
+            "pack-dholuo-body" to "Ask what is wrong, and name the head, eyes, teeth, and more.",
+            "pack-dholuo-days" to "Sunday to Saturday, and good wishes for the afternoon, night, and day.",
         ),
         stories = listOf(
             Story(
@@ -195,6 +201,8 @@ object ExploreContent {
             "pack-amharic-people" to "Ask a name the right way for a man or a woman, and say you don't understand.",
             "pack-amharic-market" to "Coffee, bread, stew, prices, and saying you don't eat meat.",
             "pack-amharic-numbers" to "Count the basics and wish someone a good day or night.",
+            "pack-amharic-heart" to "I love you, long time no see, and greetings for birthdays, Genna, and Fasika.",
+            "pack-amharic-talking" to "Check you understood, ask them to slow down or say it again.",
         ),
         stories = listOf(
             Story(

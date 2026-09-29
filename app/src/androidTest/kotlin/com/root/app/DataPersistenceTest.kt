@@ -90,7 +90,7 @@ class DataPersistenceTest {
         assertEquals(phrase, db.phraseDao().getById(phrase.id))
     }
 
-    @Test fun reseedingRenamesOldThemeButNeverSellsStarterSamples() = runBlocking {
+    @Test fun reseedingRenamesOldThemeOpensStartersAndSellsOnlyPremiumSets() = runBlocking {
         db.languageDao().insertMissing(listOf(LanguageEntity("lang-dholuo", "Dholuo", false)))
         db.packDao().insertMissing(listOf(PackEntity("pack-dholuo-directions", "lang-dholuo", "Directions", 5, false)))
         SeedData.seedIfEmpty(db)
@@ -98,7 +98,9 @@ class DataPersistenceTest {
         // Older installs seeded some starter sets as locked; reseeding opens them.
         assertTrue(db.packDao().getById("pack-dholuo-directions")!!.isFree)
         assertTrue(db.phraseDao().countForPack("pack-swahili-market") > 0)
-        assertFalse(ContentAccess.hasPremiumContent(db))
+        assertFalse(db.packDao().getById("pack-swahili-heart")!!.isFree)
+        assertTrue(db.phraseDao().countForPack("pack-swahili-heart") > 0)
+        assertEquals(setOf("dholuo", "shona", "swahili", "amharic"), ContentAccess.premiumContentLanguageKeys(db))
     }
 
     @Test fun reseedingAttachesRealRecordingsButNeverOverwritesEdits() = runBlocking {

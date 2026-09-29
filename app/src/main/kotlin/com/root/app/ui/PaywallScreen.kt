@@ -123,8 +123,8 @@ private fun PaywallContent(
                 Text("More words.\nCloser to home.", style = RootType.heroAnswer)
                 Spacer(Modifier.height(20.dp))
                 Text(
-                    "Premium pays native speakers to review and record deeper sets. " +
-                        "Everything you use today stays free.",
+                    "Premium opens extra phrase sets in each language, like words for the people you love " +
+                        "and phrases that keep a conversation going. The starter sets stay free.",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -132,7 +132,7 @@ private fun PaywallContent(
                 Text("WHAT PREMIUM INCLUDES", style = RootType.label, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(4.dp))
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                PremiumOffer.included.forEach { (title, detail) -> Benefit(title, detail) }
+                PremiumOffer.included(languageName).forEach { (title, detail) -> Benefit(title, detail) }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 Spacer(Modifier.height(20.dp))
                 Text("ALWAYS FREE", style = RootType.label, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -163,10 +163,10 @@ private fun PaywallContent(
                             )
                         }
                         PaywallState.NothingToUnlock -> {
-                            Text("Premium isn't ready yet.", style = RootType.editorialTitle)
+                            Text("No premium sets yet.", style = RootType.editorialTitle)
                             Text(
-                                "No premium pack has finished native-speaker review and recording, so nothing is for sale. " +
-                                    "Packs appear here only once they're in the app.",
+                                "There are no premium sets in the app yet, so nothing is for sale. " +
+                                    "Sets appear here only once they're in the app.",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
@@ -250,8 +250,7 @@ private fun PaywallContent(
                 ) { Text(if (state is PaywallState.Unlocked) "Back to your words" else "Keep the free collection") }
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    "You only ever pay for packs that are already in the app. " +
-                        "The list above describes what Premium is for, not a release date.",
+                    "You only ever pay for sets that are already in the app.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
