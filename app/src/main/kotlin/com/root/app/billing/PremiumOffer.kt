@@ -52,12 +52,20 @@ object PremiumOffer {
         )
     }
 
+    data class PlannedPrices(val oneLanguage: String, val allLanguages: String)
+
     /** Keep in step with the price table in docs/PREMIUM.md and the store products. */
     const val plannedLanguagePrice = "US$4.99"
     const val plannedAllLanguagesPrice = "US$9.99"
+    private val homeMarkets = setOf("KE", "ZW", "ET")
+
+    /** The planned prices for a country (ISO code from the SIM or network, see [DeviceCountry]). */
+    fun plannedPrices(countryCode: String?): PlannedPrices =
+        if (countryCode?.uppercase() in homeMarkets) PlannedPrices("US$1.99", "US$3.99")
+        else PlannedPrices(plannedLanguagePrice, plannedAllLanguagesPrice)
 
     const val plannedPriceNote =
-        "Planned prices, each a one-time unlock and not a subscription. The store shows the exact " +
+        "Planned prices for where you are, each a one-time unlock and not a subscription. The store shows the exact " +
             "amount in your currency before you pay."
 
     /** Title for a plan card. [languageName] is the language the paywall was opened for. */

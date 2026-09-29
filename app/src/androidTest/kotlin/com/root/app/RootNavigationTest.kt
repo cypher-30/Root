@@ -80,8 +80,10 @@ class RootNavigationTest {
         compose.onNodeWithText("Light", substring = true).performScrollTo().performClick()
         compose.onNodeWithText("Root Premium").performScrollTo().performClick()
         compose.onNodeWithText("Purchases are not set up yet.").performScrollTo().assertExists()
-        compose.onNodeWithText("US$4.99").performScrollTo().assertExists()
-        compose.onNodeWithText("US$9.99").performScrollTo().assertExists()
+        val planned = com.root.app.billing.PremiumOffer.plannedPrices(com.root.app.billing.DeviceCountry.of(
+            androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext))
+        compose.onNodeWithText(planned.oneLanguage).performScrollTo().assertExists()
+        compose.onNodeWithText(planned.allLanguages).performScrollTo().assertExists()
         compose.activityRule.scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
         // Back from the paywall returns to Profile, which has no Profile header icon.
         compose.onAllNodesWithContentDescription("Profile").fetchSemanticsNodes()

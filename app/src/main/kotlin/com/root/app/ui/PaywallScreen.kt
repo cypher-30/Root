@@ -368,6 +368,8 @@ private fun Benefit(title: String, detail: String) {
 
 @Composable
 private fun PlannedPrices(languageName: String?) {
+    val context = LocalContext.current
+    val prices = remember { PremiumOffer.plannedPrices(com.root.app.billing.DeviceCountry.of(context)) }
     Surface(
         shape = RoundedCornerShape(6.dp),
         color = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -375,9 +377,9 @@ private fun PlannedPrices(languageName: String?) {
     ) {
         Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("PLANNED PRICES", style = RootType.label, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            PlannedPriceRow(if (languageName != null) "$languageName only" else "One language", PremiumOffer.plannedLanguagePrice)
+            PlannedPriceRow(if (languageName != null) "$languageName only" else "One language", prices.oneLanguage)
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            PlannedPriceRow("All languages", PremiumOffer.plannedAllLanguagesPrice)
+            PlannedPriceRow("All languages", prices.allLanguages)
             Text(
                 PremiumOffer.plannedPriceNote,
                 style = MaterialTheme.typography.bodySmall,

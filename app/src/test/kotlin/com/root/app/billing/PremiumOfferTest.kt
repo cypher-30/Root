@@ -49,6 +49,13 @@ class PremiumOfferTest {
         assertFalse("kenya" in note)
     }
 
+    @Test fun plannedPricesFollowTheDeviceCountry() {
+        assertEquals(PremiumOffer.PlannedPrices("US$1.99", "US$3.99"), PremiumOffer.plannedPrices("ke"))
+        assertEquals(PremiumOffer.PlannedPrices("US$1.99", "US$3.99"), PremiumOffer.plannedPrices("ZW"))
+        assertEquals(PremiumOffer.PlannedPrices("US$4.99", "US$9.99"), PremiumOffer.plannedPrices("GB"))
+        assertEquals(PremiumOffer.PlannedPrices("US$4.99", "US$9.99"), PremiumOffer.plannedPrices(null))
+    }
+
     @Test fun redeemCodeIgnoresCaseSpacesAndDashes() {
         assertTrue(RedeemCode.isValid("SHIPATON2026"))
         assertTrue(RedeemCode.isValid(" shipaton-2026 "))
