@@ -90,10 +90,16 @@ CHECK BEFORE YOU SUBMIT
 
 VIDEO (under 2 minutes, on a real phone)
 ----------------------------------------
-Two 1:55 films are already built in ..\..\Motion (read Motion\README.md). Only
-rehearsal cuts exist so far, taken on the emulator and stamped "not for
-submission". Capture the real phone footage, rebuild, and upload the main film
-("A little closer") to YouTube or Vimeo as Public (the rules say "publicly visible").
+DONE (29 Sep): the final films are built from real phone footage (OPPO CPH2159,
+light theme, one scene per language: Amharic, Swahili, Dholuo, Shona, including a
+real RevenueCat Test Store purchase). They are in ..\..\Motion\exports\, all 1:55:
+  root-a-little-closer.mp4                  main, text-led (recommended)
+  root-a-little-closer-narrated.mp4         the same picture with a calm English
+                                            voiceover (local TTS, commentary only)
+  root-built-to-reconnect-narrated.mp4      backup founder demo, narrated
+  root-thumbnail.jpg                        project thumbnail, from a phone frame
+TO DO: watch them, upload your pick to YouTube or Vimeo as Public (the rules say
+"publicly visible"), and paste the link into Devpost.
 If you record a simple demo instead, this flow fits in about 1:50:
 0:00  Launch: the root-line animation and startup sound.
 0:10  The why, in one line: "Distance from home shouldn't become distance from
