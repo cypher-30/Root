@@ -29,12 +29,13 @@ GALLERY IMAGES (upload in this order)
 02-root-a-session-not-a-streak.png        1800x1200  practice and "Enough for today"
 03-root-a-path-never-a-locked-door.png    1800x1200  Learn path and a guided conversation
 04-root-real-voices-and-culture.png       1800x1200  real credited recordings and culture notes
-05-root-fair-by-design.png                1800x1200  planned prices and the language picker
+05-root-premium-sets.png                  1800x1200  a locked premium set and the Premium screen
 06-root-app-icon-1024.png                 1024x1024  required app icon, full and uncropped
 07-root-app-screenshot-1179x2556.png      1179x2556  required screenshot, no device frame
 
-All images are real screens from the current build (main @ 91f0b5f) on the
-Pixel 7 Pro emulator. The display was set to exactly 1179x2556, so the required
+All images are real screens from the current build on the Pixel 7 Pro
+emulator. 05 is new: on Devpost, delete the old 05 ("fair by design") and
+upload 05-root-premium-sets.png. The display was set to exactly 1179x2556, so the required
 screenshot is native, not stretched. The icon is drawn from the app's own
 launcher vector.
 
@@ -44,7 +45,7 @@ GALLERY CAPTIONS (describe what each image shows; all under 140 characters)
 02  Left: a practice prompt waiting to be recalled. Right: the end of a session, where a root has grown for 12 recalled phrases.
 03  The Amharic Learn path with one lesson marked Completed, and a guided conversation step set in a cafe in Addis Ababa.
 04  Explore: Amharic numbers with credited Lingua Libre recordings and Save buttons, next to culture notes on time and coffee.
-05  The Premium screen with planned one-time prices (US$4.99 for one language, US$9.99 for all) and the language picker.
+05  Left: Heart words, a locked premium set in Explore. Right: the Premium screen listing the Amharic premium sets.
 06  Root's app icon: the hand-drawn root mark on warm paper.
 07  The Practice tab in Amharic: the greeting Tena yisTilliñ revealed, with Missed, Close and Got it to rate your recall.
 
@@ -62,14 +63,22 @@ WHAT ONLY YOU CAN FILL IN
 
 CHECK BEFORE YOU SUBMIT
 -----------------------
-1. RevenueCat purchase requirement: this is the biggest risk. The rules say a
-   project "must ... use the RevenueCat SDK to power at least one in-app or web
-   purchase". Root has RevenueCat integrated, but by design it sells nothing until
-   a native-reviewed premium pack exists. That means no purchase can be shown
-   today. The rules also say Next Gen is judged on the video and the repository,
-   so this may be fine. Ask in the Shipaton Discord (or email the organizers)
-   before the deadline rather than guessing. The notes for the judges already
-   explain this honestly.
+1. RevenueCat purchase requirement: the rules say a project "must ... use the
+   RevenueCat SDK to power at least one in-app or web purchase". Root now sells
+   two premium sets per language through RevenueCat's Test Store. DONE (29 Sep):
+   the products, entitlements and "default" packages exist (RevenueCat dashboard
+   > Test Store app; full table in docs\PREMIUM.md):
+     root_premium_all      US$9.99  -> entitlement premium
+     root_premium_dholuo   US$4.99  -> entitlement premium_dholuo
+     root_premium_shona    US$4.99  -> entitlement premium_shona
+     root_premium_swahili  US$4.99  -> entitlement premium_swahili
+     root_premium_amharic  US$4.99  -> entitlement premium_amharic
+   One-time (non-consumable). A sandbox purchase of root_premium_swahili was
+   made on the phone and unlocked Swahili's sets, so it shows in the dashboard.
+   Cancel, failure and restore were checked too. The older Monthly/Yearly/
+   Lifetime packages in "default" are ignored by the app.
+   Judges can also type the code SHIPATON2026 on the Premium screen to open
+   everything without buying (answer 18).
 2. Repository link: main was fast-forwarded to the current build (91f0b5f),
    so the answers link the repository root: https://github.com/cypher-30/Root
    The MIT license is detected by GitHub (checked).
@@ -93,7 +102,7 @@ If you record a simple demo instead, this flow fits in about 1:50:
       save it; open My notebook.
 1:15  Stories & culture: "Ethiopian time".
 1:25  Profile > Language: switch to Swahili; Practice, Learn and Explore all follow.
-1:35  Root Premium: per-language planned prices, "Premium isn't ready yet",
-      Restore. Say plainly why nothing is for sale yet.
+1:35  Explore: a locked premium set > See Premium > buy one language with the
+      RevenueCat Test Store sheet > the set opens with its phrases.
 1:50  End on the Root mark.
 Only use music you have the rights to, or none; the app's own sounds are enough.
