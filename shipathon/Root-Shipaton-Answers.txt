@@ -98,9 +98,10 @@ github
 ----- END -----
 
 3. "Try it out" links
-   [PASTE] Two links: the code, and our Premium design. Use 'add another link' for the second.
+   [PASTE] Three links: the code, the installable demo APK, and our Premium design. Use 'add another link' for each extra one.
 ----- BEGIN -----
 https://github.com/cypher-30/Root
+https://github.com/cypher-30/Root/releases/tag/v0.1.0-shipaton
 https://github.com/cypher-30/Root/blob/main/docs/PREMIUM.md
 ----- END -----
 
@@ -268,7 +269,7 @@ Root is a Next Gen (student) submission for Android.
 
 The code is in our public, MIT-licensed repository: https://github.com/cypher-30/Root
 
-To run it: .\gradlew.bat :app:installDebug on Android 8.0 (API 26) or later. No API key is needed to practise, learn, explore, add your own words or record. The RevenueCat paywall needs a Test Store key in user-level gradle.properties; the README explains this.
+To try it: install the demo APK from our GitHub release, https://github.com/cypher-30/Root/releases/tag/v0.1.0-shipaton (Android 8.0 or later; allow "install unknown apps"; no account). It is a debug-signed demo build with the RevenueCat Test Store connected, so purchases are sandbox and cost nothing. To build it yourself: .\gradlew.bat :app:installDebug. No API key is needed to practise, learn, explore, add your own words or record. The RevenueCat paywall needs a Test Store key in user-level gradle.properties; the README explains this.
 
 Where things stand today:
 - RevenueCat is integrated with per-language entitlements (premium_<language>), an all-languages bundle (premium), restore, and an offline entitlement cache.

@@ -3,6 +3,12 @@
 A quiet practice app for reconnecting with your heritage language. **A session, not
 a destination:** open on a word, bring it to mind, rate your recall, and leave.
 
+**Try it:** install the demo APK from the
+[v0.1.0-shipaton release](https://github.com/cypher-30/Root/releases/tag/v0.1.0-shipaton)
+(Android 8.0+, allow "install unknown apps", no account). It is a debug-signed demo
+build: Premium runs on the RevenueCat Test Store (sandbox, no real money), or enter the
+code `SHIPATON2026` on the Premium screen. Not on Google Play.
+
 Root is a native Android / Jetpack Compose prototype, not a collection of disconnected
 mockups. The same screens work in warm-paper light mode and warm-charcoal dark mode.
 Practice, contributed phrases, recordings, scheduling, and challenges live on-device.

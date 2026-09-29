@@ -79,9 +79,12 @@ CHECK BEFORE YOU SUBMIT
    Lifetime packages in "default" are ignored by the app.
    Judges can also type the code SHIPATON2026 on the Premium screen to open
    everything without buying (answer 18).
-2. Repository link: main was fast-forwarded to the current build (91f0b5f),
-   so the answers link the repository root: https://github.com/cypher-30/Root
-   The MIT license is detected by GitHub (checked).
+2. Repository link: the answers link the repository root:
+   https://github.com/cypher-30/Root  The MIT license is detected by GitHub (checked).
+   Installable demo APK (debug build, Test Store connected, 29 Sep, from main @ 961132c):
+   https://github.com/cypher-30/Root/releases/tag/v0.1.0-shipaton
+   It is linked in the README, in "Try it out" (answer 3) and in the judge notes
+   (answer 41). On Devpost, add it as a second "Try it out" link.
 3. The story is about 1,000 words. Devpost showed no limit in the form you
    copied; if it complains, cut "Accomplishments" first.
 
