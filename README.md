@@ -21,8 +21,8 @@ Real screens from an Android phone (OPPO CPH2159), across Amharic, Dholuo and Sh
 
 | | |
 |---|---|
-| ![Closer to home](shipathon/uploads/01-root-closer-to-home.png) | ![A session, not a streak](shipathon/uploads/02-root-a-session-not-a-streak.png) |
-| ![A path, never a locked door](shipathon/uploads/03-root-a-path-never-a-locked-door.png) | ![Real voices and culture](shipathon/uploads/04-root-real-voices-and-culture.png) |
+| ![Closer to home](docs/images/05-closer-to-home.png) | ![A session, not a streak](docs/images/06-a-session-not-a-streak.png) |
+| ![A path, never a locked door](docs/images/07-a-path-never-a-locked-door.png) | ![Real voices and culture](docs/images/08-real-voices-and-culture.png) |
 
 Root is a native Android / Jetpack Compose prototype, not a collection of disconnected
 mockups. The same screens work in warm-paper light mode and warm-charcoal dark mode.

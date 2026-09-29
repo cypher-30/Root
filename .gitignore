@@ -34,3 +34,7 @@ content/dist/
 
 # Kotlin compiler daemon logs/session cache (IDE/Gradle local state, not source)
 .kotlin/
+
+# Submission prep and design references: kept on the author's machine, not in the repo.
+/shipathon/
+/Root Figma Screenshots/
