@@ -9,7 +9,9 @@ a destination:** open on a word, bring it to mind, rate your recall, and leave.
 build: Premium runs on the RevenueCat Test Store (sandbox, no real money), or enter the
 code `SHIPATON2026` on the Premium screen. Not on Google Play.
 
-![Root: a little closer to your words](docs/images/root-banner.jpg)
+**Watch the demo (1:55):** https://youtu.be/BvGsybaZ6wA
+
+[![Root: a little closer to your words. Watch the demo on YouTube](docs/images/root-banner.jpg)](https://youtu.be/BvGsybaZ6wA)
 
 ## See it
 
